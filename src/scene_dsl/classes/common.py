@@ -8,7 +8,8 @@ from rdflib import Namespace, URIRef
 class IHasParent:
     def __init__(self, **kwargs) -> None:
         self.parent = kwargs.get("parent", None)
-        assert self.parent is not None, f"'parent' not handled for type '{self.__class__.__name__}'"
+        if self.parent is None:
+            raise ValueError(f"'parent' not handled for type '{self.__class__.__name__}'")
 
 
 class IHasNamespace(IHasParent):
@@ -27,11 +28,13 @@ class IHasNamespaceDeclare(IHasNamespace):
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
         self.ns = kwargs.get("ns", None)
-        assert self.ns is not None
+        if self.ns is None:
+            raise ValueError("Namespace declaration requires 'ns'")
         self.ns_prefix = self.ns.name
 
         self.name = kwargs.get("name", None)
-        assert self.name is not None
+        if self.name is None:
+            raise ValueError("Namespace declaration requires 'name'")
 
         self._ns_obj = Namespace(self.ns.uri)
         self.uri = self._ns_obj[self.name]

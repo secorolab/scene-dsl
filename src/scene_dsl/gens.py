@@ -13,10 +13,11 @@ _GRAPH_FORMAT_EXT = {"json-ld": "json", "ttl": "ttl", "xml": "xml"}
 
 def parse_rdflib_serial_args(**kwargs):
     g_format = kwargs.get("format", "json-ld")
-    assert g_format in _GRAPH_FORMAT_EXT, (
-        f"file extension not handled for graph format '{g_format}', "
-        f"try {list(_GRAPH_FORMAT_EXT.keys())}"
-    )
+    if g_format not in _GRAPH_FORMAT_EXT:
+        raise ValueError(
+            f"file extension not handled for graph format '{g_format}', "
+            f"try {list(_GRAPH_FORMAT_EXT.keys())}"
+        )
     ser_kwargs = {"format": g_format}
     if g_format == "json-ld":
         ser_kwargs["auto_compact"] = "nocompact" not in kwargs

@@ -18,9 +18,8 @@ class Object(IHasNamespace):
 
     @property
     def namespace(self) -> Namespace:
-        assert isinstance(
-            self.parent, (ObjectSet, SimilarObjectSet)
-        ), f"parent of obj not an object set: {self.parent}"
+        if not isinstance(self.parent, (ObjectSet, SimilarObjectSet)):
+            raise TypeError(f"parent of obj not an object set: {self.parent}")
         return self.parent.namespace
 
     @property
@@ -40,9 +39,8 @@ class Workspace(IHasNamespace):
 
     @property
     def namespace(self) -> Namespace:
-        assert isinstance(
-            self.parent, WorkspaceSet
-        ), f"parent of ws not a 'WorkspaceSet': {self.parent}"
+        if not isinstance(self.parent, WorkspaceSet):
+            raise TypeError(f"parent of ws not a 'WorkspaceSet': {self.parent}")
         return self.parent.namespace
 
     @property
@@ -62,9 +60,8 @@ class Agent(IHasNamespace):
 
     @property
     def namespace(self) -> Namespace:
-        assert isinstance(
-            self.parent, (AgentSet, SimilarAgentSet)
-        ), f"parent of agn not an agent set: {self.parent}"
+        if not isinstance(self.parent, (AgentSet, SimilarAgentSet)):
+            raise TypeError(f"parent of agn not an agent set: {self.parent}")
         return self.parent.namespace
 
     @property

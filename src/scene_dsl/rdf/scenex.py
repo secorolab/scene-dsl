@@ -488,9 +488,8 @@ def create_scenex_model_graph(model: Any, g: Optional[Graph] = None) -> Graph:
         add_scene_model(graph=g, scene=scn, set_uris=set_uris)
 
     scene_insts = getattr(model, "scene_insts", None)
-    assert scene_insts is not None and isinstance(
-        scene_insts, list
-    ), "no 'scene_insts' attr of type 'list' in model"
+    if scene_insts is None or not isinstance(scene_insts, list):
+        raise ValueError("no 'scene_insts' attr of type 'list' in model")
     for scene_inst in scene_insts:
         add_modelled_scene(graph=g, scene_inst=scene_inst)
 

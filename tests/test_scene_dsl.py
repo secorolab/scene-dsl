@@ -70,3 +70,70 @@ scene (ns=n) dag_scene {
     model = scene_metamodel().model_from_file(model_path)
     with pytest.raises(RuntimeError, match="Shared or cyclic workspace compositions"):
         create_scene_model_graph(model)
+
+
+def _write_collision_scene(tmp_path: Path) -> None:
+    (tmp_path / "collision.scene").write_text(
+        """ns n = \"https://example.test/\"
+obj set (ns=n) objs { object cup, object bowl }
+ws set (ns=n) wss { workspace table }
+agn set (ns=n) agns { agent robot }
+scene (ns=n) s {
+    obj set <objs>
+    ws set <wss>
+    agn set <agns>
+}
+"""
+    )
+
+
+def test_duplicate_geometry_uri_is_rejected(tmp_path):
+    _write_collision_scene(tmp_path)
+    model_path = tmp_path / "duplicate_geometry.scenex"
+    model_path.write_text(
+        """import \"collision.scene\"
+ns n = \"https://example.test/\"
+scene inst (ns=n) sx {
+    scene: <s>
+    obj <objs.cup> {
+        model cup_model as urdf { sys path = \"cup.urdf\" }
+        geom dup { root: frame root }
+    }
+    obj <objs.bowl> {
+        model bowl_model as urdf { sys path = \"bowl.urdf\" }
+        geom dup { root: frame root }
+    }
+}
+"""
+    )
+
+    model = scenex_metamodel().model_from_file(model_path)
+    with pytest.raises(ValueError, match="Duplicate model URI"):
+        create_scenex_model_graph(model)
+
+
+def test_duplicate_body_uri_is_rejected(tmp_path):
+    _write_collision_scene(tmp_path)
+    model_path = tmp_path / "duplicate_body.scenex"
+    model_path.write_text(
+        """import \"collision.scene\"
+ns n = \"https://example.test/\"
+scene inst (ns=n) sx {
+    scene: <s>
+    obj <objs.cup> {
+        model cup_model as urdf { sys path = \"cup.urdf\" }
+        geom cup_geom { root: frame root }
+        body same_body { inertial frame: <cup_geom.root> mass: 1.0 }
+    }
+    obj <objs.bowl> {
+        model bowl_model as urdf { sys path = \"bowl.urdf\" }
+        geom bowl_geom { root: frame root }
+        body same_body { inertial frame: <bowl_geom.root> mass: 2.0 }
+    }
+}
+"""
+    )
+
+    model = scenex_metamodel().model_from_file(model_path)
+    with pytest.raises(ValueError, match="Duplicate model URI"):
+        create_scenex_model_graph(model)

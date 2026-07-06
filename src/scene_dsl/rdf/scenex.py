@@ -262,15 +262,17 @@ def add_model_spec(graph: Graph, elem_model: ElementModel) -> None:
         raise ValueError(f"Unhandled model kind: {elem_model.model_kind}")
 
 
-def _ensure_unique_scene_models(
-    elem_model: ElementModel, scene_inst: SceneInstance, seen_model_uris: set[URIRef]
-):
-    if elem_model.uri in seen_model_uris:
+def _ensure_unique_scene_uri(
+    node_uri: URIRef,
+    scene_inst: SceneInstance,
+    seen_uris: set[URIRef],
+) -> None:
+    if node_uri in seen_uris:
         raise ValueError(
-            f"Duplicate model URI '{elem_model.uri}' in scene instance '{scene_inst.uri}'. "
+            f"Duplicate model URI '{node_uri}' in scene instance '{scene_inst.uri}'. "
             "Use unique model names within a scene instance."
         )
-    seen_model_uris.add(elem_model.uri)
+    seen_uris.add(node_uri)
 
 
 def add_modelled_obj(
@@ -284,6 +286,11 @@ def add_modelled_obj(
     graph.add(triple=(scene_inst.uri, URI_EXEC_PRED_HAS_MODELLED_OBJ, obj_model.modelled_uri))
     obj_geom = obj_model.geometry
     if obj_geom is not None:
+        _ensure_unique_scene_uri(
+            node_uri=obj_geom.uri,
+            scene_inst=scene_inst,
+            seen_uris=seen_model_uris,
+        )
         graph.add(triple=(obj_model.modelled_uri, URI_ENV_PRED_HAS_OBJ_MODEL, obj_geom.uri))
         add_geometry_model(
             graph=graph,
@@ -292,11 +299,16 @@ def add_modelled_obj(
             scene_geom=scene_inst.geometry,
         )
     if obj_model.body is not None:
+        _ensure_unique_scene_uri(
+            node_uri=obj_model.body.uri,
+            scene_inst=scene_inst,
+            seen_uris=seen_model_uris,
+        )
         add_body(graph=graph, body=obj_model.body)
 
     for model in obj_model.models:
-        _ensure_unique_scene_models(
-            elem_model=model, scene_inst=scene_inst, seen_model_uris=seen_model_uris
+        _ensure_unique_scene_uri(
+            node_uri=model.uri, scene_inst=scene_inst, seen_uris=seen_model_uris
         )
         graph.add(triple=(obj_model.modelled_uri, URI_ENV_PRED_HAS_OBJ_MODEL, model.uri))
         graph.add(triple=(model.uri, RDF.type, URI_ENV_TYPE_OBJ_MODEL))
@@ -315,8 +327,8 @@ def add_modelled_agn(
 
     # Kinematic chain model
     kc_model = agn_model.kinematic.model
-    _ensure_unique_scene_models(
-        elem_model=kc_model, scene_inst=scene_inst, seen_model_uris=seen_model_uris
+    _ensure_unique_scene_uri(
+        node_uri=kc_model.uri, scene_inst=scene_inst, seen_uris=seen_model_uris
     )
     graph.add(triple=(agn_model.modelled_uri, URI_AGN_PRED_HAS_AGN_MODEL, kc_model.uri))
     graph.add(triple=(kc_model.uri, RDF.type, URI_AGN_TYPE_AGN_MODEL))
@@ -324,6 +336,11 @@ def add_modelled_agn(
     add_model_spec(graph=graph, elem_model=kc_model)
 
     # Add geometry model to the same node
+    _ensure_unique_scene_uri(
+        node_uri=agn_model.kinematic.geometry.uri,
+        scene_inst=scene_inst,
+        seen_uris=seen_model_uris,
+    )
     add_geometry_model(
         graph=graph,
         geom_spec=agn_model.kinematic.geometry,
@@ -335,8 +352,8 @@ def add_modelled_agn(
         model = attachment.model
         if model is None:
             continue
-        _ensure_unique_scene_models(
-            elem_model=model, scene_inst=scene_inst, seen_model_uris=seen_model_uris
+        _ensure_unique_scene_uri(
+            node_uri=model.uri, scene_inst=scene_inst, seen_uris=seen_model_uris
         )
         graph.add(triple=(agn_model.modelled_uri, URI_AGN_PRED_HAS_AGN_MODEL, model.uri))
         graph.add(triple=(agn_model.modelled_uri, URI_EXEC_PRED_HAS_FIXED_ATTACHMENT, model.uri))
@@ -344,6 +361,11 @@ def add_modelled_agn(
         graph.add(triple=(model.uri, RDF.type, URI_AGN_TYPE_ATTACHMENT_MODEL))
         add_model_spec(graph=graph, elem_model=model)
         if attachment.geometry is not None:
+            _ensure_unique_scene_uri(
+                node_uri=attachment.geometry.uri,
+                scene_inst=scene_inst,
+                seen_uris=seen_model_uris,
+            )
             add_geometry_model(
                 graph=graph,
                 node_id=model.uri,
@@ -351,6 +373,11 @@ def add_modelled_agn(
                 scene_geom=scene_inst.geometry,
             )
         if attachment.body is not None:
+            _ensure_unique_scene_uri(
+                node_uri=attachment.body.uri,
+                scene_inst=scene_inst,
+                seen_uris=seen_model_uris,
+            )
             add_body(graph=graph, body=attachment.body)
 
 
@@ -361,8 +388,8 @@ def add_modelled_obj_set(
     seen_model_uris: set[URIRef],
 ) -> None:
     for model in obj_model_set.models:
-        _ensure_unique_scene_models(
-            elem_model=model, scene_inst=scene_inst, seen_model_uris=seen_model_uris
+        _ensure_unique_scene_uri(
+            node_uri=model.uri, scene_inst=scene_inst, seen_uris=seen_model_uris
         )
         graph.add(triple=(model.uri, RDF.type, URI_ENV_TYPE_OBJ_MODEL))
         add_model_spec(graph=graph, elem_model=model)
@@ -382,8 +409,8 @@ def add_modelled_agn_set(
     seen_model_uris: set[URIRef],
 ) -> None:
     for model in agn_model_set.models:
-        _ensure_unique_scene_models(
-            elem_model=model, scene_inst=scene_inst, seen_model_uris=seen_model_uris
+        _ensure_unique_scene_uri(
+            node_uri=model.uri, scene_inst=scene_inst, seen_uris=seen_model_uris
         )
         graph.add(triple=(model.uri, RDF.type, URI_AGN_TYPE_AGN_MODEL))
         add_model_spec(graph=graph, elem_model=model)
@@ -404,6 +431,11 @@ def add_modelled_scene(graph: Graph, scene_inst: SceneInstance) -> None:
     seen_model_uris = set()
 
     if scene_inst.geometry is not None:
+        _ensure_unique_scene_uri(
+            node_uri=scene_inst.geometry.uri,
+            scene_inst=scene_inst,
+            seen_uris=seen_model_uris,
+        )
         add_geometry_model(graph=graph, geom_spec=scene_inst.geometry)
 
     for obj_model in scene_inst.modelled_objs:

@@ -1,0 +1,30 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "scene-dsl"
+version = "0.0.1"
+authors = [
+    { name="Minh Nguyen", email="minh@mail.minhnh.com" }
+]
+description = "A textX language for robotic scene models."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "textx", "rdflib", "rdf-utils", "bdd-dsl"
+]
+
+[project.entry-points.textx_languages]
+scene = "scene_dsl.registration:scene_lang"
+scenex = "scene_dsl.registration:scenex_lang"
+
+[project.entry-points.textx_generators]
+scene-console = "scene_dsl.registration:scene_console_gen"
+scene-graph = "scene_dsl.registration:scene_graph_gen_desc"
+scenex-console = "scene_dsl.registration:scenex_console_gen"
+scenex-graph = "scene_dsl.registration:scenex_graph_gen_desc"
+
+[tool.ruff]
+line-length = 100
+

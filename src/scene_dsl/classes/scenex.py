@@ -30,9 +30,8 @@ class ElementModel(IHasNamespace):
 
     @property
     def namespace(self) -> Namespace:
-        assert isinstance(
-            self.parent, IHasNamespace
-        ), f"parent of ElementModel not an 'IHasNamespace': {self.parent}"
+        if not isinstance(self.parent, IHasNamespace):
+            raise TypeError(f"parent of ElementModel not an 'IHasNamespace': {self.parent}")
         return self.parent.namespace
 
     @property
@@ -89,17 +88,15 @@ class ModelledObject(IHasNamespace):
 
     @property
     def namespace(self) -> Namespace:
-        assert isinstance(
-            self.parent, SceneInstance
-        ), f"parent of modelled obj not a 'SceneInstance': {self.parent}"
+        if not isinstance(self.parent, SceneInstance):
+            raise TypeError(f"parent of modelled obj not a 'SceneInstance': {self.parent}")
         return self.parent.namespace
 
     @property
     def modelled_uri(self) -> URIRef:
         if self._modelled_uri is None:
-            assert isinstance(
-                self.parent, SceneInstance
-            ), f"parent of modelled obj not a 'SceneInstance': {self.parent}"
+            if not isinstance(self.parent, SceneInstance):
+                raise TypeError(f"parent of modelled obj not a 'SceneInstance': {self.parent}")
             self._modelled_uri = self.namespace[f"modelled-obj-{self.parent.name}-{self.obj.name}"]
         return self._modelled_uri
 
@@ -115,16 +112,14 @@ class ModelledObjectSet(IHasNamespace):
 
     @property
     def namespace(self) -> Namespace:
-        assert isinstance(
-            self.parent, SceneInstance
-        ), f"parent of modelled obj set not a 'SceneInstance': {self.parent}"
+        if not isinstance(self.parent, SceneInstance):
+            raise TypeError(f"parent of modelled obj set not a 'SceneInstance': {self.parent}")
         return self.parent.namespace
 
     def modelled_uri(self, index: int) -> URIRef:
         obj = self.obj_set.objects[index]
-        assert isinstance(
-            self.parent, SceneInstance
-        ), f"parent of modelled obj set not a 'SceneInstance': {self.parent}"
+        if not isinstance(self.parent, SceneInstance):
+            raise TypeError(f"parent of modelled obj set not a 'SceneInstance': {self.parent}")
         return self.namespace[f"modelled-obj-{self.parent.name}-{obj.name}"]
 
 
@@ -140,17 +135,15 @@ class Frame(IHasNamespace):
 
     @property
     def namespace(self) -> Namespace:
-        assert isinstance(
-            self.parent, IHasNamespace
-        ), f"parent of frame has no namespace: {self.parent}"
+        if not isinstance(self.parent, IHasNamespace):
+            raise TypeError(f"parent of frame has no namespace: {self.parent}")
         return self.parent.namespace
 
     @property
     def uri(self) -> URIRef:
         if self._uri is None:
-            assert isinstance(
-                self.parent, GeometrySpec
-            ), f"parent of frame not a GeometrySpec: {self.parent}"
+            if not isinstance(self.parent, GeometrySpec):
+                raise TypeError(f"parent of frame not a GeometrySpec: {self.parent}")
             self._uri = self.namespace[f"{self.parent.name}-{self.name}"]
         return self._uri
 
@@ -178,9 +171,8 @@ class GeometrySpec(IHasNamespace):
 
     @property
     def namespace(self) -> Namespace:
-        assert isinstance(
-            self.parent, IHasNamespace
-        ), f"parent of geometry spec has no namespace: {self.parent}"
+        if not isinstance(self.parent, IHasNamespace):
+            raise TypeError(f"parent of geometry spec has no namespace: {self.parent}")
         return self.parent.namespace
 
     @property
@@ -219,9 +211,10 @@ class BodySpec(IHasNamespace):
 
     @property
     def namespace(self) -> Namespace:
-        assert isinstance(
-            self.parent, (ModelledObject, FixedAttachment)
-        ), f"parent of body spec not a modelled object or attachment: {self.parent}"
+        if not isinstance(self.parent, (ModelledObject, FixedAttachment)):
+            raise TypeError(
+                f"parent of body spec not a modelled object or attachment: {self.parent}"
+            )
         return self.parent.namespace
 
     @property
@@ -254,9 +247,8 @@ class KinematicSpec(IHasNamespace):
 
     @property
     def namespace(self) -> Namespace:
-        assert isinstance(
-            self.parent, ModelledAgent
-        ), f"parent of kinematic spec not a 'ModelledAgent': {self.parent}"
+        if not isinstance(self.parent, ModelledAgent):
+            raise TypeError(f"parent of kinematic spec not a 'ModelledAgent': {self.parent}")
         return self.parent.namespace
 
 
@@ -274,9 +266,8 @@ class FixedAttachment(IHasNamespace):
 
     @property
     def namespace(self) -> Namespace:
-        assert isinstance(
-            self.parent, ModelledAgent
-        ), f"parent of fixed attachment not a 'ModelledAgent': {self.parent}"
+        if not isinstance(self.parent, ModelledAgent):
+            raise TypeError(f"parent of fixed attachment not a 'ModelledAgent': {self.parent}")
         return self.parent.namespace
 
     @property
@@ -299,17 +290,15 @@ class ModelledAgent(IHasNamespace):
 
     @property
     def namespace(self) -> Namespace:
-        assert isinstance(
-            self.parent, SceneInstance
-        ), f"parent of modelled agn not a 'SceneInstance': {self.parent}"
+        if not isinstance(self.parent, SceneInstance):
+            raise TypeError(f"parent of modelled agn not a 'SceneInstance': {self.parent}")
         return self.parent.namespace
 
     @property
     def modelled_uri(self) -> URIRef:
         if self._modelled_uri is None:
-            assert isinstance(
-                self.parent, SceneInstance
-            ), f"parent of modelled agn not a 'SceneInstance': {self.parent}"
+            if not isinstance(self.parent, SceneInstance):
+                raise TypeError(f"parent of modelled agn not a 'SceneInstance': {self.parent}")
             self._modelled_uri = self.namespace[f"modelled-agn-{self.parent.name}-{self.agn.name}"]
         return self._modelled_uri
 
@@ -325,16 +314,14 @@ class ModelledAgentSet(IHasNamespace):
 
     @property
     def namespace(self) -> Namespace:
-        assert isinstance(
-            self.parent, SceneInstance
-        ), f"parent of modelled agn set not a 'SceneInstance': {self.parent}"
+        if not isinstance(self.parent, SceneInstance):
+            raise TypeError(f"parent of modelled agn set not a 'SceneInstance': {self.parent}")
         return self.parent.namespace
 
     def modelled_uri(self, index: int) -> URIRef:
         agn = self.agn_set.agents[index]
-        assert isinstance(
-            self.parent, SceneInstance
-        ), f"parent of modelled agn set not a 'SceneInstance': {self.parent}"
+        if not isinstance(self.parent, SceneInstance):
+            raise TypeError(f"parent of modelled agn set not a 'SceneInstance': {self.parent}")
         return self.namespace[f"modelled-agn-{self.parent.name}-{agn.name}"]
 
 

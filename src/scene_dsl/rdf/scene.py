@@ -123,16 +123,16 @@ def add_ws_comp(
         graph.add(triple=(ws_comp.uri, RDF.type, URI_ENV_TYPE_WS_WS))
 
     for obj in ws_comp.objects:
-        assert isinstance(
-            obj.parent, (ObjectSet, SimilarObjectSet)
-        ), f"parent of obj not an object set: {obj.parent}"
+        if not isinstance(obj.parent, (ObjectSet, SimilarObjectSet)):
+            raise TypeError(f"parent of obj not an object set: {obj.parent}")
         if obj.parent.uri not in set_uris:
             add_obj_set(graph=graph, obj_set=obj.parent, set_uris=set_uris)
             graph.add(triple=(scene.scene_obj_uri, URI_ENV_PRED_HAS_OBJ, obj.uri))
         graph.add(triple=(ws_comp.uri, URI_ENV_PRED_HAS_OBJ, obj.uri))
 
     for ws in ws_comp.workspaces:
-        assert isinstance(ws.parent, WorkspaceSet), f"parent of ws not a workspace set: {ws.parent}"
+        if not isinstance(ws.parent, WorkspaceSet):
+            raise TypeError(f"parent of ws not a workspace set: {ws.parent}")
         if ws.parent.uri not in set_uris:
             add_ws_set(graph=graph, ws_set=ws.parent, set_uris=set_uris)
             graph.add(triple=(scene.scene_ws_uri, URI_ENV_PRED_HAS_WS, ws.uri))
@@ -211,9 +211,8 @@ def create_scene_model_graph(model: Any, g: Optional[Graph] = None) -> Graph:
         g = Graph()
 
     scene_models = getattr(model, "scene_models", None)
-    assert scene_models is not None and isinstance(
-        scene_models, list
-    ), "no 'scene_models' attr of type 'list' in model"
+    if scene_models is None or not isinstance(scene_models, list):
+        raise ValueError("no 'scene_models' attr of type 'list' in model")
     set_uris = set()
     for scn in scene_models:
         add_scene_model(graph=g, scene=scn, set_uris=set_uris)

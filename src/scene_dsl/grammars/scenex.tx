@@ -23,6 +23,7 @@ PoseSpec:
 'pose' '{'
     ('wrt' ':' '<' wrt=[Frame|FQN] '>')?
     'xyz' ':' '(' x=FLOAT ',' y=FLOAT ',' z=FLOAT ')'
+    length_unit=LengthUnit
     'orientation' ':' orientation=OrientationSpec
 '}'
 ;
@@ -39,6 +40,8 @@ EulerOrientationSpec:
 EulerAxes: 'xyz' | 'xzy' | 'yxz' | 'yzx' | 'zxy' | 'zyx' ;
 BOOL: 'true' | 'false' ;
 AngleUnit: 'rad' | 'deg' ;
+LengthUnit: 'mm' | 'cm' | 'm' ;
+MassUnit: 'kg' | 'g' ;
 
 GeometrySpec:
 'geom' name=IRI_TRUNK '{'
@@ -51,8 +54,12 @@ GeometrySpec:
 BodySpec:
 'body' name=IRI_TRUNK '{'
     'inertial' 'frame' ':' '<' frame=[Frame|FQN] '>'
-    ('mass' ':' mass=FLOAT)?
+    mass=MassQuantity?
 '}'
+;
+
+MassQuantity:
+'mass' ':' value=FLOAT unit=MassUnit
 ;
 
 ModelledObject:

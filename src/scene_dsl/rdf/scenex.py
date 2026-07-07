@@ -101,7 +101,12 @@ URI_QUDT_PRED_UNIT = NS_MM_QUDT["unit"]
 URI_QUDT_PRED_QUANTITY_KIND = NS_MM_QUDT["hasQuantityKind"]
 URI_QUDT_QK_MASS = NS_MM_QUDT_QTY["Mass"]
 URI_QUDT_UNIT_KG = NS_MM_QUDT_UNIT["KiloGM"]
+URI_QUDT_UNIT_G = NS_MM_QUDT_UNIT["GM"]
 URI_QUDT_UNIT_M = NS_MM_QUDT_UNIT["M"]
+URI_QUDT_UNIT_CM = NS_MM_QUDT_UNIT["CentiM"]
+URI_QUDT_UNIT_MM = NS_MM_QUDT_UNIT["MilliM"]
+LENGTH_UNITS = {"m": URI_QUDT_UNIT_M, "cm": URI_QUDT_UNIT_CM, "mm": URI_QUDT_UNIT_MM}
+MASS_UNITS = {"kg": URI_QUDT_UNIT_KG, "g": URI_QUDT_UNIT_G}
 
 NS_XML = Namespace("https://www.w3.org/TR/2006/REC-xml11-20060816#")
 NS_URDF = Namespace("https://wiki.ros.org/urdf/XML/")
@@ -184,7 +189,7 @@ def add_geometry_model(
     graph.add(triple=(coord_uri, URI_GEOM_PRED_X, Literal(pose.x)))
     graph.add(triple=(coord_uri, URI_GEOM_PRED_Y, Literal(pose.y)))
     graph.add(triple=(coord_uri, URI_GEOM_PRED_Z, Literal(pose.z)))
-    graph.add(triple=(coord_uri, URI_QUDT_PRED_UNIT, URI_QUDT_UNIT_M))
+    graph.add(triple=(coord_uri, URI_QUDT_PRED_UNIT, LENGTH_UNITS[pose.length_unit]))
 
     if isinstance(pose.orientation, EulerOrientationSpec):
         graph.add(triple=(coord_uri, RDF.type, URI_GEOM_TYPE_EULER_ANGLES))
@@ -226,8 +231,8 @@ def add_body(graph: Graph, body: BodySpec) -> None:
     graph.add(triple=(body.inertia_coord_uri, RDF.type, URI_DYN_TYPE_MASS_SCALAR))
     graph.add(triple=(body.inertia_coord_uri, URI_DYN_PRED_OF_INERTIA, body.inertia_uri))
     graph.add(triple=(body.inertia_coord_uri, URI_DYN_PRED_AS_SEEN_BY, body.frame.uri))
-    graph.add(triple=(body.inertia_coord_uri, URI_QUDT_PRED_UNIT, URI_QUDT_UNIT_KG))
-    graph.add(triple=(body.inertia_coord_uri, URI_DYN_PRED_MASS, Literal(body.mass)))
+    graph.add(triple=(body.inertia_coord_uri, URI_QUDT_PRED_UNIT, MASS_UNITS[body.mass.unit]))
+    graph.add(triple=(body.inertia_coord_uri, URI_DYN_PRED_MASS, Literal(body.mass.value)))
 
 
 def add_model_spec(graph: Graph, elem_model: ElementModel) -> None:

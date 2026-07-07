@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: MPL-2.0
 from __future__ import annotations
 
-from math import isclose
 from typing import Any, Optional
 
 from rdflib import Namespace, URIRef
@@ -62,12 +61,13 @@ class PoseSpec:
     wrt: Optional["Frame"]
     orientation: OrientationSpec
 
-    def __init__(self, parent, wrt, x, y, z, orientation) -> None:
+    def __init__(self, parent, wrt, x, y, z, length_unit, orientation) -> None:
         self.parent = parent
         self.wrt = wrt
         self.x = x
         self.y = y
         self.z = z
+        self.length_unit = length_unit
         self.orientation = orientation
 
 
@@ -188,9 +188,21 @@ class GeometrySpec(IHasNamespace):
         return self.namespace[f"{self.root.name}-wrt-{wrt.name}-coord"]
 
 
+class MassQuantity:
+    value: float
+    unit: str
+
+    def __init__(self, parent, value, unit) -> None:
+        self.parent = parent
+        if value < 0:
+            raise ValueError(f"MassQuantity must have value >= 0, got {value}")
+        self.value = value
+        self.unit = unit
+
+
 class BodySpec(IHasNamespace):
     frame: Frame
-    mass: Optional[float]
+    mass: Optional[MassQuantity]
     _uri: Optional[URIRef]
     _inertia_uri: Optional[URIRef]
     _inertia_coord_uri: Optional[URIRef]
@@ -200,11 +212,6 @@ class BodySpec(IHasNamespace):
         self.name = name
         self.frame = frame
         self.mass = mass
-        if mass is not None:
-            if mass < 0:
-                raise ValueError(f"BodySpec '{name}' must have mass > 0, got {mass}")
-            if isclose(mass, 0.0):
-                self.mass = None
         self._uri = None
         self._inertia_uri = None
         self._inertia_coord_uri = None

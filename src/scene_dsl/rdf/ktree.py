@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MPL-2.0
 from rdf_utils.namespace import NS_MM_DYN_COORD, NS_MM_GEOM, NS_MM_QUDT_UNIT
-from rdflib import RDF, Graph, Literal, URIRef
+from rdflib import Namespace, RDF, Graph, Literal, URIRef, XSD
 from rdf_utils.models.geometry import (
     URI_KC_PRED_BETWEEN_ATTACHMENTS,
     URI_KC_PRED_COMMON_AXIS,
@@ -29,6 +29,7 @@ from rdf_utils.models.geometry import (
 )
 
 from scene_dsl.classes.ktree import (
+    Actuation,
     FixedJoint,
     JointBase,
     KinematicTreeModel,
@@ -42,6 +43,21 @@ from scene_dsl.rdf.geom import (
 )
 
 URI_GEOM_TYPE_KTREE = NS_MM_GEOM["KinematicTree"]
+NS_MM_KC_STAT = Namespace("https://comp-rob2b.github.io/metamodels/kinematic-chain/state#")
+NS_MM_ACT = Namespace("https://secorolab.github.io/metamodels/robot/actuation#")
+
+URI_ACT_TYPE_ACTUATION = NS_MM_ACT["Actuation"]
+URI_ACT_PRED_JOINT = NS_MM_ACT["joint"]
+URI_ACT_PRED_GEAR_RATIO = NS_MM_ACT["gear-ratio"]
+URI_ACT_PRED_COMMAND_INTERFACE = NS_MM_ACT["command-interface"]
+URI_ACT_PRED_STATE_INTERFACE = NS_MM_ACT["state-interface"]
+URI_ACT_TYPE_JOINT_CURRENT = NS_MM_ACT["JointCurrent"]
+ACTUATION_INTERFACE_TYPES = {
+    "position": NS_MM_KC_STAT["JointPosition"],
+    "velocity": NS_MM_KC_STAT["JointVelocity"],
+    "torque": NS_MM_KC_STAT["JointForce"],
+    "current": URI_ACT_TYPE_JOINT_CURRENT,
+}
 
 MASS_UNITS = {"kg": URI_QUDT_UNIT_KG, "g": URI_QUDT_UNIT_G}
 INERTIA_UNITS = {"kg*m^2": NS_MM_QUDT_UNIT["KiloGM-M2"]}
@@ -113,9 +129,37 @@ def add_revolute_joint(graph: Graph, joint: RevoluteJoint) -> None:
             unit=joint.offset.length_unit,
         )
 
-    # TODO(minhnh): add_actuation()
+    if joint.actuation is not None:
+        add_actuation(
+            graph=graph,
+            joint_uri=joint.uri,
+            actuation_uri=joint.actuation_uri,
+            actuation=joint.actuation,
+        )
     # TODO(minhnh): add_joint_limits()
     # TODO(minhnh): add_joint_mimics()
+
+
+def add_actuation(
+    graph: Graph, joint_uri: URIRef, actuation_uri: URIRef, actuation: Actuation
+) -> None:
+    graph.add((actuation_uri, RDF.type, URI_ACT_TYPE_ACTUATION))
+    graph.add((actuation_uri, URI_ACT_PRED_JOINT, joint_uri))
+    graph.add(
+        (actuation_uri, URI_ACT_PRED_GEAR_RATIO, Literal(actuation.gear_ratio, datatype=XSD.double))
+    )
+    for interface in actuation.cmd_interfaces:
+        graph.add(
+            (
+                actuation_uri,
+                URI_ACT_PRED_COMMAND_INTERFACE,
+                ACTUATION_INTERFACE_TYPES[interface],
+            )
+        )
+    for interface in actuation.state_interfaces:
+        graph.add(
+            (actuation_uri, URI_ACT_PRED_STATE_INTERFACE, ACTUATION_INTERFACE_TYPES[interface])
+        )
 
 
 def add_joint(graph: Graph, joint: JointBase) -> None:

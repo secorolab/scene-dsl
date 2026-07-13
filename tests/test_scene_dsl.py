@@ -17,7 +17,7 @@ from rdf_utils.models.geometry import (
     URI_QUDT_PRED_UNIT,
 )
 
-from rdf_utils.namespace import URL_MM_GEOM_SHACL_EXTS, URL_MM_GEOM_SHACL_REL
+from rdf_utils.namespace import URL_MM_GEOM_SHACL_EXTS, URL_MM_GEOM_SHACL_REL, URL_SECORO_MM
 from rdf_utils.resolver import install_resolver
 
 from scene_dsl.classes.common import FloatVector
@@ -36,6 +36,11 @@ from scene_dsl.rdf.ktree import (
     URI_DYN_TYPE_MOMENT_OF_INERTIA_XYZ,
     URI_DYN_TYPE_PRODUCT_OF_INERTIA_XYZ,
     URI_GEOM_TYPE_KTREE,
+    URI_ACT_PRED_COMMAND_INTERFACE,
+    URI_ACT_PRED_JOINT,
+    URI_ACT_PRED_STATE_INTERFACE,
+    URI_ACT_TYPE_ACTUATION,
+    ACTUATION_INTERFACE_TYPES,
 )
 from scene_dsl.rdf.scene import create_scene_model_graph
 from scene_dsl.rdf.scenex import URI_EXEC_PRED_LINKS_BODY, create_scenex_model_graph
@@ -337,9 +342,34 @@ def test_lab_scenex_generated_geometry_validates_against_shacl():
             # Skipping because of DirectionCosine rule that would fail, potentially
             # because of https://github.com/RDFLib/rdflib/issues/2009
             # URL_MM_GEOM_SHACL_COORD: "ttl",
+            f"{URL_SECORO_MM}/robot/actuation.shacl.ttl": "ttl",
         },
         quiet=False,
     )
+
+
+def test_lab_scenex_generates_panda_joint_actuation():
+    model = scenex_metamodel().model_from_file(MODELS_DIR / "lab.scenex")
+    panda_tree = next(
+        tree for tree in model.scene_insts[0].ktree.trees if tree.name == "panda_tree"
+    )
+    joint = next(joint for joint in panda_tree.joints_spec.joints if joint.name == "panda_joint1")
+    graph = create_scenex_model_graph(model)
+
+    assert (joint.actuation_uri, RDF.type, URI_ACT_TYPE_ACTUATION) in graph
+    assert (joint.actuation_uri, URI_ACT_PRED_JOINT, joint.uri) in graph
+    for interface in joint.actuation.cmd_interfaces:
+        assert (
+            joint.actuation_uri,
+            URI_ACT_PRED_COMMAND_INTERFACE,
+            ACTUATION_INTERFACE_TYPES[interface],
+        ) in graph
+    for interface in joint.actuation.state_interfaces:
+        assert (
+            joint.actuation_uri,
+            URI_ACT_PRED_STATE_INTERFACE,
+            ACTUATION_INTERFACE_TYPES[interface],
+        ) in graph
 
 
 def test_scenex_embedded_kinematic_tree_rejects_bad_frame_ref(tmp_path):

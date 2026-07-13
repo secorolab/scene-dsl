@@ -308,14 +308,12 @@ class ParallelJoints(JointComposition):
 
 
 class Actuation:
-    joint: JointBase
     gear_ratio: float
-    command_interface: str
-    state_interfaces: str
+    cmd_interfaces: list[str]
+    state_interfaces: list[str]
 
-    def __init__(self, parent, joint, gear_ratio, command_interface, state_interfaces) -> None:
+    def __init__(self, parent, gear_ratio, cmd_interfaces, state_interfaces) -> None:
         self.parent = parent
-        self.joint = joint
         self.gear_ratio = gear_ratio
-        self.command_interface = command_interface
+        self.cmd_interfaces = cmd_interfaces
         self.state_interfaces = state_interfaces

@@ -80,9 +80,8 @@ JointMimicSpec:
 ;
 Actuation:
 'actuation' '{'
-    'joint' ':' '<' joint=[JointBase|FQN] '>'
     'gear' 'ratio' ':' gear_ratio=FLOAT
-    'command-interface' ':' command_interface=Interface
+    'command-interface' ':' cmd_interfaces+=Interface
     'state-interface' ':' state_interfaces+=Interface
 '}'
 ;

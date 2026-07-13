@@ -173,6 +173,8 @@ class RevoluteJoint(JointBase):
 
     _uri: Optional[URIRef]
     _actuation_uri: Optional[URIRef]
+    _mimic_uri: Optional[URIRef]
+    _mimic_offset_uri: Optional[URIRef]
     _common_axis_uri: Optional[URIRef]
     _offset_uri: Optional[URIRef]
     _offset_coord_uri: Optional[URIRef]
@@ -201,6 +203,8 @@ class RevoluteJoint(JointBase):
 
         self._uri = None
         self._actuation_uri = None
+        self._mimic_uri = None
+        self._mimic_offset_uri = None
         self._common_axis_uri = None
         self._offset_uri = None
         self._offset_coord_uri = None
@@ -216,6 +220,18 @@ class RevoluteJoint(JointBase):
         if self._actuation_uri is None:
             self._actuation_uri = self.namespace[f"{self.name}-actuation"]
         return self._actuation_uri
+
+    @property
+    def mimic_uri(self) -> URIRef:
+        if self._mimic_uri is None:
+            self._mimic_uri = self.namespace[f"{self.name}-mimic"]
+        return self._mimic_uri
+
+    @property
+    def mimic_offset_uri(self) -> URIRef:
+        if self._mimic_offset_uri is None:
+            self._mimic_offset_uri = self.namespace[f"{self.name}-mimic-offset"]
+        return self._mimic_offset_uri
 
     @property
     def common_axis_uri(self) -> URIRef:

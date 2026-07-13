@@ -1,7 +1,7 @@
 from pathlib import Path
 
 import pytest
-from rdflib import RDF, Literal
+from rdflib import RDF, Literal, XSD
 import numpy as np
 
 from bdd_dsl.models.urirefs import URI_EXEC_PRED_PATH
@@ -15,6 +15,7 @@ from rdf_utils.models.geometry import (
     get_coord_vectorxyz,
     URI_KC_TYPE_REVOLUTE_JOINT,
     URI_QUDT_PRED_UNIT,
+    URI_QUDT_QK_ANGLE,
 )
 
 from rdf_utils.namespace import URL_MM_GEOM_SHACL_EXTS, URL_MM_GEOM_SHACL_REL, URL_SECORO_MM
@@ -38,6 +39,14 @@ from scene_dsl.rdf.ktree import (
     URI_GEOM_TYPE_KTREE,
     URI_ACT_PRED_COMMAND_INTERFACE,
     URI_ACT_PRED_JOINT,
+    URI_KC_EXT_PRED_DEPENDENT_JOINT,
+    URI_KC_EXT_PRED_MULTIPLIER,
+    URI_KC_EXT_PRED_OFFSET,
+    URI_QUDT_PRED_QUANTITY_KIND,
+    URI_QUDT_TYPE_QUANTITY,
+    URI_KC_EXT_PRED_INDEPENDENT_JOINT,
+    URI_KC_EXT_TYPE_JOINT_COUPLING,
+    URI_KC_EXT_TYPE_SCLERONOMIC,
     URI_ACT_PRED_STATE_INTERFACE,
     URI_ACT_TYPE_ACTUATION,
     ACTUATION_INTERFACE_TYPES,
@@ -343,6 +352,7 @@ def test_lab_scenex_generated_geometry_validates_against_shacl():
             # because of https://github.com/RDFLib/rdflib/issues/2009
             # URL_MM_GEOM_SHACL_COORD: "ttl",
             f"{URL_SECORO_MM}/robot/actuation.shacl.ttl": "ttl",
+            f"{URL_SECORO_MM}/kinematic-chain/structural-entities-extension.shacl.ttl": "ttl",
         },
         quiet=False,
     )
@@ -370,6 +380,38 @@ def test_lab_scenex_generates_panda_joint_actuation():
             URI_ACT_PRED_STATE_INTERFACE,
             ACTUATION_INTERFACE_TYPES[interface],
         ) in graph
+
+    mimic_joint = next(
+        joint for joint in panda_tree.joints_spec.joints if joint.name == "panda_joint2"
+    )
+    assert (mimic_joint.mimic_uri, RDF.type, URI_KC_EXT_TYPE_JOINT_COUPLING) in graph
+    assert (mimic_joint.mimic_uri, RDF.type, URI_KC_EXT_TYPE_SCLERONOMIC) in graph
+    assert (
+        mimic_joint.mimic_uri,
+        URI_KC_EXT_PRED_DEPENDENT_JOINT,
+        mimic_joint.uri,
+    ) in graph
+    assert (
+        mimic_joint.mimic_uri,
+        URI_KC_EXT_PRED_INDEPENDENT_JOINT,
+        mimic_joint.mimic.joint.uri,
+    ) in graph
+    assert (
+        mimic_joint.mimic_uri,
+        URI_KC_EXT_PRED_MULTIPLIER,
+        Literal(2.0, datatype=XSD.double),
+    ) in graph
+    assert (
+        mimic_joint.mimic_uri,
+        URI_KC_EXT_PRED_OFFSET,
+        mimic_joint.mimic_offset_uri,
+    ) in graph
+    assert (mimic_joint.mimic_offset_uri, RDF.type, URI_QUDT_TYPE_QUANTITY) in graph
+    assert (
+        mimic_joint.mimic_offset_uri,
+        URI_QUDT_PRED_QUANTITY_KIND,
+        URI_QUDT_QK_ANGLE,
+    ) in graph
 
 
 def test_scenex_embedded_kinematic_tree_rejects_bad_frame_ref(tmp_path):

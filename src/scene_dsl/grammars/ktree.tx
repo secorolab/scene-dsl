@@ -73,7 +73,7 @@ JointLimits:
 ;
 JointMimicSpec:
 'mimic' '{'
-    'joint' ':' joint=[JointBase|FQN]
+    'joint' ':' '<' joint=[JointBase|FQN] '>'
     'multiplier' ':' multiplier=FLOAT
     'offset' ':' offset=FLOAT
 '}'

@@ -119,11 +119,21 @@ scene inst (ns=scene_lab_mjc) pickplace_scene_mjc {
             }
         }
         camera wrist_cam {
-            body: <panda_tree.panda_base_body>
+            frame: <panda_tree.panda_base_body.base_link>
             type: rgb
             resolution: (640, 480)
             fov: 1.2 rad
             update-rate: 30.0 Hz
+        }
+        force-torque wrist_ft {
+            frame: <panda_tree.panda_base_body.tool0>
+            observes: force torque
+            update-rate: 100.0 Hz
+        }
+        imu wrist_imu {
+            frame: <panda_tree.panda_base_body.bracelet_link>
+            observes: angular-velocity linear-acceleration orientation
+            update-rate: 200.0 Hz
         }
     }
 

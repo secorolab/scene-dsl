@@ -6,16 +6,19 @@ import numpy as np
 
 from bdd_dsl.models.urirefs import URI_EXEC_PRED_PATH
 from rdf_utils.constraints import check_shacl_constraints
-from rdf_utils.models.geometry import (
-    PoseCoordModel,
-    PositionCoordModel,
+from rdf_utils.models.vocab import (
     URI_DYN_TYPE_MASS_SCALAR,
     URI_GEOM_TYPE_RIGID_BODY,
     URI_KC_PRED_JOINTS,
-    get_coord_vectorxyz,
     URI_KC_TYPE_REVOLUTE_JOINT,
-    URI_QUDT_PRED_UNIT,
     URI_QUDT_QK_ANGLE,
+    URI_QUDT_PRED_QUANTITY_KIND,
+    URI_QUDT_PRED_UNIT,
+)
+from rdf_utils.models.geometry import (
+    PoseCoordModel,
+    PositionCoordModel,
+    get_coord_vectorxyz,
 )
 
 from rdf_utils.namespace import URL_MM_GEOM_SHACL_EXTS, URL_MM_GEOM_SHACL_REL, URL_SECORO_MM
@@ -42,7 +45,6 @@ from scene_dsl.rdf.ktree import (
     URI_KC_EXT_PRED_DEPENDENT_JOINT,
     URI_KC_EXT_PRED_MULTIPLIER,
     URI_KC_EXT_PRED_OFFSET,
-    URI_QUDT_PRED_QUANTITY_KIND,
     URI_QUDT_TYPE_QUANTITY,
     URI_KC_EXT_PRED_INDEPENDENT_JOINT,
     URI_KC_EXT_TYPE_JOINT_COUPLING,
@@ -54,6 +56,22 @@ from scene_dsl.rdf.ktree import (
 from scene_dsl.rdf.scene import create_scene_model_graph
 from scene_dsl.rdf.scenex import URI_EXEC_PRED_LINKS_BODY, create_scenex_model_graph
 from scene_dsl.rdf.sensors import URI_EXEC_PRED_HAS_KINEMATICS
+from scene_dsl.rdf.sensors import (
+    CAMERA_TYPES,
+    OBSERVED_QUANTITIES,
+    URI_QUDT_PRED_VALUE,
+    URI_SENS_PRED_CAMERA_KIND,
+    URI_SENS_PRED_FIELD_OF_VIEW,
+    URI_SENS_PRED_FRAME,
+    URI_SENS_PRED_UPDATE_RATE,
+    URI_SENS_TYPE_CAMERA,
+    URI_SENS_TYPE_FORCE_TORQUE_SENSOR,
+    URI_SENS_TYPE_IMU,
+    URI_SOSA_PRED_HOSTS,
+    URI_SOSA_PRED_OBSERVES,
+    URI_SOSA_TYPE_PLATFORM,
+    URI_SOSA_TYPE_SENSOR,
+)
 
 MODELS_DIR = Path(__file__).parents[1] / "examples" / "models"
 
@@ -309,6 +327,8 @@ def test_lab_scenex_agent_tree_link_and_sensors_emit_rdf():
     panda = next(agent for agent in scene_inst.modelled_agns if agent.agn.name == "panda")
     joint = next(joint for joint in panda.ktree.joints_spec.joints if joint.name == "panda_joint1")
     sensor = next(sensor for sensor in panda.sensors if sensor.name == "wrist_cam")
+    ft_sensor = next(sensor for sensor in panda.sensors if sensor.name == "wrist_ft")
+    imu_sensor = next(sensor for sensor in panda.sensors if sensor.name == "wrist_imu")
 
     assert panda.ktree in scene_inst.ktree.trees
     orientation = panda.ktree.bodies[0].frames[0].poses[0].orientation
@@ -320,7 +340,43 @@ def test_lab_scenex_agent_tree_link_and_sensors_emit_rdf():
     assert (panda.ktree.uri, RDF.type, URI_GEOM_TYPE_KTREE) in graph
     assert (joint.uri, RDF.type, URI_KC_TYPE_REVOLUTE_JOINT) in graph
     assert (panda.ktree.uri, URI_KC_PRED_JOINTS, joint.uri) in graph
-    assert (sensor.uri, URI_EXEC_PRED_HAS_KINEMATICS, sensor.body.uri) in graph
+    assert (panda.modelled_uri, RDF.type, URI_SOSA_TYPE_PLATFORM) in graph
+    for platform_sensor in (sensor, ft_sensor, imu_sensor):
+        assert (platform_sensor.uri, RDF.type, URI_SOSA_TYPE_SENSOR) in graph
+        assert (panda.modelled_uri, URI_SOSA_PRED_HOSTS, platform_sensor.uri) in graph
+        assert (
+            platform_sensor.uri,
+            URI_EXEC_PRED_HAS_KINEMATICS,
+            platform_sensor.frame.uri,
+        ) in graph
+        assert (platform_sensor.uri, URI_SENS_PRED_FRAME, platform_sensor.frame.uri) in graph
+
+        update_rate = graph.value(platform_sensor.uri, URI_SENS_PRED_UPDATE_RATE)
+        assert (update_rate, RDF.type, URI_QUDT_TYPE_QUANTITY) in graph
+        assert (
+            update_rate,
+            URI_QUDT_PRED_VALUE,
+            Literal(platform_sensor.update_rate, datatype=XSD.double),
+        ) in graph
+
+    assert (sensor.uri, RDF.type, URI_SENS_TYPE_CAMERA) in graph
+    assert (sensor.uri, URI_SENS_PRED_CAMERA_KIND, CAMERA_TYPES[sensor.cam_type]) in graph
+    assert (
+        graph.value(sensor.uri, URI_SENS_PRED_FIELD_OF_VIEW),
+        RDF.type,
+        URI_QUDT_TYPE_QUANTITY,
+    ) in graph
+
+    assert (ft_sensor.uri, RDF.type, URI_SENS_TYPE_FORCE_TORQUE_SENSOR) in graph
+    assert (imu_sensor.uri, RDF.type, URI_SENS_TYPE_IMU) in graph
+    for platform_sensor in (ft_sensor, imu_sensor):
+        for observed in platform_sensor.observes:
+            assert (
+                platform_sensor.uri,
+                URI_SOSA_PRED_OBSERVES,
+                OBSERVED_QUANTITIES[observed],
+            ) in graph
+
     assert (
         panda.model.uri,
         URI_EXEC_PRED_PATH,
@@ -352,6 +408,7 @@ def test_lab_scenex_generated_geometry_validates_against_shacl():
             # because of https://github.com/RDFLib/rdflib/issues/2009
             # URL_MM_GEOM_SHACL_COORD: "ttl",
             f"{URL_SECORO_MM}/robot/actuation.shacl.ttl": "ttl",
+            f"{URL_SECORO_MM}/robot/sensors.shacl.ttl": "ttl",
             f"{URL_SECORO_MM}/kinematic-chain/structural-entities-extension.shacl.ttl": "ttl",
         },
         quiet=False,

@@ -2,7 +2,7 @@
 from rdflib import RDF, Graph, Literal, URIRef
 
 from rdf_utils.collection import add_literal_list_pred
-from rdf_utils.models.geometry import (
+from rdf_utils.models.vocab import (
     URI_GEOM_PRED_ALPHA,
     URI_GEOM_PRED_AXES_SEQ,
     URI_GEOM_PRED_BETA,

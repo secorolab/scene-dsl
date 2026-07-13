@@ -1,5 +1,12 @@
 # SPDX-License-Identifier: MPL-2.0
-from rdf_utils.namespace import NS_MM_DYN_COORD, NS_MM_GEOM, NS_MM_QUDT_UNIT
+from rdf_utils.namespace import (
+    NS_MM_DYN_COORD,
+    NS_MM_GEOM,
+    NS_MM_QUDT,
+    NS_MM_QUDT_UNIT,
+    URL_COMP_ROB2B,
+    URL_SECORO_MM,
+)
 from rdflib import Namespace, RDF, Graph, Literal, URIRef, XSD
 from rdf_utils.models.geometry import (
     URI_KC_PRED_BETWEEN_ATTACHMENTS,
@@ -8,7 +15,10 @@ from rdf_utils.models.geometry import (
     URI_KC_PRED_ORIGIN_OFFSET,
     URI_KC_TYPE_JOINT,
     URI_KC_TYPE_REVOLUTE_JOINT,
+    URI_QUDT_PRED_QUANTITY_KIND,
+    URI_QUDT_QK_ANGLE,
     URI_QUDT_UNIT_G,
+    URI_QUDT_UNIT_RAD,
     URI_QUDT_UNIT_KG,
     URI_GEOM_TYPE_COLLINEAR,
     URI_GEOM_TYPE_RIGID_BODY,
@@ -30,6 +40,7 @@ from rdf_utils.models.geometry import (
 
 from scene_dsl.classes.ktree import (
     Actuation,
+    JointMimicSpec,
     FixedJoint,
     JointBase,
     KinematicTreeModel,
@@ -43,15 +54,25 @@ from scene_dsl.rdf.geom import (
 )
 
 URI_GEOM_TYPE_KTREE = NS_MM_GEOM["KinematicTree"]
-NS_MM_KC_STAT = Namespace("https://comp-rob2b.github.io/metamodels/kinematic-chain/state#")
-NS_MM_ACT = Namespace("https://secorolab.github.io/metamodels/robot/actuation#")
+NS_MM_KC_STAT = Namespace(f"{URL_COMP_ROB2B}/metamodels/kinematic-chain/state#")
+NS_MM_ACT = Namespace(f"{URL_SECORO_MM}/robot/actuation#")
+NS_MM_KC_EXT = Namespace(f"{URL_SECORO_MM}/kinematic-chain/structural-entities-extension#")
 
+URI_QUDT_PRED_VALUE = NS_MM_QUDT["value"]
+URI_QUDT_TYPE_QUANTITY = NS_MM_QUDT["Quantity"]
 URI_ACT_TYPE_ACTUATION = NS_MM_ACT["Actuation"]
 URI_ACT_PRED_JOINT = NS_MM_ACT["joint"]
+URI_KC_EXT_TYPE_JOINT_COUPLING = NS_MM_KC_EXT["JointCoupling"]
+URI_KC_EXT_TYPE_SCLERONOMIC = NS_MM_KC_EXT["Scleronomic"]
+URI_KC_EXT_PRED_INDEPENDENT_JOINT = NS_MM_KC_EXT["independent-joint"]
+URI_KC_EXT_PRED_DEPENDENT_JOINT = NS_MM_KC_EXT["dependent-joint"]
+URI_KC_EXT_PRED_MULTIPLIER = NS_MM_KC_EXT["multiplier"]
+URI_KC_EXT_PRED_OFFSET = NS_MM_KC_EXT["offset"]
 URI_ACT_PRED_GEAR_RATIO = NS_MM_ACT["gear-ratio"]
 URI_ACT_PRED_COMMAND_INTERFACE = NS_MM_ACT["command-interface"]
 URI_ACT_PRED_STATE_INTERFACE = NS_MM_ACT["state-interface"]
 URI_ACT_TYPE_JOINT_CURRENT = NS_MM_ACT["JointCurrent"]
+
 ACTUATION_INTERFACE_TYPES = {
     "position": NS_MM_KC_STAT["JointPosition"],
     "velocity": NS_MM_KC_STAT["JointVelocity"],
@@ -136,8 +157,15 @@ def add_revolute_joint(graph: Graph, joint: RevoluteJoint) -> None:
             actuation_uri=joint.actuation_uri,
             actuation=joint.actuation,
         )
+    if joint.mimic is not None:
+        add_mimic(
+            graph=graph,
+            joint_uri=joint.uri,
+            mimic_uri=joint.mimic_uri,
+            offset_uri=joint.mimic_offset_uri,
+            mimic=joint.mimic,
+        )
     # TODO(minhnh): add_joint_limits()
-    # TODO(minhnh): add_joint_mimics()
 
 
 def add_actuation(
@@ -160,6 +188,27 @@ def add_actuation(
         graph.add(
             (actuation_uri, URI_ACT_PRED_STATE_INTERFACE, ACTUATION_INTERFACE_TYPES[interface])
         )
+
+
+def add_mimic(
+    graph: Graph,
+    joint_uri: URIRef,
+    mimic_uri: URIRef,
+    offset_uri: URIRef,
+    mimic: JointMimicSpec,
+) -> None:
+    graph.add((mimic_uri, RDF.type, URI_KC_EXT_TYPE_JOINT_COUPLING))
+    graph.add((mimic_uri, RDF.type, URI_KC_EXT_TYPE_SCLERONOMIC))
+    graph.add((mimic_uri, URI_KC_EXT_PRED_INDEPENDENT_JOINT, mimic.joint.uri))
+    graph.add((mimic_uri, URI_KC_EXT_PRED_DEPENDENT_JOINT, joint_uri))
+    graph.add(
+        (mimic_uri, URI_KC_EXT_PRED_MULTIPLIER, Literal(mimic.multiplier, datatype=XSD.double))
+    )
+    graph.add((mimic_uri, URI_KC_EXT_PRED_OFFSET, offset_uri))
+    graph.add((offset_uri, RDF.type, URI_QUDT_TYPE_QUANTITY))
+    graph.add((offset_uri, URI_QUDT_PRED_VALUE, Literal(mimic.offset, datatype=XSD.double)))
+    graph.add((offset_uri, URI_QUDT_PRED_QUANTITY_KIND, URI_QUDT_QK_ANGLE))
+    graph.add((offset_uri, URI_QUDT_PRED_UNIT, URI_QUDT_UNIT_RAD))
 
 
 def add_joint(graph: Graph, joint: JointBase) -> None:

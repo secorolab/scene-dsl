@@ -1,8 +1,34 @@
 # SPDX-License-Identifier: MPL-2.0
 from importlib import resources
-from textx import get_children_of_type, get_model, metamodel_from_file
-import textx.scoping.providers as scoping_providers
 
+import textx.scoping.providers as scoping_providers
+from textx import get_children_of_type, get_model, metamodel_from_file
+
+from scene_dsl.classes.common import FloatVector, IntVector
+from scene_dsl.classes.geom import (
+    DirectionCosineOrientationSpec,
+    EulerOrientationSpec,
+    Frame,
+    FrameAxis,
+    OrientationSpec,
+    PoseSpec,
+)
+from scene_dsl.classes.ktree import (
+    Actuation,
+    FixedJoint,
+    JointLimits,
+    JointMimicSpec,
+    JointOffset,
+    KinematicTreeModel,
+    JointsSpec,
+    JointBase,
+    JointComposition,
+    ParallelJoints,
+    RevoluteJoint,
+    RigidBody,
+    RigidBodyInertia,
+    SerialJoints,
+)
 from scene_dsl.classes.scene import (
     Agent,
     AgentSet,
@@ -16,39 +42,34 @@ from scene_dsl.classes.scene import (
     WorkspaceSet,
 )
 from scene_dsl.classes.scenex import (
-    BodySpec,
     ElementModel,
-    EulerOrientationSpec,
-    FixedAttachment,
-    Frame,
-    GeometrySpec,
-    KinematicSpec,
-    MassQuantity,
     ModelledAgent,
     ModelledAgentSet,
     ModelledObject,
     ModelledObjectSet,
-    OrientationSpec,
-    PoseSpec,
     SceneInstance,
+)
+from scene_dsl.classes.sensors import (
+    CameraSensorSpec,
+    ForceTorqueSensorSpec,
+    ImuSensorSpec,
 )
 
 
-def _geometry_frame(geometry, frame_name):
-    matches = [frame for frame in [geometry.root, *geometry.frames] if frame.name == frame_name]
-    return matches[0] if len(matches) == 1 else None
-
-
-class FrameRefScopeProvider:
+class KinematicTreeRefScopeProvider:
     def __call__(self, obj, attr, obj_ref):
-        parts = obj_ref.obj_name.split(".")
-        if len(parts) != 2:
-            return None
-        geometry_name, frame_name = parts
-        model = get_model(obj)
-        for geometry in get_children_of_type(GeometrySpec, model):
-            if geometry.name == geometry_name:
-                return _geometry_frame(geometry, frame_name)
+        matches = [
+            tree
+            for tree in get_children_of_type(KinematicTreeModel, get_model(obj))
+            if tree.name == obj_ref.obj_name
+        ]
+        num_matches = len(matches)
+        if num_matches > 1:
+            raise ValueError(f"multiple trees found for ref name '{obj_ref.obj_name}': {matches}")
+
+        if num_matches == 1:
+            return matches[0]
+
         return None
 
 
@@ -76,28 +97,42 @@ def scenex_metamodel():
     mm_scenex = metamodel_from_file(
         resources.files("scene_dsl") / "grammars" / "scenex.tx",
         classes=[
+            FloatVector,
+            IntVector,
             ElementModel,
             ModelledObject,
             ModelledObjectSet,
             ModelledAgent,
             ModelledAgentSet,
             SceneInstance,
-            KinematicSpec,
-            GeometrySpec,
-            BodySpec,
-            MassQuantity,
             PoseSpec,
             OrientationSpec,
             EulerOrientationSpec,
+            DirectionCosineOrientationSpec,
             Frame,
-            FixedAttachment,
+            FrameAxis,
+            KinematicTreeModel,
+            RigidBody,
+            RigidBodyInertia,
+            JointsSpec,
+            JointBase,
+            FixedJoint,
+            RevoluteJoint,
+            JointOffset,
+            JointLimits,
+            JointMimicSpec,
+            JointComposition,
+            SerialJoints,
+            ParallelJoints,
+            Actuation,
+            CameraSensorSpec,
+            ForceTorqueSensorSpec,
+            ImuSensorSpec,
         ],
     )
     mm_scenex.register_scope_providers(
         {
-            "*.frame": FrameRefScopeProvider(),
-            "PoseSpec.wrt": FrameRefScopeProvider(),
-            "BodySpec.frame": FrameRefScopeProvider(),
+            "KinematicTreeModel.trees": KinematicTreeRefScopeProvider(),
             "*.*": scoping_providers.FQNImportURI(),
         }
     )

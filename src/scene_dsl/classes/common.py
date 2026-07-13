@@ -64,6 +64,37 @@ class SetBase(IHasParent):
         super().__init__(**kwargs)
 
 
+class FloatVector:
+    def __init__(self, parent, values) -> None:
+        self.parent = parent
+        self.values = values
+
+    def _expect(self, size: int, context: str) -> tuple[float, ...]:
+        if len(self.values) != size:
+            raise ValueError(f"{context} requires {size} values, got {len(self.values)}")
+        return self.values
+
+    def as_xyz(self, context: str = "FloatVector") -> tuple[float, ...]:
+        return self._expect(3, context)
+
+    def as_low_high(self, context: str = "FloatVector") -> tuple[float, ...]:
+        return self._expect(2, context)
+
+
+class IntVector:
+    def __init__(self, parent, values) -> None:
+        self.parent = parent
+        self.values = values
+
+    def _expect(self, size: int, context: str) -> tuple[int]:
+        if len(self.values) != size:
+            raise ValueError(f"{context} requires {size} values, got {len(self.values)}")
+        return tuple(self.values)
+
+    def as_width_height(self, context: str = "IntVector") -> tuple[int]:
+        return self._expect(2, context)
+
+
 def parse_py_module_attr(model: Any) -> tuple[str, str]:
     modules = getattr(model, "modules", None)
     if not isinstance(modules, list):

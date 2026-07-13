@@ -1,0 +1,36 @@
+import base
+import geom
+import ktree
+
+RateUnit: 'Hz' ;
+
+SensorBase: CameraSensorSpec | ForceTorqueSensorSpec | ImuSensorSpec ;
+
+CameraSensorSpec:
+'camera' name=IRI_TRUNK '{'
+    'body' ':' '<' body=[RigidBody|FQN] '>'
+    'type' ':' type=CameraType
+    'resolution' ':' resolution=IntVector
+    'fov' ':' fov=FLOAT fov_unit=AngleUnit
+    'update-rate' ':' update_rate=FLOAT rate_unit=RateUnit
+'}'
+;
+CameraType: 'rgb' | 'depth' | 'rgbd' ;
+
+ForceTorqueSensorSpec:
+'force-torque' name=IRI_TRUNK '{'
+    'body' ':' '<' body=[RigidBody|FQN] '>'
+    'observes' ':' observes+=ForceTorqueMeasure
+    'update-rate' ':' update_rate=FLOAT rate_unit=RateUnit
+'}'
+;
+ForceTorqueMeasure: 'force' | 'torque' ;
+
+ImuSensorSpec:
+'imu' name=IRI_TRUNK '{'
+    'body' ':' '<' body=[RigidBody|FQN] '>'
+    'observes' ':' observes+=ImuMeasure
+    'update-rate' ':' update_rate=FLOAT rate_unit=RateUnit
+'}'
+;
+ImuMeasure: 'angular-velocity' | 'linear-acceleration' | 'orientation' ;

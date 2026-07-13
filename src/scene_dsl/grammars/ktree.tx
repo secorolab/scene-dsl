@@ -1,0 +1,101 @@
+import base
+import geom
+
+MassUnit: 'kg' | 'g' ;
+InertiaUnit: 'kg*m^2' ;
+EffortUnit: 'N*m' ;
+Polarity: 'PositivePolarity' | 'NegativePolarity' ;
+
+KinematicTreeModel:
+'ktree' '(' 'ns' '=' ns=[NamespaceDeclare|FQN] ')' name=IRI_TRUNK '{'
+    ( 'tree' '<' trees+=[KinematicTreeModel|FQN] '>' )*
+    bodies+=RigidBody+
+    joints_spec=JointsSpec
+'}'
+;
+
+RigidBody:
+'body' name=IRI_TRUNK '{'
+    frames*=Frame
+    inertia=RigidBodyInertia?
+'}'
+;
+
+RigidBodyInertia:
+'inertia' '{'
+    'frame' ':' frame=[Frame|FQN]
+    'mass' ':' mass=FLOAT mass_unit=MassUnit
+    'inertia-matrix' ':' '('
+        row1=FloatVector ','
+        row2=FloatVector ','
+        row3=FloatVector
+    ')' inertia_unit=InertiaUnit
+'}'
+;
+
+JointsSpec:
+'joints' '{'
+    joints*=JointBase
+    joint_comp=JointComposition?
+'}'
+;
+
+JointBase: FixedJoint | RevoluteJoint ;
+FixedJoint:
+'fixed' name=IRI_TRUNK '{'
+    'parent' ':' '<' parent_frame=[Frame|FQN] '>'
+    'child' ':' '<' child_frame=[Frame|FQN] '>'
+'}'
+;
+RevoluteJoint:
+'revolute' name=IRI_TRUNK '{'
+    'parent' ':' parent_frame_axis=FrameAxis
+    'child' ':' child_frame_axis=FrameAxis
+    actuation=Actuation?
+    offset=JointOffset?
+    limits=JointLimits?
+    mimic=JointMimicSpec?
+    'polarity' ':' polarity=Polarity
+'}'
+;
+JointOffset:
+'offset' '{'
+    'xyz' ':' xyz=FloatVector length_unit=LengthUnit
+'}'
+;
+JointLimits:
+'limits' '{'
+    ('position' ':' position=FloatVector position_unit=AngleUnit)?
+    ('velocity' ':' velocity=FloatVector velocity_unit=AngularVelocityUnit)?
+    ('acceleration' ':' acceleration=FloatVector acceleration_unit=AngularAccelerationUnit)?
+    ('effort' ':' effort=FloatVector effort_unit=EffortUnit)?
+'}'
+;
+JointMimicSpec:
+'mimic' '{'
+    'joint' ':' joint=[JointBase|FQN]
+    'multiplier' ':' multiplier=FLOAT
+    'offset' ':' offset=FLOAT
+'}'
+;
+Actuation:
+'actuation' '{'
+    'joint' ':' '<' joint=[JointBase|FQN] '>'
+    'gear' 'ratio' ':' gear_ratio=FLOAT
+    'command-interface' ':' command_interface=Interface
+    'state-interface' ':' state_interfaces+=Interface
+'}'
+;
+Interface: 'position' | 'velocity' | 'torque' | 'current' ;
+
+JointComposition: SerialJoints | ParallelJoints;
+ParallelJoints:
+'parallel' 'joints' '{'
+    ('<' joints+=[JointBase|FQN] '>')+
+'}'
+;
+SerialJoints:
+'serial' 'joints' '{'
+    ('<' joints+=[JointBase|FQN] '>')+
+'}'
+;

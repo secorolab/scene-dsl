@@ -1,0 +1,43 @@
+import base
+
+LengthUnit: 'mm' | 'cm' | 'm' ;
+AngleUnit: 'rad' | 'deg' ;
+AngularVelocityUnit: 'rad/s' | 'deg/s' ;
+AngularAccelerationUnit: 'rad/s^2' | 'deg/s^2' ;
+Axis: 'x' | 'y' | 'z' ;
+FrameAxis: '<' frame=[Frame|FQN] '>' '.' axis=Axis ;
+
+PoseSpec:
+'pose' name=IRI_TRUNK '{'
+    ('wrt' ':' '<' wrt=[Frame|FQN] '>')?
+    'xyz' ':' xyz=FloatVector
+    length_unit=LengthUnit
+    'orientation' ':' orientation=OrientationSpec
+'}'
+;
+
+OrientationSpec: EulerOrientationSpec | DirectionCosineOrientationSpec ;
+
+EulerAxes: 'xyz' | 'xzy' | 'yxz' | 'yzx' | 'zxy' | 'zyx' ;
+EulerOrientationSpec:
+'euler' '{'
+    ('axes' ':' axes=EulerAxes)?
+    extrinsic?='extrinsic'
+    'angles' ':' angles=FloatVector
+    ('unit' ':' unit=AngleUnit)?
+'}'
+;
+
+DirectionCosineOrientationSpec:
+'direction-cosine' '{'
+    'x' ':' x_axis=FloatVector
+    'y' ':' y_axis=FloatVector
+    'z' ':' z_axis=FloatVector
+'}'
+;
+
+Frame:
+'frame' name=IRI_TRUNK '{'
+    poses=PoseSpec*
+'}'
+;

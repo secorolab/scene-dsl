@@ -1,0 +1,140 @@
+# SPDX-License-Identifier: MPL-2.0
+from rdf_utils.namespace import NS_MM_GEOM
+from rdflib import RDF, Graph, Literal, URIRef
+from rdf_utils.models.geometry import (
+    URI_KC_PRED_BETWEEN_ATTACHMENTS,
+    URI_KC_PRED_COMMON_AXIS,
+    URI_KC_PRED_JOINTS,
+    URI_KC_PRED_ORIGIN_OFFSET,
+    URI_KC_TYPE_JOINT,
+    URI_KC_TYPE_REVOLUTE_JOINT,
+    URI_QUDT_UNIT_G,
+    URI_QUDT_UNIT_KG,
+    URI_GEOM_TYPE_COLLINEAR,
+    URI_GEOM_TYPE_RIGID_BODY,
+    URI_GEOM_TYPE_SIMPLICIAL_COMPLEX,
+    URI_GEOM_PRED_LINES,
+    URI_GEOM_PRED_SIMPLICES,
+    URI_KC_TYPE_KC,
+    URI_KC_TYPE_SERIAL,
+    URI_DYN_PRED_ABOUT,
+    URI_DYN_PRED_AS_SEEN_BY,
+    URI_DYN_PRED_MASS,
+    URI_DYN_PRED_OF_BODY,
+    URI_DYN_PRED_OF_INERTIA,
+    URI_DYN_TYPE_INERTIA_REFERENCE,
+    URI_DYN_TYPE_MASS_SCALAR,
+    URI_DYN_TYPE_RIGID_BODY_INERTIA,
+    URI_DYN_TYPE_RIGID_BODY_INERTIA_COORD,
+)
+
+from scene_dsl.classes.ktree import (
+    FixedJoint,
+    JointBase,
+    KinematicTreeModel,
+    RevoluteJoint,
+    SerialJoints,
+)
+from scene_dsl.rdf.geom import (
+    URI_QUDT_PRED_UNIT,
+    add_frame,
+    add_position_coord,
+)
+
+URI_GEOM_TYPE_KTREE = NS_MM_GEOM["KinematicTree"]
+
+MASS_UNITS = {"kg": URI_QUDT_UNIT_KG, "g": URI_QUDT_UNIT_G}
+
+
+def add_body(graph: Graph, body) -> None:
+    graph.add((body.uri, RDF.type, URI_GEOM_TYPE_RIGID_BODY))
+    graph.add((body.uri, RDF.type, URI_GEOM_TYPE_SIMPLICIAL_COMPLEX))
+    for frame in body.frames:
+        add_frame(graph, frame)
+        graph.add((body.uri, URI_GEOM_PRED_SIMPLICES, frame.uri))
+        graph.add((body.uri, URI_GEOM_PRED_SIMPLICES, frame.origin_uri))
+
+    if body.inertia is not None:
+        inertia = body.inertia
+        graph.add((body.inertia_uri, RDF.type, URI_DYN_TYPE_RIGID_BODY_INERTIA))
+        graph.add((body.inertia_uri, URI_DYN_PRED_OF_BODY, body.uri))
+        graph.add((body.inertia_uri, URI_DYN_PRED_ABOUT, inertia.frame.origin_uri))
+        graph.add((body.inertia_coord_uri, RDF.type, URI_DYN_TYPE_INERTIA_REFERENCE))
+        graph.add((body.inertia_coord_uri, RDF.type, URI_DYN_TYPE_RIGID_BODY_INERTIA_COORD))
+        graph.add((body.inertia_coord_uri, RDF.type, URI_DYN_TYPE_MASS_SCALAR))
+        graph.add((body.inertia_coord_uri, URI_DYN_PRED_OF_INERTIA, body.inertia_uri))
+        graph.add((body.inertia_coord_uri, URI_DYN_PRED_AS_SEEN_BY, inertia.frame.uri))
+        graph.add((body.inertia_coord_uri, URI_DYN_PRED_MASS, Literal(inertia.mass)))
+        graph.add((body.inertia_coord_uri, URI_QUDT_PRED_UNIT, MASS_UNITS[inertia.mass_unit]))
+        # for row_index, row in enumerate(inertia.matrix, start=1):
+        #    add_vector_xyz(graph, tree.namespace[f"{body.name}-inertia-row-{row_index}"], row)
+
+
+def add_revolute_joint(graph: Graph, joint: RevoluteJoint) -> None:
+    graph.add((joint.uri, RDF.type, URI_KC_TYPE_REVOLUTE_JOINT))
+    graph.add((joint.uri, URI_KC_PRED_BETWEEN_ATTACHMENTS, joint.parent_frame_axis.frame.uri))
+    graph.add((joint.uri, URI_KC_PRED_BETWEEN_ATTACHMENTS, joint.child_frame_axis.frame.uri))
+
+    graph.add((joint.uri, URI_KC_PRED_COMMON_AXIS, joint.common_axis_uri))
+    graph.add((joint.common_axis_uri, RDF.type, URI_GEOM_TYPE_COLLINEAR))
+    parent_axis_uri = joint.parent_frame_axis.frame.axis_vector_uri(
+        axis=joint.parent_frame_axis.axis
+    )
+    child_axis_uri = joint.child_frame_axis.frame.axis_vector_uri(axis=joint.child_frame_axis.axis)
+    graph.add((joint.common_axis_uri, URI_GEOM_PRED_LINES, parent_axis_uri))
+    graph.add((joint.common_axis_uri, URI_GEOM_PRED_LINES, child_axis_uri))
+
+    if joint.offset is not None:
+        graph.add((joint.uri, URI_KC_PRED_ORIGIN_OFFSET, joint.offset_uri))
+        add_position_coord(
+            graph=graph,
+            pos_uri=joint.offset_uri,
+            pos_coord_uri=joint.offset_coord_uri,
+            as_seen_by=joint.parent_frame_axis.frame.uri,
+            of_uri=joint.child_frame_axis.frame.origin_uri,
+            wrt_uri=joint.parent_frame_axis.frame.origin_uri,
+            xyz_vector=joint.offset.xyz,
+            unit=joint.offset.length_unit,
+        )
+
+    # TODO(minhnh): add_actuation()
+    # TODO(minhnh): add_joint_limits()
+    # TODO(minhnh): add_joint_mimics()
+
+
+def add_joint(graph: Graph, joint: JointBase) -> None:
+    graph.add((joint.uri, RDF.type, URI_KC_TYPE_JOINT))
+
+    if isinstance(joint, FixedJoint):
+        graph.add((joint.uri, URI_KC_PRED_BETWEEN_ATTACHMENTS, joint.parent_frame.uri))
+        graph.add((joint.uri, URI_KC_PRED_BETWEEN_ATTACHMENTS, joint.child_frame.uri))
+        return
+
+    if isinstance(joint, RevoluteJoint):
+        add_revolute_joint(graph=graph, joint=joint)
+        return
+
+    raise ValueError(f"Unsupported joint type: {joint}")
+
+
+def add_kinematic_tree(graph: Graph, tree: KinematicTreeModel, seen_trees: set[URIRef]) -> None:
+    if tree.uri in seen_trees:
+        raise ValueError(f"add_kinematic_tree: duplicate KinematicTree URI: {tree.uri}")
+    seen_trees.add(tree.uri)
+
+    graph.add((tree.uri, RDF.type, URI_GEOM_TYPE_KTREE))
+    for linked_tree in tree.trees:
+        add_kinematic_tree(graph=graph, tree=linked_tree, seen_trees=seen_trees)
+
+    for body in tree.bodies:
+        add_body(graph=graph, body=body)
+
+    for joint in tree.joints_spec.joints:
+        add_joint(graph=graph, joint=joint)
+
+    if tree.joints_spec.joint_comp is not None:
+        if isinstance(tree.joints_spec.joint_comp, SerialJoints):
+            graph.add((tree.uri, RDF.type, URI_KC_TYPE_KC))
+            graph.add((tree.uri, RDF.type, URI_KC_TYPE_SERIAL))
+            for joint in tree.joints_spec.joint_comp.joints:
+                graph.add((tree.uri, URI_KC_PRED_JOINTS, joint.uri))

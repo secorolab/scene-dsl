@@ -1,20 +1,33 @@
 from pathlib import Path
 
 import pytest
-from rdflib import RDF
+from rdflib import RDF, Literal, URIRef
 
-from scene_dsl.langs import scene_metamodel, scenex_metamodel
-from scene_dsl.rdf.scene import create_scene_model_graph
-from scene_dsl.rdf.scenex import (
+from bdd_dsl.models.urirefs import URI_EXEC_PRED_PATH
+from rdf_utils.constraints import check_shacl_constraints
+from rdf_utils.models.geometry import (
     URI_DYN_TYPE_MASS_SCALAR,
     URI_GEOM_TYPE_RIGID_BODY,
+    URI_KC_PRED_JOINTS,
+    URI_KC_TYPE_REVOLUTE_JOINT,
     URI_QUDT_PRED_UNIT,
-    MASS_UNITS,
-    LENGTH_UNITS,
-    create_scenex_model_graph,
 )
 
+from rdf_utils.namespace import URL_MM_GEOM_SHACL_EXTS, URL_MM_GEOM_SHACL_REL
+from rdf_utils.resolver import install_resolver
+
+from scene_dsl.langs import scene_metamodel, scenex_metamodel
+from scene_dsl.rdf.geom import LENGTH_UNITS
+from scene_dsl.rdf.ktree import MASS_UNITS, URI_GEOM_TYPE_KTREE
+from scene_dsl.rdf.scene import create_scene_model_graph
+from scene_dsl.rdf.scenex import URI_EXEC_PRED_LINKS_BODY, create_scenex_model_graph
+from scene_dsl.rdf.sensors import URI_EXEC_PRED_HAS_KINEMATICS
+
 MODELS_DIR = Path(__file__).parents[1] / "examples" / "models"
+
+ZERO_POSE = (
+    "pose default_pose { xyz: (0.0, 0.0, 0.0) m orientation: euler { angles: (0.0, 0.0, 0.0) } }"
+)
 
 
 def test_scene_parses_and_generates_rdf():
@@ -28,22 +41,19 @@ def test_scene_parses_and_generates_rdf():
 def test_scenex_references_scene_and_generates_rdf():
     model = scenex_metamodel().model_from_file(MODELS_DIR / "lab.scenex")
     scene_inst = model.scene_insts[0]
-    table_obj = next(obj for obj in scene_inst.modelled_objs if obj.geometry.name == "table_geom")
-
-    assert scene_inst.scene.name == "pickplace_scene"
-    assert table_obj.body.frame.name == "table_root"
-    assert table_obj.body.mass.value == 10.0
-    assert table_obj.body.mass.unit == "kg"
+    table_obj = next(obj for obj in scene_inst.modelled_objs if obj.obj.name == "dining_table")
+    table_body = table_obj.body
 
     graph = create_scenex_model_graph(model)
-    assert (table_obj.body.uri, RDF.type, URI_GEOM_TYPE_RIGID_BODY) in graph
-    assert (table_obj.body.inertia_coord_uri, RDF.type, URI_DYN_TYPE_MASS_SCALAR) in graph
+    assert (table_body.uri, RDF.type, URI_GEOM_TYPE_RIGID_BODY) in graph
+    assert (table_body.inertia_coord_uri, RDF.type, URI_DYN_TYPE_MASS_SCALAR) in graph
+    assert (table_obj.modelled_uri, URI_EXEC_PRED_LINKS_BODY, table_body.uri) in graph
 
 
 def test_shared_workspace_composition_is_rejected(tmp_path):
     model_path = tmp_path / "shared_workspace.scene"
     model_path.write_text(
-        """ns n = \"https://example.test/\"
+        """ns n = "https://example.test/"
 
 obj set (ns=n) objs { object cup }
 ws set (ns=n) wss { workspace root, workspace a, workspace b, workspace shared }
@@ -78,7 +88,7 @@ scene (ns=n) dag_scene {
 
 def _write_collision_scene(tmp_path: Path) -> None:
     (tmp_path / "collision.scene").write_text(
-        """ns n = \"https://example.test/\"
+        """ns n = "https://example.test/"
 obj set (ns=n) objs { object cup, object bowl }
 ws set (ns=n) wss { workspace table }
 agn set (ns=n) agns { agent robot }
@@ -91,48 +101,19 @@ scene (ns=n) s {
     )
 
 
-def test_duplicate_geometry_uri_is_rejected(tmp_path):
+def test_duplicate_model_uri_is_rejected(tmp_path):
     _write_collision_scene(tmp_path)
-    model_path = tmp_path / "duplicate_geometry.scenex"
+    model_path = tmp_path / "duplicate_model.scenex"
     model_path.write_text(
-        """import \"collision.scene\"
-ns n = \"https://example.test/\"
+        """import "collision.scene"
+ns n = "https://example.test/"
 scene inst (ns=n) sx {
     scene: <s>
     obj <objs.cup> {
-        model cup_model as urdf { sys path = \"cup.urdf\" }
-        geom dup { root: frame root }
+        model dup as urdf { sys path = "cup.urdf" }
     }
     obj <objs.bowl> {
-        model bowl_model as urdf { sys path = \"bowl.urdf\" }
-        geom dup { root: frame root }
-    }
-}
-"""
-    )
-
-    model = scenex_metamodel().model_from_file(model_path)
-    with pytest.raises(ValueError, match="Duplicate model URI"):
-        create_scenex_model_graph(model)
-
-
-def test_duplicate_body_uri_is_rejected(tmp_path):
-    _write_collision_scene(tmp_path)
-    model_path = tmp_path / "duplicate_body.scenex"
-    model_path.write_text(
-        """import \"collision.scene\"
-ns n = \"https://example.test/\"
-scene inst (ns=n) sx {
-    scene: <s>
-    obj <objs.cup> {
-        model cup_model as urdf { sys path = \"cup.urdf\" }
-        geom cup_geom { root: frame root }
-        body same_body { inertial frame: <cup_geom.root> mass: 1.0 kg }
-    }
-    obj <objs.bowl> {
-        model bowl_model as urdf { sys path = \"bowl.urdf\" }
-        geom bowl_geom { root: frame root }
-        body same_body { inertial frame: <bowl_geom.root> mass: 2.0 kg }
+        model dup as urdf { sys path = "bowl.urdf" }
     }
 }
 """
@@ -151,62 +132,163 @@ def test_scenex_length_and_mass_units(tmp_path, length_unit, mass_unit):
     _write_collision_scene(tmp_path)
     model_path = tmp_path / "units.scenex"
     model_path.write_text(
-        f"""import \"collision.scene\"
-ns n = \"https://example.test/\"
+        f"""import "collision.scene"
+ns n = "https://example.test/"
 scene inst (ns=n) sx {{
     scene: <s>
-    geom world_geom {{ root: frame world }}
-    obj <objs.cup> {{
-        model cup_model as urdf {{ sys path = \"cup.urdf\" }}
-        geom cup_geom {{
-            root: frame root
-            pose {{
-                xyz: (1.0, 2.0, 3.0)
-                {length_unit}
-                orientation: euler {{ angles: (0.0, 0.0, 0.0) }}
+    ktree (ns=n) world_tree {{
+        body world_body {{ frame world {{ }} }}
+        body cup_body {{
+            frame cup_root {{
+                pose cup_in_world {{
+                    wrt: <world_body.world>
+                    xyz: (1.0, 2.0, 3.0) {length_unit}
+                    orientation: euler {{ angles: (0.0, 0.0, 0.0) }}
+                }}
+            }}
+            inertia {{
+                frame: cup_root
+                mass: 10.0 {mass_unit}
+                inertia-matrix: (
+                    (1.0, 0.0, 0.0),
+                    (0.0, 1.0, 0.0),
+                    (0.0, 0.0, 1.0)
+                ) kg*m^2
             }}
         }}
-        body cup_body {{ inertial frame: <cup_geom.root> mass: 10.0 {mass_unit} }}
+        joints {{ }}
+    }}
+    obj <objs.cup> {{
+        model cup_model as urdf {{ sys path = "cup.urdf" }}
+        body: <world_tree.cup_body>
     }}
 }}
 """
     )
 
     model = scenex_metamodel().model_from_file(model_path)
-    cup = model.scene_insts[0].modelled_objs[0]
-    assert cup.geometry.pose.length_unit == length_unit
-    assert cup.body.mass.value == 10.0
-    assert cup.body.mass.unit == mass_unit
+    cup_body = model.scene_insts[0].modelled_objs[0].body
+    pose = cup_body.frames[0].poses[0]
 
     graph = create_scenex_model_graph(model)
-    assert (
-        cup.geometry.pose_coord_uri(model.scene_insts[0].geometry.root),
-        URI_QUDT_PRED_UNIT,
-        LENGTH_UNITS[length_unit],
-    ) in graph
-    assert (cup.body.inertia_coord_uri, URI_QUDT_PRED_UNIT, MASS_UNITS[mass_unit]) in graph
+    assert (URIRef(f"{pose.uri}-coord"), URI_QUDT_PRED_UNIT, LENGTH_UNITS[length_unit]) in graph
+    assert (cup_body.inertia_coord_uri, URI_QUDT_PRED_UNIT, MASS_UNITS[mass_unit]) in graph
 
 
 def test_scenex_mass_quantity_validation(tmp_path):
     _write_collision_scene(tmp_path)
     model_path = tmp_path / "mass_quantity.scenex"
     model_path.write_text(
-        """import \"collision.scene\"
-ns n = \"https://example.test/\"
+        f"""import "collision.scene"
+ns n = "https://example.test/"
+scene inst (ns=n) sx {{
+    scene: <s>
+    ktree (ns=n) world_tree {{
+        body cup_body {{
+            frame cup_root {{ {ZERO_POSE} }}
+            inertia {{
+                frame: cup_root
+                mass: 0.0 kg
+                inertia-matrix: (
+                    (1.0, 0.0, 0.0),
+                    (0.0, 1.0, 0.0),
+                    (0.0, 0.0, 1.0)
+                ) kg*m^2
+            }}
+        }}
+        joints {{ }}
+    }}
+}}
+"""
+    )
+
+    cup_body = scenex_metamodel().model_from_file(model_path).scene_insts[0].ktree.bodies[0]
+    assert cup_body.inertia.mass == 0.0
+
+    model_path.write_text(model_path.read_text().replace("mass: 0.0", "mass: -1.0"))
+    with pytest.raises(ValueError, match="RigidBodyInertia.mass must be"):
+        scenex_metamodel().model_from_file(model_path)
+
+
+def _write_robot_scene(tmp_path: Path) -> None:
+    (tmp_path / "robot.scene").write_text(
+        """ns n = "https://example.test/"
+obj set (ns=n) objs { object cup }
+ws set (ns=n) wss { workspace table }
+agn set (ns=n) agns { agent robot }
+scene (ns=n) s {
+    obj set <objs>
+    ws set <wss>
+    agn set <agns>
+}
+"""
+    )
+
+
+def test_lab_scenex_agent_tree_link_and_sensors_emit_rdf():
+    model = scenex_metamodel().model_from_file(MODELS_DIR / "lab.scenex")
+    scene_inst = model.scene_insts[0]
+    panda = next(agent for agent in scene_inst.modelled_agns if agent.agn.name == "panda")
+    joint = next(joint for joint in panda.ktree.joints_spec.joints if joint.name == "panda_joint1")
+    sensor = next(sensor for sensor in panda.sensors if sensor.name == "wrist_cam")
+
+    assert panda.ktree in scene_inst.ktree.trees
+
+    graph = create_scenex_model_graph(model)
+
+    assert (scene_inst.ktree.uri, RDF.type, URI_GEOM_TYPE_KTREE) in graph
+    assert (panda.ktree.uri, RDF.type, URI_GEOM_TYPE_KTREE) in graph
+    assert (joint.uri, RDF.type, URI_KC_TYPE_REVOLUTE_JOINT) in graph
+    assert (panda.ktree.uri, URI_KC_PRED_JOINTS, joint.uri) in graph
+    assert (sensor.uri, URI_EXEC_PRED_HAS_KINEMATICS, sensor.body.uri) in graph
+    assert (
+        panda.model.uri,
+        URI_EXEC_PRED_PATH,
+        Literal("../robot-models/franka_emika_panda/mjx_panda.xml"),
+    ) in graph
+
+
+def test_lab_scenex_generated_geometry_validates_against_shacl():
+    install_resolver()
+    model = scenex_metamodel().model_from_file(MODELS_DIR / "lab.scenex")
+
+    graph = create_scenex_model_graph(model)
+    check_shacl_constraints(
+        graph=graph,
+        shacl_dict={
+            URL_MM_GEOM_SHACL_EXTS: "ttl",
+            URL_MM_GEOM_SHACL_REL: "ttl",
+            # Skipping because of DirectionCosine rule that would fail, potentially
+            # because of https://github.com/RDFLib/rdflib/issues/2009
+            # URL_MM_GEOM_SHACL_COORD: "ttl",
+        },
+        quiet=False,
+    )
+
+
+def test_scenex_embedded_kinematic_tree_rejects_bad_frame_ref(tmp_path):
+    _write_robot_scene(tmp_path)
+    model_path = tmp_path / "bad_robot.scenex"
+    model_path.write_text(
+        """import "robot.scene"
+ns n = "https://example.test/"
 scene inst (ns=n) sx {
     scene: <s>
-    obj <objs.cup> {
-        model cup_model as urdf { sys path = \"cup.urdf\" }
-        geom cup_geom { root: frame root }
-        body cup_body { inertial frame: <cup_geom.root> mass: 0.0 kg }
+    ktree (ns=n) world_tree {
+        body world_body { frame world { } }
+        joints {
+            fixed bad_mount {
+                parent: <missing>
+                child: <world_body.world>
+            }
+        }
+    }
+    agn <agns.robot> {
+        model robot_mjcf as mjcf { sys path = "robot.xml" }
     }
 }
 """
     )
 
-    cup = scenex_metamodel().model_from_file(model_path).scene_insts[0].modelled_objs[0]
-    assert cup.body.mass.value == 0.0
-
-    model_path.write_text(model_path.read_text().replace("0.0", "-1.0"))
-    with pytest.raises(ValueError, match="MassQuantity must have value"):
+    with pytest.raises(Exception, match="missing"):
         scenex_metamodel().model_from_file(model_path)

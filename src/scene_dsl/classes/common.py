@@ -64,35 +64,35 @@ class SetBase(IHasParent):
         super().__init__(**kwargs)
 
 
+def _expect_size(values: list, size: int, context: str) -> list:
+    if len(values) != size:
+        raise ValueError(f"{context} requires {size} values, got {len(values)}")
+    return values
+
+
 class FloatVector:
+    values: list[float]
+
     def __init__(self, parent, values) -> None:
         self.parent = parent
         self.values = values
 
-    def _expect(self, size: int, context: str) -> tuple[float, ...]:
-        if len(self.values) != size:
-            raise ValueError(f"{context} requires {size} values, got {len(self.values)}")
-        return self.values
+    def as_xyz(self, context: str = "FloatVector.as_xyz") -> tuple[float, float, float]:
+        return tuple(_expect_size(values=self.values, size=3, context=context))
 
-    def as_xyz(self, context: str = "FloatVector") -> tuple[float, ...]:
-        return self._expect(3, context)
-
-    def as_low_high(self, context: str = "FloatVector") -> tuple[float, ...]:
-        return self._expect(2, context)
+    def as_low_high(self, context: str = "FloatVector.as_low_high") -> tuple[float, float]:
+        return tuple(_expect_size(values=self.values, size=2, context=context))
 
 
 class IntVector:
+    values: list[int]
+
     def __init__(self, parent, values) -> None:
         self.parent = parent
         self.values = values
 
-    def _expect(self, size: int, context: str) -> tuple[int]:
-        if len(self.values) != size:
-            raise ValueError(f"{context} requires {size} values, got {len(self.values)}")
-        return tuple(self.values)
-
-    def as_width_height(self, context: str = "IntVector") -> tuple[int]:
-        return self._expect(2, context)
+    def as_width_height(self, context: str = "IntVector.as_width_height") -> tuple[int, int]:
+        return tuple(_expect_size(values=self.values, size=2, context=context))
 
 
 def parse_py_module_attr(model: Any) -> tuple[str, str]:

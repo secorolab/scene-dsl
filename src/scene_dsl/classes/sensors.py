@@ -30,6 +30,8 @@ class SensorBase(IHasNamespace):
 
 
 class CameraSensorSpec(SensorBase):
+    resolution: IntVector
+
     def __init__(
         self,
         parent,
@@ -44,7 +46,7 @@ class CameraSensorSpec(SensorBase):
     ) -> None:
         super().__init__(parent, name, body, update_rate, rate_unit)
         self.type = type
-        self.width, self.height = resolution.as_width_height("CameraSensorSpec.resolution")
+        self.resolution = resolution
         self.fov = fov
         self.fov_unit = fov_unit
 

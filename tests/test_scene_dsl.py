@@ -1,14 +1,17 @@
 from pathlib import Path
 
 import pytest
-from rdflib import RDF, Literal, URIRef
+from rdflib import RDF, Literal
 
 from bdd_dsl.models.urirefs import URI_EXEC_PRED_PATH
 from rdf_utils.constraints import check_shacl_constraints
 from rdf_utils.models.geometry import (
+    PoseCoordModel,
+    PositionCoordModel,
     URI_DYN_TYPE_MASS_SCALAR,
     URI_GEOM_TYPE_RIGID_BODY,
     URI_KC_PRED_JOINTS,
+    get_coord_vectorxyz,
     URI_KC_TYPE_REVOLUTE_JOINT,
     URI_QUDT_PRED_UNIT,
 )
@@ -17,7 +20,6 @@ from rdf_utils.namespace import URL_MM_GEOM_SHACL_EXTS, URL_MM_GEOM_SHACL_REL
 from rdf_utils.resolver import install_resolver
 
 from scene_dsl.langs import scene_metamodel, scenex_metamodel
-from scene_dsl.rdf.geom import LENGTH_UNITS
 from scene_dsl.rdf.ktree import MASS_UNITS, URI_GEOM_TYPE_KTREE
 from scene_dsl.rdf.scene import create_scene_model_graph
 from scene_dsl.rdf.scenex import URI_EXEC_PRED_LINKS_BODY, create_scenex_model_graph
@@ -169,9 +171,19 @@ scene inst (ns=n) sx {{
     model = scenex_metamodel().model_from_file(model_path)
     cup_body = model.scene_insts[0].modelled_objs[0].body
     pose = cup_body.frames[0].poses[0]
-
     graph = create_scenex_model_graph(model)
-    assert (URIRef(f"{pose.uri}-coord"), URI_QUDT_PRED_UNIT, LENGTH_UNITS[length_unit]) in graph
+    position_coord = PositionCoordModel(pose.uri_coord, graph)
+    pose_coord = PoseCoordModel(pose.uri_coord, graph)
+
+    assert position_coord.position == pose.position_uri
+    assert position_coord.of == pose.of_frame.origin_uri
+    assert position_coord.wrt == pose.wrt.origin_uri
+    assert position_coord.as_seen_by == pose.wrt.uri
+    assert pose_coord.pose == pose.uri
+    assert pose_coord.of.id == pose.of_frame.uri
+    assert pose_coord.wrt.id == pose.wrt.uri
+    assert pose_coord.as_seen_by == pose.wrt.uri
+    assert get_coord_vectorxyz(pose_coord, graph) == tuple(pose.xyz.values)
     assert (cup_body.inertia_coord_uri, URI_QUDT_PRED_UNIT, MASS_UNITS[mass_unit]) in graph
 
 

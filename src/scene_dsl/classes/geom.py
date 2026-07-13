@@ -31,9 +31,9 @@ class EulerOrientationSpec(OrientationSpec):
 
 
 class DirectionCosineOrientationSpec(OrientationSpec):
-    x_axis: tuple[float, ...]
-    y_axis: tuple[float, ...]
-    z_axis: tuple[float, ...]
+    x_axis: tuple[float, float, float]
+    y_axis: tuple[float, float, float]
+    z_axis: tuple[float, float, float]
 
     def __init__(
         self, parent, x_axis: FloatVector, y_axis: FloatVector, z_axis: FloatVector

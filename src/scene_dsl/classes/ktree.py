@@ -83,7 +83,7 @@ class RigidBodyInertia:
     row3: FloatVector
     inertia_unit: str
 
-    matrix: tuple[tuple[float], ...]
+    matrix: tuple[tuple[float, float, float], ...]
 
     def __init__(self, parent, frame, mass, mass_unit, row1, row2, row3, inertia_unit) -> None:
         self.parent = parent
@@ -241,13 +241,13 @@ class JointOffset:
 
 
 class JointLimits:
-    position: Optional[FloatVector]
+    position: Optional[tuple[float, float]]
     position_unit: Optional[str]
-    velocity: Optional[FloatVector]
+    velocity: Optional[tuple[float, float]]
     velocity_unit: Optional[str]
-    acceleration: Optional[FloatVector]
+    acceleration: Optional[tuple[float, float]]
     acceleration_unit: Optional[str]
-    effort: Optional[FloatVector]
+    effort: Optional[tuple[float, float]]
     effort_unit: Optional[str]
 
     def __init__(

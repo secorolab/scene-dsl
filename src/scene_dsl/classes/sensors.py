@@ -64,7 +64,7 @@ class CameraSensorSpec(SensorBase):
 
 
 class ForceTorqueSensorSpec(SensorBase):
-    observes: str
+    observes: list[str]
 
     def __init__(self, parent, name, frame, observes, update_rate, rate_unit) -> None:
         super().__init__(
@@ -74,7 +74,7 @@ class ForceTorqueSensorSpec(SensorBase):
 
 
 class ImuSensorSpec(SensorBase):
-    observes: str
+    observes: list[str]
 
     def __init__(self, parent, name, frame, observes, update_rate, rate_unit) -> None:
         super().__init__(

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
+import numpy as np
 from rdflib import Namespace, URIRef
 
 from scene_dsl.classes.common import FloatVector, IHasNamespace, IHasNamespaceDeclare
@@ -83,7 +84,7 @@ class RigidBodyInertia:
     row3: FloatVector
     inertia_unit: str
 
-    matrix: tuple[tuple[float, float, float], ...]
+    matrix: np.ndarray
 
     def __init__(self, parent, frame, mass, mass_unit, row1, row2, row3, inertia_unit) -> None:
         self.parent = parent
@@ -97,11 +98,16 @@ class RigidBodyInertia:
         self.row3 = row3
         self.inertia_unit = inertia_unit
 
-        self.matrix = (
-            self.row1.as_xyz("RigidBodyInertia.row1"),
-            self.row2.as_xyz("RigidBodyInertia.row2"),
-            self.row3.as_xyz("RigidBodyInertia.row3"),
+        self.matrix = np.array(
+            (
+                self.row1.as_xyz("RigidBodyInertia.row1"),
+                self.row2.as_xyz("RigidBodyInertia.row2"),
+                self.row3.as_xyz("RigidBodyInertia.row3"),
+            ),
+            dtype=float,
         )
+        if not np.allclose(self.matrix, self.matrix.T):
+            raise ValueError("RigidBodyInertia.matrix must be symmetric")
 
 
 class JointsSpec(IHasNamespace):

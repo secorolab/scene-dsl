@@ -2,6 +2,7 @@ from pathlib import Path
 
 import pytest
 from rdflib import RDF, Literal
+import numpy as np
 
 from bdd_dsl.models.urirefs import URI_EXEC_PRED_PATH
 from rdf_utils.constraints import check_shacl_constraints
@@ -19,8 +20,23 @@ from rdf_utils.models.geometry import (
 from rdf_utils.namespace import URL_MM_GEOM_SHACL_EXTS, URL_MM_GEOM_SHACL_REL
 from rdf_utils.resolver import install_resolver
 
+from scene_dsl.classes.common import FloatVector
+from scene_dsl.classes.geom import DirectionCosineOrientationSpec
+from scene_dsl.classes.ktree import RigidBodyInertia
 from scene_dsl.langs import scene_metamodel, scenex_metamodel
-from scene_dsl.rdf.ktree import MASS_UNITS, URI_GEOM_TYPE_KTREE
+from scene_dsl.rdf.ktree import (
+    INERTIA_UNITS,
+    MASS_UNITS,
+    URI_DYN_PRED_IXX,
+    URI_DYN_PRED_IXY,
+    URI_DYN_PRED_IXZ,
+    URI_DYN_PRED_IYY,
+    URI_DYN_PRED_IYZ,
+    URI_DYN_PRED_IZZ,
+    URI_DYN_TYPE_MOMENT_OF_INERTIA_XYZ,
+    URI_DYN_TYPE_PRODUCT_OF_INERTIA_XYZ,
+    URI_GEOM_TYPE_KTREE,
+)
 from scene_dsl.rdf.scene import create_scene_model_graph
 from scene_dsl.rdf.scenex import URI_EXEC_PRED_LINKS_BODY, create_scenex_model_graph
 from scene_dsl.rdf.sensors import URI_EXEC_PRED_HAS_KINEMATICS
@@ -127,10 +143,10 @@ scene inst (ns=n) sx {
 
 
 @pytest.mark.parametrize(
-    ("length_unit", "mass_unit"),
-    [("m", "kg"), ("cm", "g"), ("mm", "kg")],
+    ("length_unit", "mass_unit", "inertia_unit"),
+    [("m", "kg", "kg*m^2"), ("cm", "g", "kg*m^2"), ("mm", "kg", "kg*m^2")],
 )
-def test_scenex_length_and_mass_units(tmp_path, length_unit, mass_unit):
+def test_scenex_length_and_mass_units(tmp_path, length_unit, mass_unit, inertia_unit):
     _write_collision_scene(tmp_path)
     model_path = tmp_path / "units.scenex"
     model_path.write_text(
@@ -152,10 +168,10 @@ scene inst (ns=n) sx {{
                 frame: cup_root
                 mass: 10.0 {mass_unit}
                 inertia-matrix: (
-                    (1.0, 0.0, 0.0),
-                    (0.0, 1.0, 0.0),
-                    (0.0, 0.0, 1.0)
-                ) kg*m^2
+                    (1.0, 0.1, 0.2),
+                    (0.1, 2.0, 0.3),
+                    (0.2, 0.3, 3.0)
+                ) {inertia_unit}
             }}
         }}
         joints {{ }}
@@ -185,6 +201,20 @@ scene inst (ns=n) sx {{
     assert pose_coord.as_seen_by == pose.wrt.uri
     assert get_coord_vectorxyz(pose_coord, graph) == tuple(pose.xyz.values)
     assert (cup_body.inertia_coord_uri, URI_QUDT_PRED_UNIT, MASS_UNITS[mass_unit]) in graph
+    assert (cup_body.inertia_coord_uri, URI_QUDT_PRED_UNIT, INERTIA_UNITS[inertia_unit]) in graph
+    assert (cup_body.inertia_coord_uri, RDF.type, URI_DYN_TYPE_MOMENT_OF_INERTIA_XYZ) in graph
+    assert (cup_body.inertia_coord_uri, RDF.type, URI_DYN_TYPE_PRODUCT_OF_INERTIA_XYZ) in graph
+
+    matrix = cup_body.inertia.matrix
+    for predicate, value in (
+        (URI_DYN_PRED_IXX, matrix[0][0]),
+        (URI_DYN_PRED_IXY, matrix[0][1]),
+        (URI_DYN_PRED_IXZ, matrix[0][2]),
+        (URI_DYN_PRED_IYY, matrix[1][1]),
+        (URI_DYN_PRED_IYZ, matrix[1][2]),
+        (URI_DYN_PRED_IZZ, matrix[2][2]),
+    ):
+        assert (cup_body.inertia_coord_uri, predicate, Literal(value)) in graph
 
 
 def test_scenex_mass_quantity_validation(tmp_path):
@@ -217,9 +247,31 @@ scene inst (ns=n) sx {{
     cup_body = scenex_metamodel().model_from_file(model_path).scene_insts[0].ktree.bodies[0]
     assert cup_body.inertia.mass == 0.0
 
-    model_path.write_text(model_path.read_text().replace("mass: 0.0", "mass: -1.0"))
     with pytest.raises(ValueError, match="RigidBodyInertia.mass must be"):
-        scenex_metamodel().model_from_file(model_path)
+        RigidBodyInertia(
+            parent=None,
+            frame=None,
+            mass=-1.0,
+            mass_unit="kg",
+            row1=FloatVector(None, [1.0, 0.0, 0.0]),
+            row2=FloatVector(None, [0.0, 1.0, 0.0]),
+            row3=FloatVector(None, [0.0, 0.0, 1.0]),
+            inertia_unit="kg*m^2",
+        )
+
+
+def test_rigid_body_inertia_rejects_non_symmetric_matrix():
+    with pytest.raises(ValueError, match="RigidBodyInertia.matrix must be symmetric"):
+        RigidBodyInertia(
+            parent=None,
+            frame=None,
+            mass=0.0,
+            mass_unit="kg",
+            row1=FloatVector(None, [1.0, 0.1, 0.0]),
+            row2=FloatVector(None, [0.0, 1.0, 0.0]),
+            row3=FloatVector(None, [0.0, 0.0, 1.0]),
+            inertia_unit="kg*m^2",
+        )
 
 
 def _write_robot_scene(tmp_path: Path) -> None:
@@ -245,6 +297,8 @@ def test_lab_scenex_agent_tree_link_and_sensors_emit_rdf():
     sensor = next(sensor for sensor in panda.sensors if sensor.name == "wrist_cam")
 
     assert panda.ktree in scene_inst.ktree.trees
+    orientation = panda.ktree.bodies[0].frames[0].poses[0].orientation
+    assert np.allclose(orientation.rotation_matrix, np.eye(3))
 
     graph = create_scenex_model_graph(model)
 
@@ -258,6 +312,16 @@ def test_lab_scenex_agent_tree_link_and_sensors_emit_rdf():
         URI_EXEC_PRED_PATH,
         Literal("../robot-models/franka_emika_panda/mjx_panda.xml"),
     ) in graph
+
+
+def test_direction_cosine_orientation_rejects_non_orthogonal_matrix():
+    with pytest.raises(ValueError, match="rotation_matrix must be orthogonal"):
+        DirectionCosineOrientationSpec(
+            parent=None,
+            x_axis=FloatVector(None, [1.0, 0.0, 0.0]),
+            y_axis=FloatVector(None, [1.0, 0.0, 0.0]),
+            z_axis=FloatVector(None, [0.0, 0.0, 1.0]),
+        )
 
 
 def test_lab_scenex_generated_geometry_validates_against_shacl():

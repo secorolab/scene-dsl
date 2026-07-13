@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from typing import Optional
 
+import numpy as np
 from rdflib import Namespace, URIRef
 
 from scene_dsl.classes.common import FloatVector, IHasNamespace
@@ -34,6 +35,7 @@ class DirectionCosineOrientationSpec(OrientationSpec):
     x_axis: tuple[float, float, float]
     y_axis: tuple[float, float, float]
     z_axis: tuple[float, float, float]
+    rotation_matrix: np.ndarray
 
     def __init__(
         self, parent, x_axis: FloatVector, y_axis: FloatVector, z_axis: FloatVector
@@ -42,6 +44,9 @@ class DirectionCosineOrientationSpec(OrientationSpec):
         self.x_axis = x_axis.as_xyz("DirectionCosineOrientationSpec.x")
         self.y_axis = y_axis.as_xyz("DirectionCosineOrientationSpec.y")
         self.z_axis = z_axis.as_xyz("DirectionCosineOrientationSpec.z")
+        self.rotation_matrix = np.array((self.x_axis, self.y_axis, self.z_axis), dtype=float)
+        if not np.allclose(self.rotation_matrix @ self.rotation_matrix.T, np.eye(3)):
+            raise ValueError("DirectionCosineOrientationSpec.rotation_matrix must be orthogonal")
 
 
 class PoseSpec(IHasNamespace):

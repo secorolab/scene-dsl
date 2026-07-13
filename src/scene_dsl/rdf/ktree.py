@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MPL-2.0
-from rdf_utils.namespace import NS_MM_GEOM
+from rdf_utils.namespace import NS_MM_DYN_COORD, NS_MM_GEOM, NS_MM_QUDT_UNIT
 from rdflib import RDF, Graph, Literal, URIRef
 from rdf_utils.models.geometry import (
     URI_KC_PRED_BETWEEN_ATTACHMENTS,
@@ -44,6 +44,15 @@ from scene_dsl.rdf.geom import (
 URI_GEOM_TYPE_KTREE = NS_MM_GEOM["KinematicTree"]
 
 MASS_UNITS = {"kg": URI_QUDT_UNIT_KG, "g": URI_QUDT_UNIT_G}
+INERTIA_UNITS = {"kg*m^2": NS_MM_QUDT_UNIT["KiloGM-M2"]}
+URI_DYN_TYPE_MOMENT_OF_INERTIA_XYZ = NS_MM_DYN_COORD["MomentOfInertiaXYZ"]
+URI_DYN_TYPE_PRODUCT_OF_INERTIA_XYZ = NS_MM_DYN_COORD["ProductOfInertiaXYZ"]
+URI_DYN_PRED_IXX = NS_MM_DYN_COORD["ixx"]
+URI_DYN_PRED_IXY = NS_MM_DYN_COORD["ixy"]
+URI_DYN_PRED_IXZ = NS_MM_DYN_COORD["ixz"]
+URI_DYN_PRED_IYY = NS_MM_DYN_COORD["iyy"]
+URI_DYN_PRED_IYZ = NS_MM_DYN_COORD["iyz"]
+URI_DYN_PRED_IZZ = NS_MM_DYN_COORD["izz"]
 
 
 def add_body(graph: Graph, body) -> None:
@@ -66,8 +75,15 @@ def add_body(graph: Graph, body) -> None:
         graph.add((body.inertia_coord_uri, URI_DYN_PRED_AS_SEEN_BY, inertia.frame.uri))
         graph.add((body.inertia_coord_uri, URI_DYN_PRED_MASS, Literal(inertia.mass)))
         graph.add((body.inertia_coord_uri, URI_QUDT_PRED_UNIT, MASS_UNITS[inertia.mass_unit]))
-        # for row_index, row in enumerate(inertia.matrix, start=1):
-        #    add_vector_xyz(graph, tree.namespace[f"{body.name}-inertia-row-{row_index}"], row)
+        graph.add((body.inertia_coord_uri, URI_QUDT_PRED_UNIT, INERTIA_UNITS[inertia.inertia_unit]))
+        graph.add((body.inertia_coord_uri, RDF.type, URI_DYN_TYPE_MOMENT_OF_INERTIA_XYZ))
+        graph.add((body.inertia_coord_uri, RDF.type, URI_DYN_TYPE_PRODUCT_OF_INERTIA_XYZ))
+        graph.add((body.inertia_coord_uri, URI_DYN_PRED_IXX, Literal(inertia.matrix[0][0])))
+        graph.add((body.inertia_coord_uri, URI_DYN_PRED_IXY, Literal(inertia.matrix[0][1])))
+        graph.add((body.inertia_coord_uri, URI_DYN_PRED_IXZ, Literal(inertia.matrix[0][2])))
+        graph.add((body.inertia_coord_uri, URI_DYN_PRED_IYY, Literal(inertia.matrix[1][1])))
+        graph.add((body.inertia_coord_uri, URI_DYN_PRED_IYZ, Literal(inertia.matrix[1][2])))
+        graph.add((body.inertia_coord_uri, URI_DYN_PRED_IZZ, Literal(inertia.matrix[2][2])))
 
 
 def add_revolute_joint(graph: Graph, joint: RevoluteJoint) -> None:

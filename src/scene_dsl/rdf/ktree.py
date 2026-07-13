@@ -2,24 +2,38 @@
 from rdf_utils.namespace import (
     NS_MM_DYN_COORD,
     NS_MM_GEOM,
-    NS_MM_QUDT,
     NS_MM_QUDT_UNIT,
-    URL_COMP_ROB2B,
-    URL_SECORO_MM,
 )
-from rdflib import Namespace, RDF, Graph, Literal, URIRef, XSD
-from rdf_utils.models.geometry import (
+from rdflib import RDF, Graph, Literal, URIRef, XSD
+from rdf_utils.models.vocab import (
+    URI_ACT_PRED_COMMAND_INTERFACE,
+    URI_ACT_PRED_GEAR_RATIO,
+    URI_ACT_PRED_JOINT,
+    URI_ACT_PRED_STATE_INTERFACE,
+    URI_ACT_TYPE_ACTUATION,
+    URI_KC_EXT_PRED_DEPENDENT_JOINT,
+    URI_KC_EXT_PRED_INDEPENDENT_JOINT,
+    URI_KC_EXT_PRED_MULTIPLIER,
+    URI_KC_EXT_PRED_OFFSET,
+    URI_KC_EXT_TYPE_JOINT_COUPLING,
+    URI_KC_EXT_TYPE_SCLERONOMIC,
     URI_KC_PRED_BETWEEN_ATTACHMENTS,
     URI_KC_PRED_COMMON_AXIS,
     URI_KC_PRED_JOINTS,
     URI_KC_PRED_ORIGIN_OFFSET,
+    URI_KC_STAT_JNT_FORCE,
+    URI_KC_STAT_JNT_POSITION,
+    URI_KC_STAT_JNT_VEL,
     URI_KC_TYPE_JOINT,
     URI_KC_TYPE_REVOLUTE_JOINT,
     URI_QUDT_PRED_QUANTITY_KIND,
+    URI_QUDT_PRED_VALUE,
     URI_QUDT_QK_ANGLE,
+    URI_QUDT_TYPE_QUANTITY,
     URI_QUDT_UNIT_G,
     URI_QUDT_UNIT_RAD,
     URI_QUDT_UNIT_KG,
+    URI_QUDT_PRED_UNIT,
     URI_GEOM_TYPE_COLLINEAR,
     URI_GEOM_TYPE_RIGID_BODY,
     URI_GEOM_TYPE_SIMPLICIAL_COMPLEX,
@@ -27,6 +41,7 @@ from rdf_utils.models.geometry import (
     URI_GEOM_PRED_SIMPLICES,
     URI_KC_TYPE_KC,
     URI_KC_TYPE_SERIAL,
+    URI_ACT_TYPE_JOINT_CURRENT,
     URI_DYN_PRED_ABOUT,
     URI_DYN_PRED_AS_SEEN_BY,
     URI_DYN_PRED_MASS,
@@ -48,35 +63,16 @@ from scene_dsl.classes.ktree import (
     SerialJoints,
 )
 from scene_dsl.rdf.geom import (
-    URI_QUDT_PRED_UNIT,
     add_frame,
     add_position_coord,
 )
 
 URI_GEOM_TYPE_KTREE = NS_MM_GEOM["KinematicTree"]
-NS_MM_KC_STAT = Namespace(f"{URL_COMP_ROB2B}/metamodels/kinematic-chain/state#")
-NS_MM_ACT = Namespace(f"{URL_SECORO_MM}/robot/actuation#")
-NS_MM_KC_EXT = Namespace(f"{URL_SECORO_MM}/kinematic-chain/structural-entities-extension#")
-
-URI_QUDT_PRED_VALUE = NS_MM_QUDT["value"]
-URI_QUDT_TYPE_QUANTITY = NS_MM_QUDT["Quantity"]
-URI_ACT_TYPE_ACTUATION = NS_MM_ACT["Actuation"]
-URI_ACT_PRED_JOINT = NS_MM_ACT["joint"]
-URI_KC_EXT_TYPE_JOINT_COUPLING = NS_MM_KC_EXT["JointCoupling"]
-URI_KC_EXT_TYPE_SCLERONOMIC = NS_MM_KC_EXT["Scleronomic"]
-URI_KC_EXT_PRED_INDEPENDENT_JOINT = NS_MM_KC_EXT["independent-joint"]
-URI_KC_EXT_PRED_DEPENDENT_JOINT = NS_MM_KC_EXT["dependent-joint"]
-URI_KC_EXT_PRED_MULTIPLIER = NS_MM_KC_EXT["multiplier"]
-URI_KC_EXT_PRED_OFFSET = NS_MM_KC_EXT["offset"]
-URI_ACT_PRED_GEAR_RATIO = NS_MM_ACT["gear-ratio"]
-URI_ACT_PRED_COMMAND_INTERFACE = NS_MM_ACT["command-interface"]
-URI_ACT_PRED_STATE_INTERFACE = NS_MM_ACT["state-interface"]
-URI_ACT_TYPE_JOINT_CURRENT = NS_MM_ACT["JointCurrent"]
 
 ACTUATION_INTERFACE_TYPES = {
-    "position": NS_MM_KC_STAT["JointPosition"],
-    "velocity": NS_MM_KC_STAT["JointVelocity"],
-    "torque": NS_MM_KC_STAT["JointForce"],
+    "position": URI_KC_STAT_JNT_POSITION,
+    "velocity": URI_KC_STAT_JNT_VEL,
+    "torque": URI_KC_STAT_JNT_FORCE,
     "current": URI_ACT_TYPE_JOINT_CURRENT,
 }
 

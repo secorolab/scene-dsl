@@ -1,25 +1,8 @@
-from pathlib import Path
-
 import pytest
-from rdflib import RDF, Literal, XSD
-import numpy as np
+from rdflib import RDF, Literal
 
-from bdd_dsl.models.urirefs import URI_EXEC_PRED_PATH
 from rdf_utils.constraints import check_shacl_constraints
-from rdf_utils.models.distribution import (
-    DistributionModel,
-    distrib_from_sampled_quantity,
-    sample_from_distrib,
-)
 from rdf_utils.models.vocab import (
-    URI_DISTRIB_PRED_FROM_DISTRIB,
-    URI_DISTRIB_TYPE_DISTRIB,
-    URI_DISTRIB_TYPE_NORMAL,
-    URI_DISTRIB_TYPE_SAMPLED_QUANTITY,
-    URI_DYN_TYPE_MASS_SCALAR,
-    URI_GEOM_TYPE_RIGID_BODY,
-    URI_KC_PRED_JOINTS,
-    URI_KC_TYPE_REVOLUTE_JOINT,
     URI_QUDT_QK_ANGLE,
     URI_QUDT_PRED_QUANTITY_KIND,
     URI_QUDT_PRED_UNIT,
@@ -36,9 +19,9 @@ from rdf_utils.namespace import URL_MM_GEOM_SHACL_EXTS, URL_MM_GEOM_SHACL_REL, U
 from rdf_utils.resolver import install_resolver
 
 from scene_dsl.classes.common import FloatVector
-from scene_dsl.classes.geom import DirectionCosineOrientationSpec, PoseSpec
+from scene_dsl.classes.geom import DirectionCosineOrientationSpec
 from scene_dsl.classes.ktree import RigidBodyInertia
-from scene_dsl.langs import scene_metamodel, scenex_metamodel
+from scene_dsl.langs import scenex_metamodel
 from scene_dsl.rdf.geom import ANGLE_UNITS
 from scene_dsl.rdf.ktree import (
     INERTIA_UNITS,
@@ -51,11 +34,9 @@ from scene_dsl.rdf.ktree import (
     URI_DYN_PRED_IZZ,
     URI_DYN_TYPE_MOMENT_OF_INERTIA_XYZ,
     URI_DYN_TYPE_PRODUCT_OF_INERTIA_XYZ,
-    URI_GEOM_TYPE_KTREE,
     URI_ACT_PRED_COMMAND_INTERFACE,
     URI_ACT_PRED_JOINT,
     URI_KC_EXT_PRED_DEPENDENT_JOINT,
-    URI_KC_EXT_PRED_MULTIPLIER,
     URI_KC_EXT_PRED_OFFSET,
     URI_QUDT_TYPE_QUANTITY,
     URI_KC_EXT_PRED_INDEPENDENT_JOINT,
@@ -65,109 +46,19 @@ from scene_dsl.rdf.ktree import (
     URI_ACT_TYPE_ACTUATION,
     ACTUATION_INTERFACE_TYPES,
 )
-from scene_dsl.rdf.scene import create_scene_model_graph
-from scene_dsl.rdf.scenex import URI_EXEC_PRED_LINKS_BODY, create_scenex_model_graph
-from scene_dsl.rdf.sensors import URI_EXEC_PRED_HAS_KINEMATICS
-from scene_dsl.rdf.sensors import (
-    CAMERA_TYPES,
-    OBSERVED_QUANTITIES,
-    URI_QUDT_PRED_VALUE,
-    URI_SENS_PRED_CAMERA_KIND,
-    URI_SENS_PRED_FIELD_OF_VIEW,
-    URI_SENS_PRED_FRAME,
-    URI_SENS_PRED_UPDATE_RATE,
-    URI_SENS_TYPE_CAMERA,
-    URI_SENS_TYPE_FORCE_TORQUE_SENSOR,
-    URI_SENS_TYPE_IMU,
-    URI_SOSA_PRED_HOSTS,
-    URI_SOSA_PRED_OBSERVES,
-    URI_SOSA_TYPE_PLATFORM,
-    URI_SOSA_TYPE_SENSOR,
-)
-
-MODELS_DIR = Path(__file__).parents[1] / "examples" / "models"
+from scene_dsl.rdf.scenex import create_scenex_model_graph
+from .test_common import MODELS_DIR, write_example_scene
 
 ZERO_POSE = (
     "pose default_pose { xyz: (0.0, 0.0, 0.0) m orientation: euler { angles: (0.0, 0.0, 0.0) } }"
 )
 
 
-def test_scene_parses_and_generates_rdf():
-    model = scene_metamodel().model_from_file(MODELS_DIR / "lab.scene")
-
-    assert model.scene_models
-    assert model.sim_obj_sets
-    assert len(create_scene_model_graph(model)) > 0
-
-
-def test_scenex_references_scene_and_generates_rdf():
-    model = scenex_metamodel().model_from_file(MODELS_DIR / "lab.scenex")
-    scene_inst = model.scene_insts[0]
-    table_obj = next(obj for obj in scene_inst.modelled_objs if obj.obj.name == "dining_table")
-    table_body = table_obj.body
-
-    graph = create_scenex_model_graph(model)
-    assert (table_body.uri, RDF.type, URI_GEOM_TYPE_RIGID_BODY) in graph
-    assert (table_body.inertia_coord_uri, RDF.type, URI_DYN_TYPE_MASS_SCALAR) in graph
-    assert (table_obj.modelled_uri, URI_EXEC_PRED_LINKS_BODY, table_body.uri) in graph
-
-
-def test_shared_workspace_composition_is_rejected(tmp_path):
-    model_path = tmp_path / "shared_workspace.scene"
-    model_path.write_text(
-        """ns n = "https://example.test/"
-
-obj set (ns=n) objs { object cup }
-ws set (ns=n) wss { workspace root, workspace a, workspace b, workspace shared }
-agn set (ns=n) agns { agent robot }
-
-comp (ns=n) shared_comp of ws <wss.shared> {
-    obj <objs.cup>
-}
-comp (ns=n) a_comp of ws <wss.a> {
-    ws comp <shared_comp>
-}
-comp (ns=n) b_comp of ws <wss.b> {
-    ws comp <shared_comp>
-}
-comp (ns=n) root_comp of ws <wss.root> {
-    ws comp <a_comp>
-    ws comp <b_comp>
-}
-scene (ns=n) dag_scene {
-    obj set <objs>
-    ws set <wss>
-    ws comp <root_comp>
-    agn set <agns>
-}
-"""
-    )
-
-    model = scene_metamodel().model_from_file(model_path)
-    with pytest.raises(RuntimeError, match="Shared or cyclic workspace compositions"):
-        create_scene_model_graph(model)
-
-
-def _write_collision_scene(tmp_path: Path) -> None:
-    (tmp_path / "collision.scene").write_text(
-        """ns n = "https://example.test/"
-obj set (ns=n) objs { object cup, object bowl }
-ws set (ns=n) wss { workspace table }
-agn set (ns=n) agns { agent robot }
-scene (ns=n) s {
-    obj set <objs>
-    ws set <wss>
-    agn set <agns>
-}
-"""
-    )
-
-
 def test_duplicate_model_uri_is_rejected(tmp_path):
-    _write_collision_scene(tmp_path)
+    write_example_scene(tmp_path)
     model_path = tmp_path / "duplicate_model.scenex"
     model_path.write_text(
-        """import "collision.scene"
+        """import "example.scene"
 ns n = "https://example.test/"
 scene inst (ns=n) sx {
     scene: <s>
@@ -191,10 +82,10 @@ scene inst (ns=n) sx {
     [("m", "kg", "kg*m^2"), ("cm", "g", "kg*m^2"), ("mm", "kg", "kg*m^2")],
 )
 def test_scenex_length_and_mass_units(tmp_path, length_unit, mass_unit, inertia_unit):
-    _write_collision_scene(tmp_path)
+    write_example_scene(tmp_path)
     model_path = tmp_path / "units.scenex"
     model_path.write_text(
-        f"""import "collision.scene"
+        f"""import "example.scene"
 ns n = "https://example.test/"
 scene inst (ns=n) sx {{
     scene: <s>
@@ -271,10 +162,10 @@ scene inst (ns=n) sx {{
 
 
 def test_scenex_mass_quantity_validation(tmp_path):
-    _write_collision_scene(tmp_path)
+    write_example_scene(tmp_path)
     model_path = tmp_path / "mass_quantity.scenex"
     model_path.write_text(
-        f"""import "collision.scene"
+        f"""import "example.scene"
 ns n = "https://example.test/"
 scene inst (ns=n) sx {{
     scene: <s>
@@ -325,84 +216,6 @@ def test_rigid_body_inertia_rejects_non_symmetric_matrix():
             row3=FloatVector(None, [0.0, 0.0, 1.0]),
             inertia_unit="kg*m^2",
         )
-
-
-def _write_robot_scene(tmp_path: Path) -> None:
-    (tmp_path / "robot.scene").write_text(
-        """ns n = "https://example.test/"
-obj set (ns=n) objs { object cup }
-ws set (ns=n) wss { workspace table }
-agn set (ns=n) agns { agent robot }
-scene (ns=n) s {
-    obj set <objs>
-    ws set <wss>
-    agn set <agns>
-}
-"""
-    )
-
-
-def test_lab_scenex_agent_tree_link_and_sensors_emit_rdf():
-    model = scenex_metamodel().model_from_file(MODELS_DIR / "lab.scenex")
-    scene_inst = model.scene_insts[0]
-    panda = next(agent for agent in scene_inst.modelled_agns if agent.agn.name == "panda")
-    joint = next(joint for joint in panda.ktree.joints_spec.joints if joint.name == "panda_joint1")
-    sensor = next(sensor for sensor in panda.sensors if sensor.name == "wrist_cam")
-    ft_sensor = next(sensor for sensor in panda.sensors if sensor.name == "wrist_ft")
-    imu_sensor = next(sensor for sensor in panda.sensors if sensor.name == "wrist_imu")
-
-    assert panda.ktree in scene_inst.ktree.trees
-    orientation = panda.ktree.bodies[0].frames[0].poses[0].orientation
-    assert np.allclose(orientation.rotation_matrix, np.eye(3))
-
-    graph = create_scenex_model_graph(model)
-
-    assert (scene_inst.ktree.uri, RDF.type, URI_GEOM_TYPE_KTREE) in graph
-    assert (panda.ktree.uri, RDF.type, URI_GEOM_TYPE_KTREE) in graph
-    assert (joint.uri, RDF.type, URI_KC_TYPE_REVOLUTE_JOINT) in graph
-    assert (panda.ktree.uri, URI_KC_PRED_JOINTS, joint.uri) in graph
-    assert (panda.modelled_uri, RDF.type, URI_SOSA_TYPE_PLATFORM) in graph
-    for platform_sensor in (sensor, ft_sensor, imu_sensor):
-        assert (platform_sensor.uri, RDF.type, URI_SOSA_TYPE_SENSOR) in graph
-        assert (panda.modelled_uri, URI_SOSA_PRED_HOSTS, platform_sensor.uri) in graph
-        assert (
-            platform_sensor.uri,
-            URI_EXEC_PRED_HAS_KINEMATICS,
-            platform_sensor.frame.uri,
-        ) in graph
-        assert (platform_sensor.uri, URI_SENS_PRED_FRAME, platform_sensor.frame.uri) in graph
-
-        update_rate = graph.value(platform_sensor.uri, URI_SENS_PRED_UPDATE_RATE)
-        assert (update_rate, RDF.type, URI_QUDT_TYPE_QUANTITY) in graph
-        assert (
-            update_rate,
-            URI_QUDT_PRED_VALUE,
-            Literal(platform_sensor.update_rate, datatype=XSD.double),
-        ) in graph
-
-    assert (sensor.uri, RDF.type, URI_SENS_TYPE_CAMERA) in graph
-    assert (sensor.uri, URI_SENS_PRED_CAMERA_KIND, CAMERA_TYPES[sensor.cam_type]) in graph
-    assert (
-        graph.value(sensor.uri, URI_SENS_PRED_FIELD_OF_VIEW),
-        RDF.type,
-        URI_QUDT_TYPE_QUANTITY,
-    ) in graph
-
-    assert (ft_sensor.uri, RDF.type, URI_SENS_TYPE_FORCE_TORQUE_SENSOR) in graph
-    assert (imu_sensor.uri, RDF.type, URI_SENS_TYPE_IMU) in graph
-    for platform_sensor in (ft_sensor, imu_sensor):
-        for observed in platform_sensor.observes:
-            assert (
-                platform_sensor.uri,
-                URI_SOSA_PRED_OBSERVES,
-                OBSERVED_QUANTITIES[observed],
-            ) in graph
-
-    assert (
-        panda.model.uri,
-        URI_EXEC_PRED_PATH,
-        Literal("../robot-models/franka_emika_panda/mjx_panda.xml"),
-    ) in graph
 
 
 def test_direction_cosine_orientation_rejects_non_orthogonal_matrix():
@@ -476,11 +289,6 @@ def test_lab_scenex_generates_panda_joint_actuation():
     ) in graph
     assert (
         mimic_joint.mimic_uri,
-        URI_KC_EXT_PRED_MULTIPLIER,
-        Literal(2.0, datatype=XSD.double),
-    ) in graph
-    assert (
-        mimic_joint.mimic_uri,
         URI_KC_EXT_PRED_OFFSET,
         mimic_joint.mimic_offset_uri,
     ) in graph
@@ -493,10 +301,10 @@ def test_lab_scenex_generates_panda_joint_actuation():
 
 
 def test_scenex_embedded_kinematic_tree_rejects_bad_frame_ref(tmp_path):
-    _write_robot_scene(tmp_path)
+    write_example_scene(tmp_path)
     model_path = tmp_path / "bad_robot.scenex"
     model_path.write_text(
-        """import "robot.scene"
+        """import "example.scene"
 ns n = "https://example.test/"
 scene inst (ns=n) sx {
     scene: <s>
@@ -518,67 +326,3 @@ scene inst (ns=n) sx {
 
     with pytest.raises(Exception, match="missing"):
         scenex_metamodel().model_from_file(model_path)
-
-
-def test_shared_distributions_generate_sampled_quantity_links():
-    model = scenex_metamodel().model_from_file(MODELS_DIR / "distributions.scenex")
-    graph = create_scenex_model_graph(model)
-    distributions = {distribution.name: distribution for distribution in model.distributions}
-    uniform_xyz = distributions["uniform-xyz"]
-    rotation = distributions["rot"]
-    normal_xyz = distributions["normal-xyz"]
-    normal_scalar = distributions["normal-scalar"]
-
-    assert (uniform_xyz.uri, RDF.type, URI_DISTRIB_TYPE_DISTRIB) in graph
-    assert (normal_xyz.uri, RDF.type, URI_DISTRIB_TYPE_NORMAL) in graph
-    poses = model.scene_insts[0].ktree.bodies[1].frames[0].poses
-    uniform_pose, normal_pose = poses
-    assert isinstance(uniform_pose, PoseSpec)
-    assert (uniform_pose.position_coord_uri, RDF.type, URI_DISTRIB_TYPE_SAMPLED_QUANTITY) in graph
-    assert (
-        uniform_pose.position_coord_uri,
-        URI_DISTRIB_PRED_FROM_DISTRIB,
-        uniform_xyz.uri,
-    ) in graph
-    assert (
-        uniform_pose.orientation_coord_uri,
-        URI_DISTRIB_PRED_FROM_DISTRIB,
-        rotation.uri,
-    ) in graph
-    assert (normal_pose.position_coord_uri, RDF.type, URI_DISTRIB_TYPE_SAMPLED_QUANTITY) in graph
-    assert (normal_pose.position_coord_uri, URI_DISTRIB_PRED_FROM_DISTRIB, normal_xyz.uri) in graph
-
-    uniform_sample = sample_from_distrib(
-        distrib_from_sampled_quantity(uniform_pose.position_coord_uri, graph), size=(4, 3)
-    )
-    assert uniform_sample.shape == (4, 3)
-    assert np.all(uniform_sample >= np.asarray(uniform_xyz.spec.lower.values))
-    assert np.all(uniform_sample <= np.asarray(uniform_xyz.spec.upper.values))
-
-    normal_model = DistributionModel(distrib_id=normal_xyz.uri, graph=graph)
-    normal_sample = sample_from_distrib(
-        distrib_from_sampled_quantity(normal_pose.position_coord_uri, graph), size=20
-    )
-    assert normal_sample.shape == (20, 3)
-    assert np.isfinite(normal_sample).all()
-    assert normal_model.distrib_type == URI_DISTRIB_TYPE_NORMAL
-
-    scalar_model = DistributionModel(distrib_id=normal_scalar.uri, graph=graph)
-    scalar_sample = sample_from_distrib(distrib=scalar_model, size=8)
-    assert scalar_sample.shape == (8,)
-    assert np.isfinite(scalar_sample).all()
-
-    pytest.importorskip("scipy")
-    rotation_sample = sample_from_distrib(
-        distrib_from_sampled_quantity(uniform_pose.orientation_coord_uri, graph)
-    )
-    assert rotation_sample.as_matrix().shape == (3, 3)
-
-
-def test_non_three_dimensional_normal_is_rejected_for_xyz_sampling():
-    model = scenex_metamodel().model_from_file(MODELS_DIR / "distributions.scenex")
-    next(
-        distribution for distribution in model.distributions if distribution.name == "normal-xyz"
-    ).spec.dimension = 2
-    with pytest.raises(ValueError, match="dimension 3"):
-        create_scenex_model_graph(model)

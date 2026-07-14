@@ -326,3 +326,13 @@ scene inst (ns=n) sx {
 
     with pytest.raises(Exception, match="missing"):
         scenex_metamodel().model_from_file(model_path)
+
+
+def test_direction_cosine_orientation_rejects_reflection():
+    with pytest.raises(ValueError, match=r"determinant \+1"):
+        DirectionCosineOrientationSpec(
+            parent=None,
+            x_axis=FloatVector(None, [1.0, 0.0, 0.0]),
+            y_axis=FloatVector(None, [0.0, 1.0, 0.0]),
+            z_axis=FloatVector(None, [0.0, 0.0, -1.0]),
+        )

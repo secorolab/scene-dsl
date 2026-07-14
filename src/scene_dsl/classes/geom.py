@@ -47,7 +47,13 @@ class DirectionCosineOrientationSpec(OrientationSpec):
         self.z_axis = z_axis.as_xyz("DirectionCosineOrientationSpec.z")
         self.rotation_matrix = np.array((self.x_axis, self.y_axis, self.z_axis), dtype=float)
         if not np.allclose(self.rotation_matrix @ self.rotation_matrix.T, np.eye(3)):
-            raise ValueError("DirectionCosineOrientationSpec.rotation_matrix must be orthogonal")
+            raise ValueError(
+                f"({self.parent}) DirectionCosineOrientationSpec.rotation_matrix must be orthogonal"
+            )
+        if not np.isclose(np.linalg.det(self.rotation_matrix), 1.0):
+            raise ValueError(
+                f"({self.parent}) DirectionCosineOrientationSpec.rotation_matrix must have determinant +1"
+            )
 
 
 class PoseSpec(IHasNamespace):

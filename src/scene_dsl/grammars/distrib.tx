@@ -1,0 +1,22 @@
+import base
+
+Distribution:
+'distrib' '(' 'ns' '=' ns=[NamespaceDeclare|FQN] ')' name=IRI_TRUNK '{'
+    spec=DistributionSpec
+'}'
+;
+
+DistributionSpec: UniformDistribution | UniformRotationDistribution ;
+
+UniformDistribution:
+'uniform' '{'
+    'lower' ':' lower=FloatVector
+    'upper' ':' upper=FloatVector
+'}'
+;
+
+UniformRotationDistribution: kind='uniform-rotation' ;
+
+DistributionRef:
+'sample' '<' distribution=[Distribution|FQN] '>'
+;

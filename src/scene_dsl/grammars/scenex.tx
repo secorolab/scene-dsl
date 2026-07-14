@@ -1,4 +1,5 @@
 import base
+import distrib
 import geom
 import ktree
 import sensors
@@ -8,6 +9,7 @@ Model:
 imports*=Import
 
 namespaces=NamespaceDeclare*
+distributions=Distribution*
 
 scene_insts+=SceneInstance*
 ;

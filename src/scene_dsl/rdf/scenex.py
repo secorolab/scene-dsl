@@ -35,6 +35,7 @@ from scene_dsl.classes.scenex import (
     SceneInstance,
 )
 from scene_dsl.rdf.common import add_py_module_attr
+from scene_dsl.rdf.distrib import add_distributions
 from scene_dsl.rdf.ktree import add_kinematic_tree
 from scene_dsl.rdf.scene import add_scene_model
 from scene_dsl.rdf.sensors import add_sensors
@@ -214,6 +215,7 @@ def create_scenex_model_graph(model: Any, g: Optional[Graph] = None) -> Graph:
     if g is None:
         g = Graph()
     _bind_model_kind_namespaces(graph=g)
+    add_distributions(graph=g, distributions=getattr(model, "distributions", []) or [])
     set_uris = set()
     for scn in _iter_scene_models(model):
         add_scene_model(graph=g, scene=scn, set_uris=set_uris)

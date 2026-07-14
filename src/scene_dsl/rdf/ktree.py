@@ -143,7 +143,7 @@ def add_revolute_joint(graph: Graph, joint: RevoluteJoint) -> None:
             as_seen_by=joint.parent_frame_axis.frame.uri,
             of_uri=joint.child_frame_axis.frame.origin_uri,
             wrt_uri=joint.parent_frame_axis.frame.origin_uri,
-            xyz_vector=joint.offset.xyz,
+            position_spec=joint.offset.xyz,
             unit=joint.offset.length_unit,
         )
 

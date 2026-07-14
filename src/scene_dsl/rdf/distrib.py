@@ -33,7 +33,11 @@ def add_distribution(graph: Graph, distribution: Distribution) -> None:
     if isinstance(distribution.spec, UniformDistribution):
         graph.add((distribution.uri, RDF.type, URI_DISTRIB_TYPE_UNIFORM))
         graph.add(
-            (distribution.uri, URI_DISTRIB_PRED_DIM, Literal(3, datatype=XSD.positiveInteger))
+            (
+                distribution.uri,
+                URI_DISTRIB_PRED_DIM,
+                Literal(distribution.spec.dimension, datatype=XSD.positiveInteger),
+            )
         )
         add_literal_list_pred(
             graph=graph,

@@ -25,18 +25,23 @@ class UniformDistribution:
     def __init__(self, parent, dimension, lower, upper) -> None:
         self.parent = parent
         self.dimension = dimension
+        if self.dimension < 1:
+            raise ValueError(
+                f"UniformDistribution ({self.parent}): dimension not positive {self.dimension}"
+            )
         self.lower = lower
         self.upper = upper
         len_lower = len(self.lower.values)
         len_upper = len(self.upper.values)
         if len_lower != self.dimension or len_upper != self.dimension:
             raise ValueError(
-                f"UniformDistribution: dimension ({self.dimension}) doesn't match number"
-                f" of lower ({len_lower}) or upper ({len_upper}) values"
+                f"UniformDistribution ({self.parent}): dimension ({self.dimension}) doesn't match"
+                f" number of lower ({len_lower}) or upper ({len_upper}) values"
             )
         if any(low >= high for low, high in zip(self.lower.values, self.upper.values)):
             raise ValueError(
-                "UniformDistribution.lower must be strictly less than upper for every component"
+                f"({self.parent})UniformDistribution.lower must be strictly"
+                " less than upper for every component"
             )
 
 
@@ -58,6 +63,10 @@ class NormalDistribution:
     ) -> None:
         self.parent = parent
         self.dimension = dimension
+        if self.dimension < 1:
+            raise ValueError(
+                f"NormalDistribution ({self.parent}): dimension not positive {self.dimension}"
+            )
         self.mean_vector = mean_vector
         if self.mean_vector is None:
             self.mean_scalar = mean_scalar

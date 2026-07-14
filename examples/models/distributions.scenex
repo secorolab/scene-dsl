@@ -1,7 +1,27 @@
 import "lab.scene"
 
-distrib (ns=scene_lab_mjc) uniform-xyz { uniform { lower: (-1.0, -2.0, -3.0) upper: (1.0, 2.0, 3.0) } }
+distrib (ns=scene_lab_mjc) uniform-xyz {
+    uniform {
+        dimension: 3
+        lower: (-1.0, -2.0, -3.0)
+        upper: (1.0, 2.0, 3.0)
+    }
+}
 distrib (ns=scene_lab_mjc) rot { uniform-rotation }
+distrib (ns=scene_lab_mjc) normal-xyz {
+    normal {
+        dimension: 3
+        mean: (0.0, 0.0, 0.0)
+        covariance: (
+            (0.01, 0.0, 0.0),
+            (0.0, 0.01, 0.0),
+            (0.0, 0.0, 0.01)
+        )
+    }
+}
+distrib (ns=scene_lab_mjc) normal-scalar {
+    normal { dimension: 1 mean: 0.0 std-dev: 0.5 }
+}
 
 scene inst (ns=scene_lab_mjc) sampled {
     scene: <pickplace_scene>
@@ -10,6 +30,7 @@ scene inst (ns=scene_lab_mjc) sampled {
         body thing {
             frame frame {
                 pose p { wrt: <world.root> xyz: sample <uniform-xyz> m orientation: sample <rot> }
+                pose normal-p { wrt: <world.root> xyz: sample <normal-xyz> m orientation: euler { angles: (0.0, 0.0, 0.0) } }
             }
         }
         joints { }

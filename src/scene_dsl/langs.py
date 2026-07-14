@@ -8,6 +8,8 @@ from scene_dsl.classes.common import FloatVector, IntVector
 from scene_dsl.classes.distrib import (
     Distribution,
     DistributionRef,
+    FloatMatrix,
+    NormalDistribution,
     UniformDistribution,
     UniformRotationDistribution,
 )
@@ -106,6 +108,8 @@ def scenex_metamodel():
             IntVector,
             Distribution,
             DistributionRef,
+            FloatMatrix,
+            NormalDistribution,
             UniformDistribution,
             UniformRotationDistribution,
             ElementModel,

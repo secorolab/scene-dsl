@@ -53,6 +53,7 @@ from rdf_utils.models.vocab import (
 from scene_dsl.classes.common import FloatVector
 from scene_dsl.classes.distrib import (
     DistributionRef,
+    NormalDistribution,
     UniformDistribution,
     UniformRotationDistribution,
 )
@@ -107,8 +108,15 @@ def add_position_coord(
     graph.add(triple=(pos_coord_uri, RDF.type, URI_GEOM_TYPE_VECTOR_XYZ))
 
     if isinstance(position_spec, DistributionRef):
-        if not isinstance(position_spec.distribution.spec, UniformDistribution):
-            raise ValueError("Position sampling requires a UniformDistribution specification")
+        distribution_spec = position_spec.distribution.spec
+        if not isinstance(distribution_spec, (UniformDistribution, NormalDistribution)):
+            raise ValueError(
+                f"add_position_coord({pos_coord_uri}): sampling requires a uniform or normal distribution"
+            )
+        if distribution_spec.dimension != 3:
+            raise ValueError(
+                f"add_position_coord({pos_coord_uri}): XYZ sampling requires a distribution with dimension 3"
+            )
         add_sampled_quantity(
             graph=graph,
             quantity_uri=pos_coord_uri,
@@ -117,10 +125,12 @@ def add_position_coord(
     elif isinstance(position_spec, FloatVector):
         add_vector_xyz(graph=graph, node=pos_coord_uri, vect=position_spec)
     else:
-        raise TypeError(f"Unhandled type for position specification: {position_spec}")
+        raise TypeError(
+            f"add_position_coord({pos_coord_uri}): Unhandled type for position specification: {position_spec}"
+        )
 
     if unit not in LENGTH_UNITS:
-        raise ValueError(f"add_position_coord: unrecognized length unit '{unit}'")
+        raise ValueError(f"add_position_coord({pos_coord_uri}): unrecognized length unit '{unit}'")
     graph.add(triple=(pos_coord_uri, URI_QUDT_PRED_UNIT, LENGTH_UNITS[unit]))
 
 
@@ -181,7 +191,7 @@ def add_orientation_coord(graph: Graph, pose: PoseSpec) -> None:
     elif isinstance(pose.orientation, DistributionRef):
         if not isinstance(pose.orientation.distribution.spec, UniformRotationDistribution):
             raise ValueError(
-                "Orientation sampling requires a UniformRotationDistribution specification"
+                f"add_orientation_coord({pose.orientation_coord_uri}): sampling requires a UniformRotationDistribution specification"
             )
         add_sampled_quantity(
             graph=graph,
@@ -189,7 +199,9 @@ def add_orientation_coord(graph: Graph, pose: PoseSpec) -> None:
             distrib_ref=pose.orientation,
         )
     else:
-        raise ValueError(f"Unsupported orientation: {pose.orientation}")
+        raise ValueError(
+            f"add_orientation_coord({pose.orientation_coord_uri}): Unsupported orientation: {pose.orientation}"
+        )
 
 
 def add_pose(graph: Graph, pose: PoseSpec) -> None:

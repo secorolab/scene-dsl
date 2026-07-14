@@ -1,4 +1,5 @@
 import base
+import distrib
 
 LengthUnit: 'mm' | 'cm' | 'm' ;
 AngleUnit: 'rad' | 'deg' ;
@@ -10,13 +11,15 @@ FrameAxis: '<' frame=[Frame|FQN] '>' '.' axis=Axis ;
 PoseSpec:
 'pose' name=IRI_TRUNK '{'
     ('wrt' ':' '<' wrt=[Frame|FQN] '>')?
-    'xyz' ':' xyz=FloatVector
+    'xyz' ':' position_spec=PositionSpec
     length_unit=LengthUnit
     'orientation' ':' orientation=OrientationSpec
 '}'
 ;
 
-OrientationSpec: EulerOrientationSpec | DirectionCosineOrientationSpec ;
+PositionSpec: FloatVector | DistributionRef ;
+
+OrientationSpec: EulerOrientationSpec | DirectionCosineOrientationSpec | DistributionRef ;
 
 EulerAxes: 'xyz' | 'xzy' | 'yxz' | 'yzx' | 'zxy' | 'zyx' ;
 EulerOrientationSpec:

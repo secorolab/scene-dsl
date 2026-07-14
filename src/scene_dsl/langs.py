@@ -5,6 +5,12 @@ import textx.scoping.providers as scoping_providers
 from textx import get_children_of_type, get_model, metamodel_from_file
 
 from scene_dsl.classes.common import FloatVector, IntVector
+from scene_dsl.classes.distrib import (
+    Distribution,
+    DistributionRef,
+    UniformDistribution,
+    UniformRotationDistribution,
+)
 from scene_dsl.classes.geom import (
     DirectionCosineOrientationSpec,
     EulerOrientationSpec,
@@ -98,6 +104,10 @@ def scenex_metamodel():
         classes=[
             FloatVector,
             IntVector,
+            Distribution,
+            DistributionRef,
+            UniformDistribution,
+            UniformRotationDistribution,
             ElementModel,
             ModelledObject,
             ModelledObjectSet,

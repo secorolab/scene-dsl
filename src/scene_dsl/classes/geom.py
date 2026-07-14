@@ -7,6 +7,7 @@ import numpy as np
 from rdflib import Namespace, URIRef
 
 from scene_dsl.classes.common import FloatVector, IHasNamespace
+from scene_dsl.classes.distrib import DistributionRef
 
 
 class OrientationSpec:
@@ -51,26 +52,31 @@ class DirectionCosineOrientationSpec(OrientationSpec):
 
 class PoseSpec(IHasNamespace):
     name: str
-    xyz: FloatVector
+    position_spec: FloatVector | DistributionRef
     length_unit: str
     orientation: OrientationSpec
 
+    _wrt: Optional[Frame]
     _uri: Optional[URIRef]
     _uri_coord: Optional[URIRef]
     _position_uri: Optional[URIRef]
     _position_coord_uri: Optional[URIRef]
-    _wrt: Optional[Frame]
+    _orn_uri: Optional[URIRef]
+    _orn_coord_uri: Optional[URIRef]
 
-    def __init__(self, parent, name, wrt, xyz, length_unit, orientation) -> None:
+    def __init__(self, parent, name, wrt, position_spec, length_unit, orientation) -> None:
         super().__init__(parent=parent)
         self.name = name
-        self._wrt = wrt
-        self.xyz = xyz
+        self.position_spec = position_spec
         self.length_unit = length_unit
         self.orientation = orientation
+        self._wrt = wrt
         self._uri = None
         self._uri_coord = None
         self._position_uri = None
+        self._position_coord_uri = None
+        self._orn_uri = None
+        self._orn_coord_uri = None
 
     @property
     def namespace(self) -> Namespace:
@@ -95,6 +101,24 @@ class PoseSpec(IHasNamespace):
         if self._position_uri is None:
             self._position_uri = self.namespace[f"{self.name}-position"]
         return self._position_uri
+
+    @property
+    def position_coord_uri(self) -> URIRef:
+        if self._position_coord_uri is None:
+            self._position_coord_uri = self.namespace[f"{self.name}-position-coord"]
+        return self._position_coord_uri
+
+    @property
+    def orientation_uri(self) -> URIRef:
+        if self._orn_uri is None:
+            self._orn_uri = self.namespace[f"{self.name}-orientation"]
+        return self._orn_uri
+
+    @property
+    def orientation_coord_uri(self) -> URIRef:
+        if self._orn_coord_uri is None:
+            self._orn_coord_uri = self.namespace[f"{self.name}-orientation-coord"]
+        return self._orn_coord_uri
 
     @property
     def wrt(self) -> Frame:

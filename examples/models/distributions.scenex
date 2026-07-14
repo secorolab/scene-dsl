@@ -1,0 +1,17 @@
+import "lab.scene"
+
+distrib (ns=scene_lab_mjc) uniform-xyz { uniform { lower: (-1.0, -2.0, -3.0) upper: (1.0, 2.0, 3.0) } }
+distrib (ns=scene_lab_mjc) rot { uniform-rotation }
+
+scene inst (ns=scene_lab_mjc) sampled {
+    scene: <pickplace_scene>
+    ktree (ns=scene_lab_mjc) tree {
+        body world { frame root { } }
+        body thing {
+            frame frame {
+                pose p { wrt: <world.root> xyz: sample <uniform-xyz> m orientation: sample <rot> }
+            }
+        }
+        joints { }
+    }
+}

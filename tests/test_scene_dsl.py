@@ -6,7 +6,11 @@ import numpy as np
 
 from bdd_dsl.models.urirefs import URI_EXEC_PRED_PATH
 from rdf_utils.constraints import check_shacl_constraints
+from rdf_utils.models.distribution import distrib_from_sampled_quantity, sample_from_distrib
 from rdf_utils.models.vocab import (
+    URI_DISTRIB_PRED_FROM_DISTRIB,
+    URI_DISTRIB_TYPE_DISTRIB,
+    URI_DISTRIB_TYPE_SAMPLED_QUANTITY,
     URI_DYN_TYPE_MASS_SCALAR,
     URI_GEOM_TYPE_RIGID_BODY,
     URI_KC_PRED_JOINTS,
@@ -16,18 +20,21 @@ from rdf_utils.models.vocab import (
     URI_QUDT_PRED_UNIT,
 )
 from rdf_utils.models.geometry import (
+    OrientCoordModel,
     PoseCoordModel,
     PositionCoordModel,
     get_coord_vectorxyz,
+    get_euler_angles_abg,
 )
 
 from rdf_utils.namespace import URL_MM_GEOM_SHACL_EXTS, URL_MM_GEOM_SHACL_REL, URL_SECORO_MM
 from rdf_utils.resolver import install_resolver
 
 from scene_dsl.classes.common import FloatVector
-from scene_dsl.classes.geom import DirectionCosineOrientationSpec
+from scene_dsl.classes.geom import DirectionCosineOrientationSpec, PoseSpec
 from scene_dsl.classes.ktree import RigidBodyInertia
 from scene_dsl.langs import scene_metamodel, scenex_metamodel
+from scene_dsl.rdf.geom import ANGLE_UNITS
 from scene_dsl.rdf.ktree import (
     INERTIA_UNITS,
     MASS_UNITS,
@@ -220,7 +227,8 @@ scene inst (ns=n) sx {{
     cup_body = model.scene_insts[0].modelled_objs[0].body
     pose = cup_body.frames[0].poses[0]
     graph = create_scenex_model_graph(model)
-    position_coord = PositionCoordModel(pose.uri_coord, graph)
+    position_coord = PositionCoordModel(pose.position_coord_uri, graph)
+    orient_coord = OrientCoordModel(pose.orientation_coord_uri, graph)
     pose_coord = PoseCoordModel(pose.uri_coord, graph)
 
     assert position_coord.position == pose.position_uri
@@ -231,7 +239,15 @@ scene inst (ns=n) sx {{
     assert pose_coord.of.id == pose.of_frame.uri
     assert pose_coord.wrt.id == pose.wrt.uri
     assert pose_coord.as_seen_by == pose.wrt.uri
-    assert get_coord_vectorxyz(pose_coord, graph) == tuple(pose.xyz.values)
+
+    assert get_coord_vectorxyz(position_coord, graph) == tuple(pose.position_spec.values)
+
+    axes, is_intrinsic, unit_uri, angles = get_euler_angles_abg(orient_coord, graph)
+    assert axes == pose.orientation.axes
+    assert is_intrinsic != pose.orientation.extrinsic
+    assert unit_uri == ANGLE_UNITS[pose.orientation.unit]
+    assert angles == tuple(pose.orientation.angles.values)
+
     assert (cup_body.inertia_coord_uri, URI_QUDT_PRED_UNIT, MASS_UNITS[mass_unit]) in graph
     assert (cup_body.inertia_coord_uri, URI_QUDT_PRED_UNIT, INERTIA_UNITS[inertia_unit]) in graph
     assert (cup_body.inertia_coord_uri, RDF.type, URI_DYN_TYPE_MOMENT_OF_INERTIA_XYZ) in graph
@@ -497,3 +513,32 @@ scene inst (ns=n) sx {
 
     with pytest.raises(Exception, match="missing"):
         scenex_metamodel().model_from_file(model_path)
+
+
+def test_shared_distributions_generate_sampled_quantity_links():
+    model = scenex_metamodel().model_from_file(MODELS_DIR / "distributions.scenex")
+    graph = create_scenex_model_graph(model)
+    xyz_distribution, rotation_distribution = model.distributions
+    assert (xyz_distribution.uri, RDF.type, URI_DISTRIB_TYPE_DISTRIB) in graph
+    pose = model.scene_insts[0].ktree.bodies[1].frames[0].poses[0]
+    assert isinstance(pose, PoseSpec)
+    assert (pose.position_coord_uri, RDF.type, URI_DISTRIB_TYPE_SAMPLED_QUANTITY) in graph
+    assert (pose.position_coord_uri, URI_DISTRIB_PRED_FROM_DISTRIB, xyz_distribution.uri) in graph
+    assert (
+        pose.orientation_coord_uri,
+        URI_DISTRIB_PRED_FROM_DISTRIB,
+        rotation_distribution.uri,
+    ) in graph
+
+    xyz_sample = sample_from_distrib(
+        distrib_from_sampled_quantity(pose.position_coord_uri, graph), size=(4, 3)
+    )
+    assert xyz_sample.shape == (4, 3)
+    assert np.all(xyz_sample >= np.asarray(xyz_distribution.spec.lower))
+    assert np.all(xyz_sample <= np.asarray(xyz_distribution.spec.upper))
+
+    pytest.importorskip("scipy")
+    rotation_sample = sample_from_distrib(
+        distrib_from_sampled_quantity(pose.orientation_coord_uri, graph)
+    )
+    assert rotation_sample.as_matrix().shape == (3, 3)

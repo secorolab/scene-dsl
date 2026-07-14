@@ -312,15 +312,13 @@ class JointComposition:
 
 
 class SerialJoints(JointComposition):
-    def __init__(self, parent, joints) -> None:
-        self.parent = parent
-        self.joints = joints
+    root_frame: Frame
+    tip_frame: Frame
 
-
-class ParallelJoints(JointComposition):
-    def __init__(self, parent, joints) -> None:
+    def __init__(self, parent, root_frame, tip_frame) -> None:
         self.parent = parent
-        self.joints = joints
+        self.root_frame = root_frame
+        self.tip_frame = tip_frame
 
 
 class Actuation:

@@ -2,6 +2,7 @@
 from rdf_utils.namespace import (
     NS_MM_DYN_COORD,
     NS_MM_GEOM,
+    NS_MM_KC_EXT,
     NS_MM_QUDT_UNIT,
 )
 from rdflib import RDF, Graph, Literal, URIRef, XSD
@@ -161,7 +162,7 @@ def add_revolute_joint(graph: Graph, joint: RevoluteJoint) -> None:
             offset_uri=joint.mimic_offset_uri,
             mimic=joint.mimic,
         )
-    # TODO(minhnh): add_joint_limits()
+    # TODO(minhnh): add_joint_limits() with polarity
 
 
 def add_actuation(
@@ -227,7 +228,7 @@ def add_kinematic_tree(graph: Graph, tree: KinematicTreeModel, seen_trees: set[U
         raise ValueError(f"add_kinematic_tree: duplicate KinematicTree URI: {tree.uri}")
     seen_trees.add(tree.uri)
 
-    graph.add((tree.uri, RDF.type, URI_GEOM_TYPE_KTREE))
+    graph.add(triple=(tree.uri, RDF.type, URI_GEOM_TYPE_KTREE))
     for linked_tree in tree.trees:
         add_kinematic_tree(graph=graph, tree=linked_tree, seen_trees=seen_trees)
 
@@ -235,11 +236,17 @@ def add_kinematic_tree(graph: Graph, tree: KinematicTreeModel, seen_trees: set[U
         add_body(graph=graph, body=body)
 
     for joint in tree.joints_spec.joints:
+        graph.add(triple=(tree.uri, URI_KC_PRED_JOINTS, joint.uri))
         add_joint(graph=graph, joint=joint)
 
     if tree.joints_spec.joint_comp is not None:
         if isinstance(tree.joints_spec.joint_comp, SerialJoints):
-            graph.add((tree.uri, RDF.type, URI_KC_TYPE_KC))
-            graph.add((tree.uri, RDF.type, URI_KC_TYPE_SERIAL))
-            for joint in tree.joints_spec.joint_comp.joints:
-                graph.add((tree.uri, URI_KC_PRED_JOINTS, joint.uri))
+            joint_comp = tree.joints_spec.joint_comp
+            graph.add(triple=(tree.uri, RDF.type, URI_KC_TYPE_KC))
+            graph.add(triple=(tree.uri, RDF.type, URI_KC_TYPE_SERIAL))
+            graph.add(triple=(tree.uri, NS_MM_KC_EXT["root"], joint_comp.root_frame.uri))
+            graph.add(triple=(tree.uri, NS_MM_KC_EXT["tip"], joint_comp.tip_frame.uri))
+        else:
+            raise ValueError(
+                f"JointComposition type not handled for: {tree.joints_spec.joint_comp}"
+            )

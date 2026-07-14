@@ -89,12 +89,11 @@ Interface: 'position' | 'velocity' | 'torque' | 'current' ;
 
 JointComposition: SerialJoints | ParallelJoints;
 ParallelJoints:
-'parallel' 'joints' '{'
-    ('<' joints+=[JointBase|FQN] '>')+
-'}'
+'parallel' '{' '}'
 ;
 SerialJoints:
-'serial' 'joints' '{'
-    ('<' joints+=[JointBase|FQN] '>')+
+'serial' '{'
+    'root' ':' '<' root_frame=[Frame|FQN] '>'
+    'tip' ':' '<' tip_frame=[Frame|FQN] '>'
 '}'
 ;

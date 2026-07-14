@@ -1,32 +1,82 @@
 # SPDX-License-Identifier: MPL-2.0
 from __future__ import annotations
-
+from typing import Optional
 
 from scene_dsl.classes.common import FloatVector, IHasNamespaceDeclare
 
 
-class UniformDistribution:
-    lower: tuple[float, float, float]
-    upper: tuple[float, float, float]
+class FloatMatrix:
+    rows: list[FloatVector]
 
-    def __init__(self, parent, lower: FloatVector, upper: FloatVector) -> None:
+    def __init__(self, parent, rows) -> None:
         self.parent = parent
-        self.lower = lower.as_xyz("UniformDistribution.lower")
-        self.upper = upper.as_xyz("UniformDistribution.upper")
-        if any(low >= high for low, high in zip(self.lower, self.upper)):
+        self.rows = rows
+
+    @property
+    def values(self) -> tuple[tuple[float, ...], ...]:
+        return tuple(tuple(row.values) for row in self.rows)
+
+
+class UniformDistribution:
+    dimension: int
+    lower: FloatVector
+    upper: FloatVector
+
+    def __init__(self, parent, dimension, lower, upper) -> None:
+        self.parent = parent
+        self.dimension = dimension
+        self.lower = lower
+        self.upper = upper
+        len_lower = len(self.lower.values)
+        len_upper = len(self.upper.values)
+        if len_lower != self.dimension or len_upper != self.dimension:
+            raise ValueError(
+                f"UniformDistribution: dimension ({self.dimension}) doesn't match number"
+                f" of lower ({len_lower}) or upper ({len_upper}) values"
+            )
+        if any(low >= high for low, high in zip(self.lower.values, self.upper.values)):
             raise ValueError(
                 "UniformDistribution.lower must be strictly less than upper for every component"
             )
 
 
+class NormalDistribution:
+    dimension: int
+    mean_scalar: Optional[float]
+    mean_vector: Optional[FloatVector]
+    std_dev: Optional[float]
+    covariance: Optional[FloatMatrix]
+
+    def __init__(
+        self,
+        parent,
+        dimension,
+        mean_scalar,
+        mean_vector,
+        std_dev,
+        covariance,
+    ) -> None:
+        self.parent = parent
+        self.dimension = dimension
+        self.mean_vector = mean_vector
+        if self.mean_vector is None:
+            self.mean_scalar = mean_scalar
+        else:
+            self.mean_scalar = None
+        self.std_dev = std_dev if covariance is None else None
+        self.covariance = covariance
+
+
 class UniformRotationDistribution:
+    kind: str
+
     def __init__(self, parent, kind) -> None:
         self.parent = parent
         self.kind = kind
 
 
 class Distribution(IHasNamespaceDeclare):
-    spec: UniformDistribution | UniformRotationDistribution
+    spec: UniformDistribution | NormalDistribution | UniformRotationDistribution
 
     def __init__(self, parent, ns, name, spec) -> None:
         super().__init__(parent=parent, ns=ns, name=name)

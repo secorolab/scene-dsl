@@ -6,14 +6,25 @@ Distribution:
 '}'
 ;
 
-DistributionSpec: UniformDistribution | UniformRotationDistribution ;
+DistributionSpec: UniformDistribution | NormalDistribution | UniformRotationDistribution ;
 
 UniformDistribution:
 'uniform' '{'
+    'dimension' ':' dimension=INT
     'lower' ':' lower=FloatVector
     'upper' ':' upper=FloatVector
 '}'
 ;
+
+NormalDistribution:
+'normal' '{'
+    'dimension' ':' dimension=INT
+    ('mean' ':' mean_scalar=FLOAT | 'mean' ':' mean_vector=FloatVector)
+    ('std-dev' ':' std_dev=FLOAT | 'covariance' ':' covariance=FloatMatrix)
+'}'
+;
+
+FloatMatrix: '(' rows+=FloatVector[','] ')' ;
 
 UniformRotationDistribution: kind='uniform-rotation' ;
 

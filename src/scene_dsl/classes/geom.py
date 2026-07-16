@@ -93,37 +93,37 @@ class PoseSpec(IHasNamespace):
     @property
     def uri(self) -> URIRef:
         if self._uri is None:
-            self._uri = self.namespace[self.name]
+            self._uri = self.namespace[self.scoped()]
         return self._uri
 
     @property
     def uri_coord(self) -> URIRef:
         if self._uri_coord is None:
-            self._uri_coord = self.namespace[f"{self.name}-coord"]
+            self._uri_coord = self.namespace[self.scoped("-coord")]
         return self._uri_coord
 
     @property
     def position_uri(self) -> URIRef:
         if self._position_uri is None:
-            self._position_uri = self.namespace[f"{self.name}-position"]
+            self._position_uri = self.namespace[self.scoped("-position")]
         return self._position_uri
 
     @property
     def position_coord_uri(self) -> URIRef:
         if self._position_coord_uri is None:
-            self._position_coord_uri = self.namespace[f"{self.name}-position-coord"]
+            self._position_coord_uri = self.namespace[self.scoped("-position-coord")]
         return self._position_coord_uri
 
     @property
     def orientation_uri(self) -> URIRef:
         if self._orn_uri is None:
-            self._orn_uri = self.namespace[f"{self.name}-orientation"]
+            self._orn_uri = self.namespace[self.scoped("-orientation")]
         return self._orn_uri
 
     @property
     def orientation_coord_uri(self) -> URIRef:
         if self._orn_coord_uri is None:
-            self._orn_coord_uri = self.namespace[f"{self.name}-orientation-coord"]
+            self._orn_coord_uri = self.namespace[self.scoped("-orientation-coord")]
         return self._orn_coord_uri
 
     @property

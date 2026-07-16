@@ -1,5 +1,6 @@
 import pytest
-from rdflib import RDF, Literal
+from rdflib import RDF, Literal, URIRef
+from textx.exceptions import TextXSemanticError
 
 from rdf_utils.constraints import check_shacl_constraints
 from rdf_utils.models.vocab import (
@@ -22,9 +23,10 @@ from scene_dsl.classes.common import FloatVector
 from scene_dsl.classes.geom import DirectionCosineOrientationSpec
 from scene_dsl.classes.ktree import RigidBodyInertia
 from scene_dsl.langs import scenex_metamodel
-from scene_dsl.rdf.geom import ANGLE_UNITS
+from scene_dsl.rdf.geom import ANGLE_UNITS, URI_GEOM_TYPE_FRAME
 from scene_dsl.rdf.ktree import (
     INERTIA_UNITS,
+    URI_KC_TYPE_REVOLUTE_JOINT,
     MASS_UNITS,
     URI_DYN_PRED_IXX,
     URI_DYN_PRED_IXY,
@@ -72,9 +74,74 @@ scene inst (ns=n) sx {
 """
     )
 
-    model = scenex_metamodel().model_from_file(model_path)
-    with pytest.raises(ValueError, match="Duplicate model URI"):
-        create_scenex_model_graph(model)
+    with pytest.raises(TextXSemanticError, match="minted by both"):
+        scenex_metamodel().model_from_file(model_path)
+
+
+def test_joint_iri_is_scoped_by_tree(tmp_path):
+    """A frame may be named after the joint it carries: the joint is scoped by its tree."""
+    write_example_scene(tmp_path)
+    model_path = tmp_path / "scoped.scenex"
+    model_path.write_text(
+        """import "example.scene"
+ns n = "https://example.test/"
+scene inst (ns=n) sx {
+    scene: <s>
+    agn <agns.robot> {
+        model m as urdf { sys path = "robot.urdf" }
+        ktree (ns=n) t {
+            body b1 { frame j1 { } }
+            body b2 { frame f2 { } }
+            joints {
+                revolute j1 {
+                    parent: <b1.j1>.z
+                    child: <b2.f2>.z
+                    polarity: PositivePolarity
+                }
+            }
+        }
+    }
+}
+"""
+    )
+
+    graph = create_scenex_model_graph(scenex_metamodel().model_from_file(model_path))
+    frame_uri = URIRef("https://example.test/j1")
+    joint_uri = URIRef("https://example.test/t/j1")
+    assert (frame_uri, RDF.type, URI_GEOM_TYPE_FRAME) in graph
+    assert (joint_uri, RDF.type, URI_KC_TYPE_REVOLUTE_JOINT) in graph
+    assert (frame_uri, RDF.type, URI_KC_TYPE_REVOLUTE_JOINT) not in graph
+
+
+def test_duplicate_iri_across_element_kinds_is_rejected(tmp_path):
+    """A frame and a sensor are different elements and need different names."""
+    write_example_scene(tmp_path)
+    model_path = tmp_path / "duplicate_sensor.scenex"
+    model_path.write_text(
+        """import "example.scene"
+ns n = "https://example.test/"
+scene inst (ns=n) sx {
+    scene: <s>
+    agn <agns.robot> {
+        model m as urdf { sys path = "robot.urdf" }
+        ktree (ns=n) t {
+            body b1 { frame wrist { } }
+            joints { }
+        }
+        camera wrist {
+            frame: <t.b1.wrist>
+            type: rgb
+            resolution: (640, 480)
+            fov: 1.2 rad
+            update-rate: 30.0 Hz
+        }
+    }
+}
+"""
+    )
+
+    with pytest.raises(TextXSemanticError, match="minted by both"):
+        scenex_metamodel().model_from_file(model_path)
 
 
 @pytest.mark.parametrize(

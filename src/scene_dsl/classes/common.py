@@ -19,6 +19,20 @@ class IHasNamespace(IHasParent):
             f"'namespace' property not implemented for '{self.__class__.__name__}'"
         )
 
+    @property
+    def ns_scope(self) -> str:
+        """Local name of the nearest namespace-declaring ancestor."""
+        node = self.parent
+        while node is not None:
+            if isinstance(node, IHasNamespaceDeclare):
+                return node.name
+            node = getattr(node, "parent", None)
+        raise ValueError(f"no namespace-declaring ancestor for '{self.__class__.__name__}'")
+
+    def scoped(self, suffix: str = "") -> str:
+        """IRI local name scoped by ns_scope, so nested elements cannot collide by name."""
+        return f"{self.ns_scope}/{self.name}{suffix}"
+
 
 class IHasNamespaceDeclare(IHasNamespace):
     uri: URIRef

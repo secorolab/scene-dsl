@@ -2,6 +2,7 @@
 from rdf_utils.namespace import (
     NS_MM_DYN_COORD,
     NS_MM_GEOM,
+    NS_MM_KC,
     NS_MM_KC_EXT,
     NS_MM_QUDT_UNIT,
 )
@@ -69,6 +70,8 @@ from scene_dsl.rdf.geom import (
 )
 
 URI_GEOM_TYPE_KTREE = NS_MM_GEOM["KinematicTree"]
+# Not in rdf_utils' vocab module yet; see comp-rob2b/robot-models kinova/gen3/7dof.
+URI_KC_TYPE_REVOLUTE_JOINT_ORIENTED_AXIS = NS_MM_KC["RevoluteJointWithOrientedAxisOfRotation"]
 
 ACTUATION_INTERFACE_TYPES = {
     "position": URI_KC_STAT_JNT_POSITION,
@@ -122,6 +125,9 @@ def add_body(graph: Graph, body) -> None:
 
 def add_revolute_joint(graph: Graph, joint: RevoluteJoint) -> None:
     graph.add((joint.uri, RDF.type, URI_KC_TYPE_REVOLUTE_JOINT))
+    # The axis of rotation is given by the collinearity of the parent and child frame
+    # axes emitted below, so the joint is always an oriented-axis revolute joint.
+    graph.add((joint.uri, RDF.type, URI_KC_TYPE_REVOLUTE_JOINT_ORIENTED_AXIS))
     graph.add((joint.uri, URI_KC_PRED_BETWEEN_ATTACHMENTS, joint.parent_frame_axis.frame.uri))
     graph.add((joint.uri, URI_KC_PRED_BETWEEN_ATTACHMENTS, joint.child_frame_axis.frame.uri))
 

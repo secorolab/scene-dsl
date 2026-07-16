@@ -158,7 +158,7 @@ class FixedJoint(JointBase):
     @property
     def uri(self) -> URIRef:
         if self._uri is None:
-            self._uri = self.namespace[self.name]
+            self._uri = self.namespace[self.scoped()]
         return self._uri
 
 
@@ -212,43 +212,43 @@ class RevoluteJoint(JointBase):
     @property
     def uri(self) -> URIRef:
         if self._uri is None:
-            self._uri = self.namespace[self.name]
+            self._uri = self.namespace[self.scoped()]
         return self._uri
 
     @property
     def actuation_uri(self) -> URIRef:
         if self._actuation_uri is None:
-            self._actuation_uri = self.namespace[f"{self.name}-actuation"]
+            self._actuation_uri = self.namespace[self.scoped("-actuation")]
         return self._actuation_uri
 
     @property
     def mimic_uri(self) -> URIRef:
         if self._mimic_uri is None:
-            self._mimic_uri = self.namespace[f"{self.name}-mimic"]
+            self._mimic_uri = self.namespace[self.scoped("-mimic")]
         return self._mimic_uri
 
     @property
     def mimic_offset_uri(self) -> URIRef:
         if self._mimic_offset_uri is None:
-            self._mimic_offset_uri = self.namespace[f"{self.name}-mimic-offset"]
+            self._mimic_offset_uri = self.namespace[self.scoped("-mimic-offset")]
         return self._mimic_offset_uri
 
     @property
     def common_axis_uri(self) -> URIRef:
         if self._common_axis_uri is None:
-            self._common_axis_uri = self.namespace[f"{self.name}-common-axis"]
+            self._common_axis_uri = self.namespace[self.scoped("-common-axis")]
         return self._common_axis_uri
 
     @property
     def offset_uri(self) -> URIRef:
         if self._offset_uri is None:
-            self._offset_uri = self.namespace[f"{self.name}-offset"]
+            self._offset_uri = self.namespace[self.scoped("-offset")]
         return self._offset_uri
 
     @property
     def offset_coord_uri(self) -> URIRef:
         if self._offset_coord_uri is None:
-            self._offset_coord_uri = self.namespace[f"{self.name}-offset-coord"]
+            self._offset_coord_uri = self.namespace[self.scoped("-offset-coord")]
         return self._offset_coord_uri
 
 

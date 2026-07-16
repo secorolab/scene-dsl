@@ -1,8 +1,11 @@
 # SPDX-License-Identifier: MPL-2.0
 from importlib import resources
 
+from rdflib import URIRef
+
 import textx.scoping.providers as scoping_providers
-from textx import get_children_of_type, get_model, metamodel_from_file
+from textx import get_children, get_children_of_type, get_location, get_model, metamodel_from_file
+from textx.exceptions import TextXSemanticError
 
 from scene_dsl.classes.common import FloatVector, IntVector
 from scene_dsl.classes.distrib import (
@@ -80,6 +83,32 @@ class KinematicTreeRefScopeProvider:
         return None
 
 
+def check_unique_uris(model, metamodel):
+    # Elements minting the same IRI silently become one node with merged types.
+    seen: dict[URIRef, object] = {}
+
+    for obj in get_children(
+        lambda x: getattr(x, "uri", None) is not None
+        and getattr(x, "name", None) is not None,
+        model,
+    ):
+        uri = obj.uri
+        first = seen.get(uri)
+
+        if first is not None:
+            loc = get_location(first)
+            raise TextXSemanticError(
+                f"IRI '{uri}' is minted by both "
+                f"{first.__class__.__name__} '{first.name}' "
+                f"({loc['filename']}:{loc['line']}) and "
+                f"{obj.__class__.__name__} '{obj.name}' "
+                "-- names must be unique per IRI",
+                **get_location(obj),
+            )
+
+        seen[uri] = obj
+
+
 def scene_metamodel():
     mm_scene = metamodel_from_file(
         resources.files("scene_dsl") / "grammars" / "scene.tx",
@@ -148,4 +177,5 @@ def scenex_metamodel():
             "*.*": scoping_providers.FQNImportURI(),
         }
     )
+    mm_scenex.register_model_processor(check_unique_uris)
     return mm_scenex

@@ -8,9 +8,17 @@ textX languages for abstract scene models (`scene`) and executable scene instanc
   workspaces, agents, workspace compositions, and scene models.
 - `scenex` (`*.scenex`) describes executable scene instances: model files,
   geometry, frames, poses, kinematics, attachments, bodies, and inertial mass.
+- `.ktree` files hold reusable device trees. They are parsed with the `scenex`
+  metamodel, and imported like a `.scene` file.
 
 `scenex` references the registered `scene` language, so executable models can
 import a `.scene` file and link to `SceneModel` declarations.
+
+A tree without a namespace is a template: it describes a device without being
+any particular one, so every use is an instance that copies it under its own
+name. An element's IRI is its namespace plus the path down to it, so two
+instances of one device may share a namespace, and a sensor is scoped by the
+agent carrying it.
 
 ## Installation
 

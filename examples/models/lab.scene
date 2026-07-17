@@ -32,7 +32,8 @@ ws set (ns=lab_env) lab_workspaces {
 agn set (ns=isaac_agn) isaac_agents {
     agent panda,
     agent ur10,
-    agent kinova
+    agent arm1_gripper,
+    agent kinova2
 }
 
 comp (ns=lab_env) comp_container1 of ws <lab_workspaces.container_1_ws> { obj <ws_objects.container_1> }

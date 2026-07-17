@@ -32,7 +32,8 @@ class SensorBase(IHasNamespace):
     @property
     def uri(self) -> URIRef:
         if self._uri is None:
-            self._uri = self.namespace[self.name]
+            # Scoped by the agent carrying it: two robots may each have a 'wrist' camera.
+            self._uri = self.namespace[self.scoped()]
         return self._uri
 
 

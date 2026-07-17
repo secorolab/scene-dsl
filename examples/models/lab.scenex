@@ -1,4 +1,28 @@
 import "lab.scene"
+import "kinova_gen3_7dof.ktree"
+import "robotiq_2f85.ktree"
+
+ns lab_rob='https://secorolab.github.io/models/acceptance-criteria/bdd/scenes/secorolab-mjc/robots/'
+
+ktree inst (ns=lab_rob) arm1 of <kinova_tree>
+ktree inst (ns=lab_rob) arm2 of <kinova_tree>
+ktree inst (ns=lab_rob) gripper of <gripper_tree>
+
+ktree (ns=lab_rob) arm1_gripper {
+    tree <arm1>
+    tree <gripper>
+
+    joints {
+        fixed g_mount_on_pinch_site {
+            parent: <arm1.bracelet_link.pinch_site>
+            child: <gripper.g_base_mount.g_mount_interface>
+        }
+        serial {
+            root: <arm1.base_link.base_link_origin>
+            tip: <gripper.g_base.g_pinch>
+        }
+    }
+}
 
 scene inst (ns=scene_lab_mjc) pickplace_scene_mjc {
     scene: <pickplace_scene>
@@ -6,7 +30,8 @@ scene inst (ns=scene_lab_mjc) pickplace_scene_mjc {
     ktree (ns=scene_lab_mjc) world_tree {
         tree <panda_tree>
         tree <ur10_tree>
-        tree <kinova_tree>
+        tree <arm1_gripper>
+        tree <arm2>
 
         body world_body {
             frame world { }
@@ -38,6 +63,14 @@ scene inst (ns=scene_lab_mjc) pickplace_scene_mjc {
             fixed panda_on_table {
                 parent: <table_body.table_root>
                 child: <panda_tree.panda_base_body.base_link>
+            }
+            fixed arm1_on_table {
+                parent: <table_body.table_root>
+                child: <arm1.base_link.base_link_origin>
+            }
+            fixed arm2_on_table {
+                parent: <table_body.table_root>
+                child: <arm2.base_link.base_link_origin>
             }
         }
     }
@@ -152,16 +185,21 @@ scene inst (ns=scene_lab_mjc) pickplace_scene_mjc {
         }
     }
 
-    agn <isaac_agents.kinova> {
-        model kinova-mjc as mjcf {
+    agn <isaac_agents.arm1_gripper> {
+        model arm1-mjc as mjcf {
+            sys path = '~/.cache/mj_kdl_wrapper/menagerie/kinova_gen3/gen3.xml'
+        } for <arm1>
+        model gripper-mjc as mjcf {
+            sys path = '~/.cache/mj_kdl_wrapper/assets/robotiq_2f85/2f85.xml'
+        } for <gripper>
+        ktree <arm1_gripper>
+    }
+
+    agn <isaac_agents.kinova2> {
+        model kinova2-mjc as mjcf {
             sys path = '~/.cache/mj_kdl_wrapper/menagerie/kinova_gen3/gen3.xml'
         }
-        ktree (ns=scene_lab_mjc) kinova_tree {
-            body kinova_body {
-                frame kinova_base_link { }
-            }
-            joints { }
-        }
+        ktree <arm2>
     }
 }
 

@@ -1,5 +1,5 @@
 import numpy as np
-from rdflib import RDF, Literal, XSD
+from rdflib import RDF, Literal, URIRef, XSD
 
 from rdf_utils.models.vocab import (
     URI_KC_PRED_JOINTS,
@@ -84,3 +84,43 @@ def test_lab_scenex_agent_tree_link_and_sensors_emit_rdf():
                 URI_SOSA_PRED_OBSERVES,
                 OBSERVED_QUANTITIES[observed],
             ) in graph
+
+
+def test_two_agents_may_each_carry_a_wrist_camera(tmp_path):
+    """A sensor is scoped by its agent, so one name serves every robot that has one."""
+    (tmp_path / "two.scene").write_text(
+        """ns n = "https://example.test/"
+obj set (ns=n) objs { object cup }
+ws set (ns=n) wss { workspace table }
+agn set (ns=n) agns { agent robot, agent helper }
+scene (ns=n) s { obj set <objs> ws set <wss> agn set <agns> }
+"""
+    )
+    path = tmp_path / "two.scenex"
+    path.write_text(
+        """import "two.scene"
+ns n = "https://example.test/"
+scene inst (ns=n) sx {
+    scene: <s>
+    agn <agns.robot> {
+        model r-mjc as mjcf { sys path = "r.xml" }
+        ktree (ns=n) r_tree { body r_body { frame r_wrist { } } joints { } }
+        camera wrist { frame: <r_tree.r_body.r_wrist> type: rgb resolution: (640, 480)
+            fov: 1.2 rad update-rate: 30.0 Hz }
+    }
+    agn <agns.helper> {
+        model h-mjc as mjcf { sys path = "h.xml" }
+        ktree (ns=n) h_tree { body h_body { frame h_wrist { } } joints { } }
+        camera wrist { frame: <h_tree.h_body.h_wrist> type: rgb resolution: (640, 480)
+            fov: 1.2 rad update-rate: 30.0 Hz }
+    }
+}
+"""
+    )
+    model = scenex_metamodel().model_from_file(path)
+    graph = create_scenex_model_graph(model)
+    cams = {a.agn.name: a.sensors[0].uri for a in model.scene_insts[0].modelled_agns}
+    assert cams["robot"] == URIRef("https://example.test/sx/robot/wrist")
+    assert cams["helper"] == URIRef("https://example.test/sx/helper/wrist")
+    for uri in cams.values():
+        assert (uri, URI_SENS_PRED_FRAME, None) in graph

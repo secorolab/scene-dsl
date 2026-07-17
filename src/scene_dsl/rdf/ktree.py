@@ -236,6 +236,12 @@ def add_kinematic_tree(graph: Graph, tree: KinematicTreeModel, seen_trees: set[U
 
     graph.add(triple=(tree.uri, RDF.type, URI_GEOM_TYPE_KTREE))
     for linked_tree in tree.trees:
+        if linked_tree.is_template:
+            raise ValueError(
+                f"kinematic tree '{linked_tree.name}' declares no namespace, so it is a "
+                f"template and describes no particular device: '{tree.name}' must compose "
+                f"an instance of it, e.g. 'ktree inst (ns=...) <name> of <{linked_tree.name}>'"
+            )
         add_kinematic_tree(graph=graph, tree=linked_tree, seen_trees=seen_trees)
 
     for body in tree.bodies:

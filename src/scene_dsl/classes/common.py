@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MPL-2.0
-from typing import Any
+from typing import Any, Optional
 from uuid import UUID, uuid4
 
 from rdflib import Namespace, URIRef
@@ -19,43 +19,55 @@ class IHasNamespace(IHasParent):
             f"'namespace' property not implemented for '{self.__class__.__name__}'"
         )
 
-    @property
-    def ns_scope(self) -> str:
-        """Local name of the nearest namespace-declaring ancestor."""
-        node = self.parent
-        while node is not None:
-            if isinstance(node, IHasNamespaceDeclare):
-                return node.name
-            node = getattr(node, "parent", None)
-        raise ValueError(f"no namespace-declaring ancestor for '{self.__class__.__name__}'")
-
     def scoped(self, suffix: str = "") -> str:
-        """IRI local name scoped by ns_scope, so nested elements cannot collide by name."""
-        return f"{self.ns_scope}/{self.name}{suffix}"
+        """IRI local name: the path from the namespace-declaring ancestor down to here.
+
+        The path, not the namespace, is what makes an element unique: two copies of one
+        tree differ by the tree's name. Ancestors that name nothing drop out.
+        """
+        parts = [self.name]
+        node = self.parent
+        while node is not None and not isinstance(node, IHasNamespaceDeclare):
+            name = getattr(node, "name", None)
+            if name is not None:
+                parts.append(name)
+            node = getattr(node, "parent", None)
+        if node is None:
+            raise ValueError(f"no namespace-declaring ancestor for '{self.__class__.__name__}'")
+        parts.append(node.name)
+        return "/".join(reversed(parts)) + suffix
 
 
 class IHasNamespaceDeclare(IHasNamespace):
-    uri: URIRef
-    ns_prefix: str
-    _ns_obj: Namespace
+    """Root of a namespace: everything below it mints IRIs under `ns`.
+
+    A subclass may declare no namespace -- a tree describing a device without being any
+    particular one -- and then mints no IRI until something gives it one.
+    """
+
+    name: str
 
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
         self.ns = kwargs.get("ns", None)
-        if self.ns is None:
-            raise ValueError("Namespace declaration requires 'ns'")
-        self.ns_prefix = self.ns.name
-
         self.name = kwargs.get("name", None)
         if self.name is None:
             raise ValueError("Namespace declaration requires 'name'")
 
-        self._ns_obj = Namespace(self.ns.uri)
-        self.uri = self._ns_obj[self.name]
+    @property
+    def ns_prefix(self) -> Optional[str]:
+        return self.ns.name if self.ns is not None else None
 
     @property
     def namespace(self) -> Namespace:
-        return self._ns_obj
+        if self.ns is None:
+            # AttributeError so `getattr(x, "uri", None)` reports absence, not blows up.
+            raise AttributeError(f"'{self.name}' declares no namespace, so it has no IRIs")
+        return Namespace(self.ns.uri)
+
+    @property
+    def uri(self) -> URIRef:
+        return self.namespace[self.name]
 
     def __str__(self) -> str:
         return f"<({self.__class__.__name__}) {self.ns_prefix}:{self.name}>"

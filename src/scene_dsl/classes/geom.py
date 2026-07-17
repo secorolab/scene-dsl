@@ -176,7 +176,7 @@ class Frame(IHasNamespace, IDefaultFrame):
     @property
     def uri(self) -> URIRef:
         if self._uri is None:
-            self._uri = self.namespace[self.name]
+            self._uri = self.namespace[self.scoped()]
         return self._uri
 
     @property
@@ -201,7 +201,7 @@ class Frame(IHasNamespace, IDefaultFrame):
         if axis != "x" and axis != "y" and axis != "z":
             raise ValueError(f"Frame.axis_vector_uri: invalid axis for frame '{self.name}': {axis}")
 
-        uri = self.namespace[f"{self.name}-vector-{axis}"]
+        uri = self.namespace[self.scoped(f"-vector-{axis}")]
         self._axis_vector_uris[axis] = uri
         return uri
 

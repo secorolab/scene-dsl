@@ -29,7 +29,6 @@ class KinematicTreeModel(IHasNamespaceDeclare, IDefaultFrame):
         self.trees = trees
         self.bodies = bodies
         self.joints_spec = joints_spec
-        self.kinematics = joints_spec
 
     @property
     def is_template(self) -> bool:
@@ -55,7 +54,6 @@ class KinematicTreeModel(IHasNamespaceDeclare, IDefaultFrame):
         self.trees = deepcopy(self.template.trees, memo)
         self.bodies = deepcopy(self.template.bodies, memo)
         self.joints_spec = deepcopy(self.template.joints_spec, memo)
-        self.kinematics = self.joints_spec
 
     def composition_cycle(self) -> list[KinematicTreeModel]:
         """The chain of composed trees leading from this tree back to itself, if any."""
@@ -101,7 +99,7 @@ class KinematicTreeModel(IHasNamespaceDeclare, IDefaultFrame):
     @property
     def default_frame(self) -> Frame:
         if not self.bodies:
-            raise ValueError(f"KinematicTreeModel.default_frame: {self.name} has no body")
+            raise ValueError(f"default_frame: {self} has no body")
         return self.bodies[0].default_frame
 
 

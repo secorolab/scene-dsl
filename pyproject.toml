@@ -24,6 +24,8 @@ scene-console = "scene_dsl.registration:scene_console_gen"
 scene-graph = "scene_dsl.registration:scene_graph_gen_desc"
 scenex-console = "scene_dsl.registration:scenex_console_gen"
 scenex-graph = "scene_dsl.registration:scenex_graph_gen_desc"
+scenex-dot-console = "scene_dsl.registration:scenex_dot_console_gen"
+scenex-dot = "scene_dsl.registration:scenex_dot_gen_desc"
 
 [tool.ruff]
 line-length = 100

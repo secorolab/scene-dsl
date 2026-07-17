@@ -44,6 +44,7 @@ URI_EXEC_TYPE_SCENE_INST = NS_MM_EXEC["SceneInstance"]
 URI_EXEC_PRED_HAS_MODELLED_OBJ = NS_MM_EXEC["has-modelled-object"]
 URI_EXEC_PRED_HAS_MODELLED_AGN = NS_MM_EXEC["has-modelled-agent"]
 URI_EXEC_PRED_LINKS_BODY = NS_MM_EXEC["has-body"]
+URI_EXEC_PRED_HAS_KTREE = NS_MM_EXEC["has-kinematic-tree"]
 
 NS_XML = Namespace("https://www.w3.org/TR/2006/REC-xml11-20060816#")
 NS_URDF = Namespace("https://wiki.ros.org/urdf/XML/")
@@ -136,11 +137,14 @@ def add_modelled_agn(
     graph.add((agn_model.modelled_uri, URI_AGN_PRED_OF_AGN, agn_model.agn.uri))
     graph.add((scene_inst.uri, URI_EXEC_PRED_HAS_MODELLED_AGN, agn_model.modelled_uri))
 
-    model = agn_model.model
-    _ensure_unique_scene_uri(model.uri, scene_inst, seen_model_uris)
-    graph.add((agn_model.modelled_uri, URI_AGN_PRED_HAS_AGN_MODEL, model.uri))
-    graph.add((model.uri, RDF.type, URI_AGN_TYPE_AGN_MODEL))
-    add_model_spec(graph, model)
+    for model in agn_model.models:
+        _ensure_unique_scene_uri(model.uri, scene_inst, seen_model_uris)
+        graph.add((agn_model.modelled_uri, URI_AGN_PRED_HAS_AGN_MODEL, model.uri))
+        graph.add((model.uri, RDF.type, URI_AGN_TYPE_AGN_MODEL))
+        add_model_spec(graph, model)
+        # Which device of an assembled agent this file is.
+        if model.tree is not None:
+            graph.add((model.uri, URI_EXEC_PRED_HAS_KTREE, model.tree.uri))
 
     if agn_model.ktree is not None and agn_model.ktree.uri not in seen_ktrees:
         _ensure_unique_scene_uri(agn_model.ktree.uri, scene_inst, seen_model_uris)

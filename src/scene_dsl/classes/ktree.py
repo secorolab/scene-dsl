@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: MPL-2.0
 from __future__ import annotations
 
+from copy import deepcopy
 from typing import Any, Optional
 
 import numpy as np
@@ -11,22 +12,86 @@ from scene_dsl.classes.geom import Frame, FrameAxis, IDefaultFrame
 
 
 class KinematicTreeModel(IHasNamespaceDeclare, IDefaultFrame):
+    """A kinematic tree. Every element under it takes its namespace from it.
+
+    A tree written as 'ktree inst ... of <template>' starts out empty and takes the
+    template's structure as its own, so from then on it is a tree like any other.
+    """
+
     name: str
     trees: list[KinematicTreeModel]
     bodies: list[RigidBody]
     joints_spec: JointsSpec
 
-    def __init__(self, parent, ns, name, trees, bodies, joints_spec) -> None:
+    def __init__(self, parent, ns, name, template, trees, bodies, joints_spec) -> None:
         super().__init__(parent=parent, ns=ns, name=name)
+        self.template = template
         self.trees = trees
         self.bodies = bodies
         self.joints_spec = joints_spec
         self.kinematics = joints_spec
 
     @property
+    def is_template(self) -> bool:
+        """Describes a device without being any particular one, so it has no IRIs."""
+        return self.ns is None
+
+    def copy_template(self) -> None:
+        """Take the template's structure as this tree's own, under its name and namespace.
+
+        The memo maps the template onto this tree, so every copied element lands with this
+        tree as its parent -- which is what scopes their IRIs -- and the template's
+        internal references follow onto the copies.
+        """
+        if not self.template.is_template:
+            raise ValueError(
+                f"kinematic tree '{self.template.name}' declares a namespace of its own, "
+                f"so it names a particular device rather than describing one: instance "
+                f"'{self.name}' would shadow that namespace -- drop the tree's '(ns=...)' "
+                f"to make it a template, or compose it directly with "
+                f"'tree <{self.template.name}>'"
+            )
+        memo: dict[int, Any] = {id(self.template): self}
+        self.trees = deepcopy(self.template.trees, memo)
+        self.bodies = deepcopy(self.template.bodies, memo)
+        self.joints_spec = deepcopy(self.template.joints_spec, memo)
+        self.kinematics = self.joints_spec
+
+    def composition_cycle(self) -> list[KinematicTreeModel]:
+        """The chain of composed trees leading from this tree back to itself, if any."""
+
+        def walk(tree, path):
+            for linked in tree.trees:
+                if linked is self:
+                    return path + [linked]
+                # A cycle not passing through this tree is reported by one that it does.
+                if any(linked is seen for seen in path):
+                    continue
+                found = walk(linked, path + [linked])
+                if found:
+                    return found
+            return []
+
+        return walk(self, [self])
+
+    @property
+    def subtrees(self) -> dict[int, KinematicTreeModel]:
+        """This tree and every tree composed below it, however deep, keyed by identity."""
+        found: dict[int, KinematicTreeModel] = {}
+        stack = [self]
+        while stack:
+            tree = stack.pop()
+            # A tree may be composed by two others, or -- nothing forbids it -- by itself.
+            if id(tree) in found:
+                continue
+            found[id(tree)] = tree
+            stack.extend(tree.trees)
+        return found
+
+    @property
     def default_frame(self) -> Frame:
         if not self.bodies:
-            raise ValueError(f"KinematicTreeModel.default_frame: {self.uri} has no body")
+            raise ValueError(f"KinematicTreeModel.default_frame: {self.name} has no body")
         return self.bodies[0].default_frame
 
 
@@ -53,7 +118,7 @@ class RigidBody(IHasNamespace, IDefaultFrame):
     @property
     def uri(self) -> URIRef:
         if self._uri is None:
-            self._uri = self.namespace[self.name]
+            self._uri = self.namespace[self.scoped()]
         return self._uri
 
     @property
@@ -65,13 +130,13 @@ class RigidBody(IHasNamespace, IDefaultFrame):
     @property
     def inertia_uri(self) -> URIRef:
         if self._inertia_uri is None:
-            self._inertia_uri = self.namespace[f"{self.name}-inertia"]
+            self._inertia_uri = self.namespace[self.scoped("-inertia")]
         return self._inertia_uri
 
     @property
     def inertia_coord_uri(self) -> URIRef:
         if self._inertia_coord_uri is None:
-            self._inertia_coord_uri = self.namespace[f"{self.name}-inertia-coord"]
+            self._inertia_coord_uri = self.namespace[self.scoped("-inertia-coord")]
         return self._inertia_coord_uri
 
 

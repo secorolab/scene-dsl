@@ -21,11 +21,12 @@ class ElementModel(IHasNamespace):
     model_kind: Optional[str]
     _uri: Optional[URIRef]
 
-    def __init__(self, parent, name, model_kind, model_spec) -> None:
+    def __init__(self, parent, name, model_kind, model_spec, tree=None) -> None:
         super().__init__(parent=parent)
         self.name = name
         self.model_kind = model_kind
         self.model_spec = model_spec
+        self.tree = tree
         self._uri = None
 
     @property
@@ -89,18 +90,27 @@ class ModelledObjectSet(IHasNamespace):
 
 class ModelledAgent(IHasNamespace):
     agn: Agent
-    model: ElementModel
-    ktree: Optional[KinematicTreeModel]
+    models: list[ElementModel]
     sensors: list
     _modelled_uri: Optional[URIRef]
 
-    def __init__(self, parent, agn, model, ktree=None, sensors=None) -> None:
+    def __init__(
+        self, parent, agn, models, ktree_inline=None, ktree_ref=None, sensors=None
+    ) -> None:
         super().__init__(parent=parent)
         self.agn = agn
-        self.model = model
-        self.ktree = ktree
+        # What scopes the IRIs of everything this agent carries.
+        self.name = agn.name
+        self.models = models
+        self.ktree_inline = ktree_inline
+        self.ktree_ref = ktree_ref
         self.sensors = sensors or []
         self._modelled_uri = None
+
+    @property
+    def ktree(self) -> Optional[KinematicTreeModel]:
+        """The agent's kinematics, however they were written: defined here, or named."""
+        return self.ktree_inline or self.ktree_ref
 
     @property
     def namespace(self) -> Namespace:

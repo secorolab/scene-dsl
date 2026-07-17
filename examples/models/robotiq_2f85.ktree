@@ -1,0 +1,99 @@
+// Robotiq 2F-85 gripper template.
+//
+// The 2F-85 is attached with the "g_" prefix in the assembled MJCF, so its elements
+// carry it here. Transforms and inertias are generated from 2f85.xml.
+ktree gripper_tree {
+    // Partial: only the mount, the palm carrying the TCP, and the actuated driver.
+    // The 4-bar linkage (couplers, followers, pads) and the `split` tendon stay in
+    // the MJCF -- scenex has no closed-loop or tendon construct.
+    body g_base_mount {
+        frame g_base_mount_origin { }
+        // Mating surface: base_mount sits 7mm along +z of the frame it bolts to.
+        frame g_mount_interface {
+            pose g_mount_interface_in_g_base_mount {
+                wrt: <g_base_mount.g_base_mount_origin>
+                xyz: (0, 0, -0.007) m
+                orientation: euler { axes: xyz extrinsic angles: (0, 0, 0) unit: deg }
+            }
+        }
+    }
+    body g_base {
+        frame g_base_origin {
+            pose g_base_in_g_base_mount {
+                wrt: <g_base_mount.g_base_mount_origin>
+                xyz: (0, 0, 0.0038) m
+                orientation: euler { axes: xyz extrinsic angles: (0, 0, -90) unit: deg }
+            }
+        }
+        frame g_pinch {
+            pose g_pinch_in_g_base {
+                wrt: <g_base.g_base_origin>
+                xyz: (0, 0, 0.145) m
+                orientation: euler { axes: xyz extrinsic angles: (0, 0, 0) unit: deg }
+            }
+        }
+        frame g_left_driver_joint_anchor {
+            pose g_left_driver_joint_anchor_in_g_base {
+                wrt: <g_base.g_base_origin>
+                xyz: (0, -0.0306011, 0.054904) m
+                orientation: euler { axes: xyz extrinsic angles: (0, 0, 180) unit: deg }
+            }
+        }
+        frame g_base_com {
+            pose g_base_com_in_g_base {
+                wrt: <g_base.g_base_origin>
+                xyz: (0, -2.70394e-05, 0.0354675) m
+                orientation: euler { axes: xyz extrinsic angles: (-0.175152, 0, 0) unit: deg }
+            }
+        }
+        inertia {
+            frame: g_base_com
+            mass: 0.777441 kg
+            inertia-matrix: (
+                (0.000260285, 0.0, 0.0),
+                (0.0, 0.000225381, 0.0),
+                (0.0, 0.0, 0.000152708)
+            ) kg*m^2
+        }
+    }
+    body g_left_driver {
+        frame g_left_driver_origin { }
+        frame g_left_driver_com {
+            pose g_left_driver_com_in_g_left_driver {
+                wrt: <g_left_driver.g_left_driver_origin>
+                xyz: (0, 0.0177547, 0.00107314) m
+                orientation: euler { axes: xyz extrinsic angles: (94.1092, 0, 0) unit: deg }
+            }
+        }
+        inertia {
+            frame: g_left_driver_com
+            mass: 0.00899563 kg
+            inertia-matrix: (
+                (1.72352e-06, 0.0, 0.0),
+                (0.0, 1.60906e-06, 0.0),
+                (0.0, 0.0, 3.22006e-07)
+            ) kg*m^2
+        }
+    }
+    joints {
+        fixed g_base_on_mount {
+            parent: <g_base_mount.g_base_mount_origin>
+            child: <g_base.g_base_origin>
+        }
+        // Driven by the g_fingers_actuator tendon; the right finger mirrors it.
+        revolute g_left_driver_joint {
+            parent: <g_base.g_left_driver_joint_anchor>.z
+            child: <g_left_driver.g_left_driver_origin>.z
+            actuation {
+                gear ratio: 1.0
+                command-interface: position
+                state-interface: position
+            }
+            limits {
+                position: (0, 0.8) rad
+                effort: (-5, 5) N*m
+            }
+            polarity: PositivePolarity
+        }
+    }
+}

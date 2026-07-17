@@ -24,7 +24,6 @@ from rdf_utils.namespace import (
     NS_MM_QUDT_UNIT,
 )
 from rdflib import RDF, Graph, Literal, Namespace, URIRef
-from textx.scoping import get_included_models
 
 from scene_dsl.classes.scenex import (
     ElementModel,
@@ -35,12 +34,14 @@ from scene_dsl.classes.scenex import (
     SceneInstance,
 )
 from scene_dsl.rdf.common import add_py_module_attr
-from scene_dsl.rdf.distrib import add_distributions
+from scene_dsl.rdf.distrib import add_distribution
 from scene_dsl.rdf.ktree import add_kinematic_tree
 from scene_dsl.rdf.scene import add_scene_model
 from scene_dsl.rdf.sensors import add_sensors
 
 URI_EXEC_TYPE_SCENE_INST = NS_MM_EXEC["SceneInstance"]
+URI_EXEC_TYPE_SCENE_MODEL = NS_MM_EXEC["SceneModel"]
+URI_EXEC_PRED_MODEL = NS_MM_EXEC["has-model"]
 URI_EXEC_PRED_HAS_MODELLED_OBJ = NS_MM_EXEC["has-modelled-object"]
 URI_EXEC_PRED_HAS_MODELLED_AGN = NS_MM_EXEC["has-modelled-agent"]
 URI_EXEC_PRED_LINKS_BODY = NS_MM_EXEC["has-body"]
@@ -194,6 +195,13 @@ def add_modelled_scene(graph: Graph, scene_inst: SceneInstance) -> None:
     graph.add((scene_inst.uri, RDF.type, URI_EXEC_TYPE_SCENE_INST))
     graph.add((scene_inst.uri, URI_BDD_PRED_OF_SCENE, scene_inst.scene.uri))
 
+    add_scene_model(graph=graph, scene=scene_inst.scene, set_uris=set())
+
+    for model in scene_inst.models:
+        graph.add((model.uri, RDF.type, URI_EXEC_TYPE_SCENE_MODEL))
+        graph.add((scene_inst.uri, URI_EXEC_PRED_MODEL, model.uri))
+        add_model_spec(graph=graph, elem_model=model)
+
     seen_model_uris = set()
     seen_ktrees = set()
     if scene_inst.ktree is not None:
@@ -209,23 +217,16 @@ def add_modelled_scene(graph: Graph, scene_inst: SceneInstance) -> None:
         add_modelled_agn_set(graph, scene_inst, agn_model_set, seen_model_uris)
 
 
-def _iter_scene_models(model: Any):
-    yield from getattr(model, "scene_models", []) or []
-    for included_model in get_included_models(model):
-        yield from getattr(included_model, "scene_models", []) or []
-
-
 def create_scenex_model_graph(model: Any, g: Optional[Graph] = None) -> Graph:
     if g is None:
         g = Graph()
+
     _bind_model_kind_namespaces(graph=g)
-    add_distributions(graph=g, distributions=getattr(model, "distributions", []) or [])
-    set_uris = set()
-    for scn in _iter_scene_models(model):
-        add_scene_model(graph=g, scene=scn, set_uris=set_uris)
-    scene_insts = getattr(model, "scene_insts", None)
-    if scene_insts is None or not isinstance(scene_insts, list):
-        raise ValueError("no 'scene_insts' attr of type 'list' in model")
-    for scene_inst in scene_insts:
+
+    for distribution in getattr(model, "distributions", []):
+        add_distribution(graph=g, distribution=distribution)
+
+    for scene_inst in getattr(model, "scene_insts", []):
         add_modelled_scene(graph=g, scene_inst=scene_inst)
+
     return g

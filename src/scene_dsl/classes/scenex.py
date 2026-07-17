@@ -148,6 +148,7 @@ class ModelledAgentSet(IHasNamespace):
 class SceneInstance(IHasNamespaceDeclare):
     scene: SceneModel
     ktree: Optional[KinematicTreeModel]
+    models: list[ElementModel]
     modelled_objs: list[ModelledObject]
     modelled_obj_sets: list[ModelledObjectSet]
     modelled_agns: list[ModelledAgent]
@@ -159,17 +160,18 @@ class SceneInstance(IHasNamespaceDeclare):
         ns,
         name,
         scene,
-        ktree=None,
-        modelled_objs=None,
-        modelled_obj_sets=None,
-        modelled_agns=None,
-        modelled_agn_sets=None,
+        ktree,
+        models,
+        modelled_objs,
+        modelled_obj_sets,
+        modelled_agns,
+        modelled_agn_sets,
     ) -> None:
         super().__init__(parent=parent, ns=ns, name=name)
         self.scene = scene
         self.ktree = ktree
-        self.ktrees = [ktree] if ktree is not None else []
-        self.modelled_objs = modelled_objs or []
-        self.modelled_obj_sets = modelled_obj_sets or []
-        self.modelled_agns = modelled_agns or []
-        self.modelled_agn_sets = modelled_agn_sets or []
+        self.models = models
+        self.modelled_objs = modelled_objs
+        self.modelled_obj_sets = modelled_obj_sets
+        self.modelled_agns = modelled_agns
+        self.modelled_agn_sets = modelled_agn_sets

@@ -65,6 +65,23 @@ textx generate examples/models/lab.scenex --target graph -o examples/generated -
 The RDF generators accept `format` (`json-ld`, `ttl`, or `xml`) and `filename`.
 For JSON-LD, pass `--nocompact` to skip compacting IRIs.
 
+## Drawing the Kinematics
+
+Draw the scene's bodies and the joints between them, with each device a cluster
+and any declared serial chain picked out. Needs [graphviz](https://graphviz.org)
+for anything but `dot`:
+
+```bash
+textx generate examples/models/lab.scenex --target dot -o examples/generated --format png
+```
+
+`format` takes `dot` (the default), `png`, `svg`, or `pdf`. To print the graph
+instead of writing it:
+
+```bash
+textx generate examples/models/lab.scenex --target dot-console
+```
+
 ## Development
 
 ```bash

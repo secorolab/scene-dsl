@@ -2,6 +2,8 @@
 from textx import GeneratorDesc, LanguageDesc
 
 from scene_dsl.gens import (
+    scenex_dot_gen,
+    scenex_dot_gen_console,
     scenex_graph_gen,
     scenex_graph_gen_console,
     scene_graph_gen,
@@ -45,4 +47,18 @@ scenex_graph_gen_desc = GeneratorDesc(
     target="graph",
     description="Generate executable scene RDF, default format is JSON-LD",
     generator=scenex_graph_gen,
+)
+
+scenex_dot_console_gen = GeneratorDesc(
+    language="scenex",
+    target="dot-console",
+    description="Print the scene's kinematics as a graphviz graph",
+    generator=scenex_dot_gen_console,
+)
+scenex_dot_gen_desc = GeneratorDesc(
+    language="scenex",
+    target="dot",
+    description="Draw the scene's kinematics: bodies joined by joints, chains picked out."
+    " Formats: dot (default), png, svg, pdf",
+    generator=scenex_dot_gen,
 )

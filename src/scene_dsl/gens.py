@@ -5,6 +5,7 @@ from typing import Any
 from rdflib import Graph
 from rdflib.plugin import PluginException
 
+from scene_dsl.dot import create_dot
 from scene_dsl.rdf.scene import create_scene_model_graph
 from scene_dsl.rdf.scenex import create_scenex_model_graph
 
@@ -87,3 +88,44 @@ def scenex_graph_gen(metamodel, model, output_path, overwrite, debug, **kwargs):
         "scenex",
         **kwargs,
     )
+
+
+_DOT_RENDER_FORMATS = ("png", "svg", "pdf")
+
+
+def _render(dot_source: str, path: str, img_format: str) -> None:
+    """Hand the graph to graphviz, which is what turns it into a picture."""
+    from shutil import which
+    from subprocess import run
+
+    if which("dot") is None:
+        raise ValueError(f"graphviz is needed to write '{img_format}': no 'dot' on PATH")
+    run(["dot", f"-T{img_format}", "-o", path], input=dot_source, text=True, check=True)
+
+
+def scenex_dot_gen_console(metamodel, model, output_path, overwrite, debug, **kwargs):
+    print(create_dot(model=model), end="")
+
+
+def scenex_dot_gen(metamodel, model, output_path, overwrite, debug, **kwargs):
+    img_format = kwargs.get("format", "dot")
+    if img_format not in ("dot",) + _DOT_RENDER_FORMATS:
+        raise ValueError(
+            f"unhandled format '{img_format}' for kinematics graph, "
+            f"try {['dot', *_DOT_RENDER_FORMATS]}"
+        )
+    filename = kwargs.get("filename", basename(model._tx_filename)) or "kinematics"
+    full_output_path = join(
+        "" if output_path is None else output_path, f"{splitext(filename)[0]}.{img_format}"
+    )
+    if exists(full_output_path) and not overwrite:
+        print(f"not overwriting existing file '{full_output_path}'")
+        return
+
+    dot_source = create_dot(model=model)
+    if img_format == "dot":
+        with open(full_output_path, "w") as outfile:
+            outfile.write(dot_source)
+    else:
+        _render(dot_source, full_output_path, img_format)
+    print(f"... wrote {full_output_path}")

@@ -167,6 +167,72 @@ def check_tree_composition(model, metamodel):
             )
 
 
+def _parent_joints(tree) -> dict[int, object]:
+    """The joint attaching each body to its parent. A body may have only one."""
+    parent_joint: dict[int, object] = {}
+    for joint in tree.all_joints:
+        child = joint.child_frame.parent
+        first = parent_joint.get(id(child))
+        if first is not None:
+            raise TextXSemanticError(
+                f"body '{child.name}' is attached by both joint '{first.name}' and joint "
+                f"'{joint.name}': a tree closes no loops, so a body has one parent",
+                **get_location(joint),
+            )
+        parent_joint[id(child)] = joint
+    return parent_joint
+
+
+def _up(body, parent_joint) -> list:
+    """The bodies from `body` up towards its root, stopping if it comes back around."""
+    seen: set[int] = set()
+    chain = []
+    while body is not None and id(body) not in seen:
+        seen.add(id(body))
+        chain.append(body)
+        joint = parent_joint.get(id(body))
+        body = joint.parent_frame.parent if joint is not None else None
+    return chain if body is None else chain + [body]
+
+
+def check_tree_topology(model, metamodel):
+    """A tree closes no loops, and a serial chain runs root to tip without branching.
+
+    An imported model's processors run before its own references resolve. Its joints are
+    checked anyway: through the copy, for a template, and through the composing tree
+    otherwise -- both in the model that imports it, where the frames are known.
+    """
+    for tree in get_children_of_type(KinematicTreeModel, model):
+        if any(j.parent_frame is None or j.child_frame is None for j in tree.all_joints):
+            continue
+        parent_joint = _parent_joints(tree)
+
+        for joint in tree.all_joints:
+            body = joint.child_frame.parent
+            chain = _up(body, parent_joint)
+            # Coming back to a body already passed means the joints close a loop.
+            if len(chain) > len(set(id(b) for b in chain)):
+                raise TextXSemanticError(
+                    f"joints of kinematic tree '{tree.name}' close a loop: "
+                    f"{' -> '.join(b.name for b in reversed(chain))}",
+                    **get_location(joint),
+                )
+
+        comp = tree.joints_spec.joint_comp if tree.joints_spec is not None else None
+        if not isinstance(comp, SerialJoints):
+            continue
+        root, tip = comp.root_frame.parent, comp.tip_frame.parent
+        # In a tree the path down to a body is unique, so reaching the root by walking up
+        # from the tip is what makes the chain serial: no fork, no loop, no gap.
+        if not any(body is root for body in _up(tip, parent_joint)):
+            raise TextXSemanticError(
+                f"serial chain of kinematic tree '{tree.name}': tip "
+                f"'{comp.tip_frame.name}' is not below root '{comp.root_frame.name}' -- "
+                f"no joints lead from one to the other",
+                **get_location(comp),
+            )
+
+
 def check_agent_models(model, metamodel):
     """A model's 'for' must name kinematics the agent has, and only one model may.
 
@@ -314,6 +380,7 @@ def scenex_metamodel():
     )
     mm_scenex.register_model_processor(check_tree_composition)
     mm_scenex.register_model_processor(build_instance_trees)
+    mm_scenex.register_model_processor(check_tree_topology)
     mm_scenex.register_model_processor(check_agent_models)
     mm_scenex.register_model_processor(check_unique_uris)
     return mm_scenex

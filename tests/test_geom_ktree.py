@@ -1055,3 +1055,95 @@ def test_direction_cosine_orientation_rejects_reflection():
             y_axis=FloatVector(None, [0.0, 1.0, 0.0]),
             z_axis=FloatVector(None, [0.0, 0.0, -1.0]),
         )
+
+
+def _tree_scene(bodies: str, joints: str) -> str:
+    return f"""import "example.scene"
+ns n = "https://example.test/"
+scene inst (ns=n) sx {{
+    scene: <s>
+    agn <agns.robot> {{
+        model m as urdf {{ sys path = "r.urdf" }}
+        ktree (ns=n) t {{
+{bodies}
+            joints {{
+{joints}
+            }}
+        }}
+    }}
+}}
+"""
+
+
+TWO_BODIES = """            body b1 { frame f1 { } frame f1b { } }
+            body b2 { frame f2 { } frame f2b { } }"""
+
+
+def test_joints_closing_a_loop_are_rejected(tmp_path):
+    """A tree is a tree: bodies joined back around to each other close a loop."""
+    write_example_scene(tmp_path)
+    path = tmp_path / "loop.scenex"
+    path.write_text(
+        _tree_scene(
+            TWO_BODIES,
+            """                fixed j1 { parent: <b1.f1> child: <b2.f2> }
+                fixed j2 { parent: <b2.f2b> child: <b1.f1b> }""",
+        )
+    )
+    with pytest.raises(TextXSemanticError, match="close a loop"):
+        scenex_metamodel().model_from_file(path)
+
+
+def test_body_attached_by_two_joints_is_rejected(tmp_path):
+    """Two joints onto one body close a loop just as surely, by merging two chains."""
+    write_example_scene(tmp_path)
+    path = tmp_path / "merge.scenex"
+    path.write_text(
+        _tree_scene(
+            TWO_BODIES
+            + """
+            body b3 { frame f3 { } frame f3b { } }""",
+            """                fixed j1 { parent: <b1.f1> child: <b3.f3> }
+                fixed j2 { parent: <b2.f2> child: <b3.f3b> }""",
+        )
+    )
+    with pytest.raises(TextXSemanticError, match="'b3' is attached by both joint"):
+        scenex_metamodel().model_from_file(path)
+
+
+def test_serial_chain_over_unjoined_bodies_is_rejected(tmp_path):
+    """A chain claims joints lead root to tip. Here none lead anywhere."""
+    write_example_scene(tmp_path)
+    path = tmp_path / "phantom.scenex"
+    path.write_text(
+        _tree_scene(TWO_BODIES, "                serial { root: <b1.f1> tip: <b2.f2> }")
+    )
+    with pytest.raises(TextXSemanticError, match="is not below root") as fits:
+        scenex_metamodel().model_from_file(path)
+    assert "tip 'f2'" in str(fits.value)
+
+
+def test_serial_chain_that_branches_is_rejected(tmp_path):
+    """Siblings are not a chain: the path from one to the other runs up and back down."""
+    write_example_scene(tmp_path)
+    path = tmp_path / "branch.scenex"
+    path.write_text(
+        _tree_scene(
+            """            body b1 { frame f1 { } frame f1b { } }
+            body b2 { frame f2 { } }
+            body b3 { frame f3 { } }""",
+            """                fixed j1 { parent: <b1.f1> child: <b2.f2> }
+                fixed j2 { parent: <b1.f1b> child: <b3.f3> }
+                serial { root: <b2.f2> tip: <b3.f3> }""",
+        )
+    )
+    with pytest.raises(TextXSemanticError, match="is not below root"):
+        scenex_metamodel().model_from_file(path)
+
+
+def test_serial_chain_across_two_devices_is_accepted():
+    """arm1_gripper's chain spans two instanced devices, and is a chain."""
+    model = scenex_metamodel().model_from_file(MODELS_DIR / "lab.scenex")
+    assembled = {t.name: t for t in model.scene_insts[0].ktree.trees}["arm1_gripper"]
+    # a branch off the path (the gripper's driver) does not stop it being serial
+    assert len(assembled.all_joints) == 10

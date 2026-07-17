@@ -89,6 +89,16 @@ class KinematicTreeModel(IHasNamespaceDeclare, IDefaultFrame):
         return found
 
     @property
+    def all_joints(self) -> list[JointBase]:
+        """Every joint of this tree and of the trees it composes."""
+        return [
+            joint
+            for tree in self.subtrees.values()
+            if tree.joints_spec is not None
+            for joint in tree.joints_spec.joints
+        ]
+
+    @property
     def default_frame(self) -> Frame:
         if not self.bodies:
             raise ValueError(f"KinematicTreeModel.default_frame: {self.name} has no body")
@@ -273,6 +283,15 @@ class RevoluteJoint(JointBase):
         self._common_axis_uri = None
         self._offset_uri = None
         self._offset_coord_uri = None
+
+    @property
+    def parent_frame(self) -> Frame:
+        """The frame this joint hangs from: a revolute joint turns about its axis."""
+        return self.parent_frame_axis.frame
+
+    @property
+    def child_frame(self) -> Frame:
+        return self.child_frame_axis.frame
 
     @property
     def uri(self) -> URIRef:

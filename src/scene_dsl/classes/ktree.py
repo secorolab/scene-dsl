@@ -5,35 +5,104 @@ from copy import deepcopy
 from typing import Any, Optional
 
 import numpy as np
-from rdflib import Namespace, URIRef
+from rdflib import URIRef
 
-from scene_dsl.classes.common import FloatVector, IHasNamespace, IHasNamespaceDeclare
+from scene_dsl.classes.common import (
+    FloatVector,
+    IHasNamespace,
+    IHasNamespaceDeclare,
+    IHasParent,
+)
 from scene_dsl.classes.geom import Frame, FrameAxis, IDefaultFrame
 
 
-class KinematicTreeModel(IHasNamespaceDeclare, IDefaultFrame):
-    """A kinematic tree. Every element under it takes its namespace from it.
+class KinematicTreeTemplate(IHasParent):
+    """A device described without being any particular one: it mints no IRI."""
 
-    A tree written as 'ktree inst ... of <template>' starts out empty and takes the
-    template's structure as its own, so from then on it is a tree like any other.
+    name: str
+    bodies: list[RigidBody]
+    joints_spec: JointsSpec
+
+    def __init__(self, parent, name, bodies, joints_spec) -> None:
+        super().__init__(parent=parent)
+        self.name = name
+        self.bodies = bodies
+        self.joints_spec = joints_spec
+
+
+class KinematicStructure(IHasNamespaceDeclare, IDefaultFrame):
+    """Bodies, the joints between them, and the trees composed into them.
+
+    Every element under it takes its namespace from it.
     """
 
     name: str
     trees: list[KinematicTreeModel]
     bodies: list[RigidBody]
-    joints_spec: JointsSpec
+    joints_spec: Optional[JointsSpec]
 
-    def __init__(self, parent, ns, name, template, trees, bodies, joints_spec) -> None:
+    def __init__(self, parent, ns, name, trees, bodies, joints_spec) -> None:
         super().__init__(parent=parent, ns=ns, name=name)
-        self.template = template
         self.trees = trees
         self.bodies = bodies
         self.joints_spec = joints_spec
 
     @property
-    def is_template(self) -> bool:
-        """Describes a device without being any particular one, so it has no IRIs."""
-        return self.ns is None
+    def subtrees(self) -> dict[int, KinematicStructure]:
+        """This structure and every tree composed below it, keyed by identity."""
+        found: dict[int, KinematicStructure] = {}
+        stack = [self]
+        while stack:
+            tree = stack.pop()
+            # A tree may be composed by two others, or -- nothing forbids it -- by itself.
+            if id(tree) in found:
+                continue
+            found[id(tree)] = tree
+            stack.extend(tree.trees)
+        return found
+
+    @property
+    def all_joints(self) -> list[JointBase]:
+        """Every joint of this structure and of the trees it composes."""
+        return [
+            joint
+            for tree in self.subtrees.values()
+            if tree.joints_spec is not None
+            for joint in tree.joints_spec.joints
+        ]
+
+    @property
+    def roots(self) -> list[RigidBody]:
+        """The bodies no joint attaches: what the rest of the structure hangs from."""
+        attached = {id(joint.child_frame.parent) for joint in self.all_joints}
+        return [
+            body
+            for tree in self.subtrees.values()
+            for body in tree.bodies
+            if id(body) not in attached
+        ]
+
+    @property
+    def default_frame(self) -> Frame:
+        if not self.bodies:
+            raise ValueError(f"default_frame: {self} has no body")
+        return self.bodies[0].default_frame
+
+
+class KinematicGraph(KinematicStructure):
+    """The kinematics of a whole scene: trees, and the bodies that hang from nothing."""
+
+
+class KinematicTreeModel(KinematicStructure):
+    """A kinematic tree: one root, and no way back to a body once you leave it.
+
+    A tree written as 'ktree inst ... of <template>' starts out empty and takes the
+    template's structure as its own, so from then on it is a tree like any other.
+    """
+
+    def __init__(self, parent, ns, name, template, trees, bodies, joints_spec) -> None:
+        super().__init__(parent, ns, name, trees, bodies, joints_spec)
+        self.template = template
 
     def copy_template(self) -> None:
         """Take the template's structure as this tree's own, under its name and namespace.
@@ -42,18 +111,10 @@ class KinematicTreeModel(IHasNamespaceDeclare, IDefaultFrame):
         tree as its parent -- which is what scopes their IRIs -- and the template's
         internal references follow onto the copies.
         """
-        if not self.template.is_template:
-            raise ValueError(
-                f"kinematic tree '{self.template.name}' declares a namespace of its own, "
-                f"so it names a particular device rather than describing one: instance "
-                f"'{self.name}' would shadow that namespace -- drop the tree's '(ns=...)' "
-                f"to make it a template, or compose it directly with "
-                f"'tree <{self.template.name}>'"
-            )
         memo: dict[int, Any] = {id(self.template): self}
-        self.trees = deepcopy(self.template.trees, memo)
         self.bodies = deepcopy(self.template.bodies, memo)
         self.joints_spec = deepcopy(self.template.joints_spec, memo)
+        self.copies = memo
 
     def composition_cycle(self) -> list[KinematicTreeModel]:
         """The chain of composed trees leading from this tree back to itself, if any."""
@@ -72,36 +133,6 @@ class KinematicTreeModel(IHasNamespaceDeclare, IDefaultFrame):
 
         return walk(self, [self])
 
-    @property
-    def subtrees(self) -> dict[int, KinematicTreeModel]:
-        """This tree and every tree composed below it, however deep, keyed by identity."""
-        found: dict[int, KinematicTreeModel] = {}
-        stack = [self]
-        while stack:
-            tree = stack.pop()
-            # A tree may be composed by two others, or -- nothing forbids it -- by itself.
-            if id(tree) in found:
-                continue
-            found[id(tree)] = tree
-            stack.extend(tree.trees)
-        return found
-
-    @property
-    def all_joints(self) -> list[JointBase]:
-        """Every joint of this tree and of the trees it composes."""
-        return [
-            joint
-            for tree in self.subtrees.values()
-            if tree.joints_spec is not None
-            for joint in tree.joints_spec.joints
-        ]
-
-    @property
-    def default_frame(self) -> Frame:
-        if not self.bodies:
-            raise ValueError(f"default_frame: {self} has no body")
-        return self.bodies[0].default_frame
-
 
 class RigidBody(IHasNamespace, IDefaultFrame):
     name: str
@@ -116,12 +147,6 @@ class RigidBody(IHasNamespace, IDefaultFrame):
         self._uri = None
         self._inertia_uri = None
         self._inertia_coord_uri = None
-
-    @property
-    def namespace(self) -> Namespace:
-        if not isinstance(self.parent, IHasNamespace):
-            raise TypeError(f"parent of RigidBody has no namespace: {self.parent}")
-        return self.parent.namespace
 
     @property
     def uri(self) -> URIRef:
@@ -192,24 +217,10 @@ class JointsSpec(IHasNamespace):
         self.joints = joints
         self.joint_comp = joint_comp
 
-    @property
-    def namespace(self) -> Namespace:
-        if not isinstance(self.parent, KinematicTreeModel):
-            raise ValueError(f"parent of JointsSpec is not a KinematicTreeModel: {self.parent}")
-        return self.parent.namespace
-
 
 class JointBase(IHasNamespace):
     def __init__(self, parent) -> None:
         super().__init__(parent=parent)
-
-    @property
-    def namespace(self) -> Namespace:
-        if not isinstance(self.parent, JointsSpec):
-            jnt_name = getattr(self, "name", "")
-            raise ValueError(f"parent of joint '{jnt_name}' is not a JointsSpec: {self.parent}")
-
-        return self.parent.namespace
 
     @property
     def uri(self) -> URIRef:

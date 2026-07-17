@@ -35,7 +35,7 @@ from scene_dsl.classes.scenex import (
 )
 from scene_dsl.rdf.common import add_py_module_attr
 from scene_dsl.rdf.distrib import add_distribution
-from scene_dsl.rdf.ktree import add_kinematic_tree
+from scene_dsl.rdf.ktree import add_kinematic_graph, add_kinematic_tree
 from scene_dsl.rdf.scene import add_scene_model
 from scene_dsl.rdf.sensors import add_sensors
 
@@ -46,6 +46,7 @@ URI_EXEC_PRED_HAS_MODELLED_OBJ = NS_MM_EXEC["has-modelled-object"]
 URI_EXEC_PRED_HAS_MODELLED_AGN = NS_MM_EXEC["has-modelled-agent"]
 URI_EXEC_PRED_LINKS_BODY = NS_MM_EXEC["has-body"]
 URI_EXEC_PRED_HAS_KTREE = NS_MM_EXEC["has-kinematic-tree"]
+URI_EXEC_PRED_MODEL_ENTITY = NS_MM_EXEC["model-entity"]
 
 NS_XML = Namespace("https://www.w3.org/TR/2006/REC-xml11-20060816#")
 NS_URDF = Namespace("https://wiki.ros.org/urdf/XML/")
@@ -97,6 +98,10 @@ def add_model_spec(graph: Graph, elem_model: ElementModel) -> None:
         graph.add((elem_model.uri, RDF.type, URI_USD_STAGE))
     elif elem_model.model_kind is not None:
         raise ValueError(f"Unhandled model kind: {elem_model.model_kind}")
+
+    # Which body inside the file this model stands for, when the file holds a scene.
+    if elem_model.entity is not None:
+        graph.add((elem_model.uri, URI_EXEC_PRED_MODEL_ENTITY, Literal(elem_model.entity)))
 
 
 def _ensure_unique_scene_uri(
@@ -204,9 +209,9 @@ def add_modelled_scene(graph: Graph, scene_inst: SceneInstance) -> None:
 
     seen_model_uris = set()
     seen_ktrees = set()
-    if scene_inst.ktree is not None:
-        _ensure_unique_scene_uri(scene_inst.ktree.uri, scene_inst, seen_model_uris)
-        add_kinematic_tree(graph, scene_inst.ktree, seen_trees=seen_ktrees)
+    if scene_inst.kgraph is not None:
+        _ensure_unique_scene_uri(scene_inst.kgraph.uri, scene_inst, seen_model_uris)
+        add_kinematic_graph(graph, scene_inst.kgraph, seen_trees=seen_ktrees)
     for obj_model in scene_inst.modelled_objs:
         add_modelled_obj(graph, scene_inst, obj_model, seen_model_uris)
     for obj_model_set in scene_inst.modelled_obj_sets:

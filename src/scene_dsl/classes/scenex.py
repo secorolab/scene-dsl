@@ -3,10 +3,10 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from rdflib import Namespace, URIRef
+from rdflib import URIRef
 
 from scene_dsl.classes.common import IHasNamespace, IHasNamespaceDeclare
-from scene_dsl.classes.ktree import KinematicTreeModel, RigidBody
+from scene_dsl.classes.ktree import KinematicGraph, KinematicTreeModel, RigidBody
 from scene_dsl.classes.scene import (
     Agent,
     Object,
@@ -21,19 +21,14 @@ class ElementModel(IHasNamespace):
     model_kind: Optional[str]
     _uri: Optional[URIRef]
 
-    def __init__(self, parent, name, model_kind, model_spec, tree=None) -> None:
+    def __init__(self, parent, name, model_kind, model_spec, tree=None, entity=None) -> None:
         super().__init__(parent=parent)
         self.name = name
         self.model_kind = model_kind
         self.model_spec = model_spec
         self.tree = tree
+        self.entity = entity or None
         self._uri = None
-
-    @property
-    def namespace(self) -> Namespace:
-        if not isinstance(self.parent, IHasNamespace):
-            raise TypeError(f"parent of ElementModel not an 'IHasNamespace': {self.parent}")
-        return self.parent.namespace
 
     @property
     def uri(self) -> URIRef:
@@ -56,12 +51,6 @@ class ModelledObject(IHasNamespace):
         self._modelled_uri = None
 
     @property
-    def namespace(self) -> Namespace:
-        if not isinstance(self.parent, SceneInstance):
-            raise TypeError(f"parent of modelled obj not a 'SceneInstance': {self.parent}")
-        return self.parent.namespace
-
-    @property
     def modelled_uri(self) -> URIRef:
         if self._modelled_uri is None:
             self._modelled_uri = self.namespace[f"modelled-obj-{self.parent.name}-{self.obj.name}"]
@@ -76,12 +65,6 @@ class ModelledObjectSet(IHasNamespace):
         super().__init__(parent=parent)
         self.obj_set = obj_set
         self.models = models
-
-    @property
-    def namespace(self) -> Namespace:
-        if not isinstance(self.parent, SceneInstance):
-            raise TypeError(f"parent of modelled obj set not a 'SceneInstance': {self.parent}")
-        return self.parent.namespace
 
     def modelled_uri(self, index: int) -> URIRef:
         obj = self.obj_set.objects[index]
@@ -113,12 +96,6 @@ class ModelledAgent(IHasNamespace):
         return self.ktree_inline or self.ktree_ref
 
     @property
-    def namespace(self) -> Namespace:
-        if not isinstance(self.parent, SceneInstance):
-            raise TypeError(f"parent of modelled agn not a 'SceneInstance': {self.parent}")
-        return self.parent.namespace
-
-    @property
     def modelled_uri(self) -> URIRef:
         if self._modelled_uri is None:
             self._modelled_uri = self.namespace[f"modelled-agn-{self.parent.name}-{self.agn.name}"]
@@ -134,12 +111,6 @@ class ModelledAgentSet(IHasNamespace):
         self.agn_set = agn_set
         self.models = models
 
-    @property
-    def namespace(self) -> Namespace:
-        if not isinstance(self.parent, SceneInstance):
-            raise TypeError(f"parent of modelled agn set not a 'SceneInstance': {self.parent}")
-        return self.parent.namespace
-
     def modelled_uri(self, index: int) -> URIRef:
         agn = self.agn_set.agents[index]
         return self.namespace[f"modelled-agn-{self.parent.name}-{agn.name}"]
@@ -147,7 +118,7 @@ class ModelledAgentSet(IHasNamespace):
 
 class SceneInstance(IHasNamespaceDeclare):
     scene: SceneModel
-    ktree: Optional[KinematicTreeModel]
+    kgraph: Optional[KinematicGraph]
     models: list[ElementModel]
     modelled_objs: list[ModelledObject]
     modelled_obj_sets: list[ModelledObjectSet]
@@ -160,7 +131,7 @@ class SceneInstance(IHasNamespaceDeclare):
         ns,
         name,
         scene,
-        ktree,
+        kgraph,
         models,
         modelled_objs,
         modelled_obj_sets,
@@ -169,7 +140,7 @@ class SceneInstance(IHasNamespaceDeclare):
     ) -> None:
         super().__init__(parent=parent, ns=ns, name=name)
         self.scene = scene
-        self.ktree = ktree
+        self.kgraph = kgraph
         self.models = models
         self.modelled_objs = modelled_objs
         self.modelled_obj_sets = modelled_obj_sets

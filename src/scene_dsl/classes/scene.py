@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from rdflib import Namespace, URIRef
+from rdflib import URIRef
 
 from scene_dsl.classes.common import IHasNamespace, IHasNamespaceDeclare, SetBase
 
@@ -15,12 +15,6 @@ class Object(IHasNamespace):
         super().__init__(parent=parent)
         self.name = name
         self._uri = None
-
-    @property
-    def namespace(self) -> Namespace:
-        if not isinstance(self.parent, (ObjectSet, SimilarObjectSet)):
-            raise TypeError(f"parent of obj not an object set: {self.parent}")
-        return self.parent.namespace
 
     @property
     def uri(self) -> URIRef:
@@ -38,12 +32,6 @@ class Workspace(IHasNamespace):
         self._uri = None
 
     @property
-    def namespace(self) -> Namespace:
-        if not isinstance(self.parent, WorkspaceSet):
-            raise TypeError(f"parent of ws not a 'WorkspaceSet': {self.parent}")
-        return self.parent.namespace
-
-    @property
     def uri(self) -> URIRef:
         if self._uri is None:
             self._uri = self.namespace[self.name]
@@ -57,12 +45,6 @@ class Agent(IHasNamespace):
         super().__init__(parent=parent)
         self.name = name
         self._uri = None
-
-    @property
-    def namespace(self) -> Namespace:
-        if not isinstance(self.parent, (AgentSet, SimilarAgentSet)):
-            raise TypeError(f"parent of agn not an agent set: {self.parent}")
-        return self.parent.namespace
 
     @property
     def uri(self) -> URIRef:

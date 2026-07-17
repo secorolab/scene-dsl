@@ -56,6 +56,7 @@ from rdf_utils.models.vocab import (
 )
 
 from scene_dsl.classes.ktree import (
+    KinematicGraph,
     Actuation,
     JointMimicSpec,
     FixedJoint,
@@ -70,6 +71,7 @@ from scene_dsl.rdf.geom import (
 )
 
 URI_GEOM_TYPE_KTREE = NS_MM_GEOM["KinematicTree"]
+URI_GEOM_TYPE_KGRAPH = NS_MM_GEOM["KinematicGraph"]
 # Not in rdf_utils' vocab module yet; see comp-rob2b/robot-models kinova/gen3/7dof.
 URI_KC_TYPE_REVOLUTE_JOINT_ORIENTED_AXIS = NS_MM_KC["RevoluteJointWithOrientedAxisOfRotation"]
 
@@ -236,12 +238,6 @@ def add_kinematic_tree(graph: Graph, tree: KinematicTreeModel, seen_trees: set[U
 
     graph.add(triple=(tree.uri, RDF.type, URI_GEOM_TYPE_KTREE))
     for linked_tree in tree.trees:
-        if linked_tree.is_template:
-            raise ValueError(
-                f"kinematic tree '{linked_tree.name}' declares no namespace, so it is a "
-                f"template and describes no particular device: '{tree.name}' must compose "
-                f"an instance of it, e.g. 'ktree inst (ns=...) <name> of <{linked_tree.name}>'"
-            )
         add_kinematic_tree(graph=graph, tree=linked_tree, seen_trees=seen_trees)
 
     for body in tree.bodies:
@@ -262,3 +258,15 @@ def add_kinematic_tree(graph: Graph, tree: KinematicTreeModel, seen_trees: set[U
             raise ValueError(
                 f"JointComposition type not handled for: {tree.joints_spec.joint_comp}"
             )
+
+
+def add_kinematic_graph(graph: Graph, kgraph: KinematicGraph, seen_trees: set[URIRef]) -> None:
+    """A scene's kinematics: the trees it composes, and the bodies hanging from nothing."""
+    graph.add(triple=(kgraph.uri, RDF.type, URI_GEOM_TYPE_KGRAPH))
+    for tree in kgraph.trees:
+        add_kinematic_tree(graph=graph, tree=tree, seen_trees=seen_trees)
+    for body in kgraph.bodies:
+        add_body(graph=graph, body=body)
+    if kgraph.joints_spec is not None:
+        for joint in kgraph.joints_spec.joints:
+            add_joint(graph=graph, joint=joint)

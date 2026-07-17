@@ -6,8 +6,8 @@ from rdflib import URIRef
 import textx.scoping.providers as scoping_providers
 from textx import get_children, get_children_of_type, get_location, get_model, metamodel_from_file
 from textx.exceptions import TextXSemanticError
+from textx.model import ObjCrossRef
 from textx.scoping import Postponed
-from textx.scoping.rrel import find
 
 from scene_dsl.classes.common import FloatVector, IntVector
 from scene_dsl.classes.distrib import (
@@ -28,11 +28,14 @@ from scene_dsl.classes.geom import (
 )
 from scene_dsl.classes.ktree import (
     Actuation,
+    KinematicGraph,
+    KinematicStructure,
     FixedJoint,
     JointLimits,
     JointMimicSpec,
     JointOffset,
     KinematicTreeModel,
+    KinematicTreeTemplate,
     JointsSpec,
     JointBase,
     JointComposition,
@@ -68,10 +71,6 @@ from scene_dsl.classes.sensors import (
 )
 
 
-# How a name reaches into a tree from its model: <tree>.<body>[.<frame>].
-_IN_TREE = "ktrees.bodies.frames,ktrees.bodies"
-
-
 class InstancedRefScopeProvider(scoping_providers.FQNImportURI):
     """Resolves references qualified by an instanced tree, e.g. '<arm1.base.origin>'.
 
@@ -86,11 +85,18 @@ class InstancedRefScopeProvider(scoping_providers.FQNImportURI):
         tree = next((t for t in trees if t.name == head and t.template is not None), None)
         if tree is None or not path:
             return super().__call__(obj, attr, obj_ref)
-        if not isinstance(tree.template, KinematicTreeModel):
+        if not isinstance(tree.template, KinematicTreeTemplate):
             return Postponed()
-        target = find(get_model(tree.template), f"{tree.template.name}.{path}", _IN_TREE)
+        in_template = ObjCrossRef(
+            f"{tree.template.name}.{path}",
+            obj_ref.cls,
+            obj_ref.position,
+            obj_ref.scope_provider,
+            obj_ref.match_rule_name,
+        )
+        target = super().__call__(obj, attr, in_template)
         if target is not None:
-            _pending_refs(model).append((obj, attr.name, tree, path))
+            _pending_refs(model).append((obj, attr.name, tree, target))
         return target
 
 
@@ -120,17 +126,9 @@ def check_self_contained(template) -> None:
             for target in value if isinstance(value, list) else [value]:
                 if target is None or id(target) in inside:
                     continue
-                # Nesting templates is coherent, just unimplemented.
-                if isinstance(target, KinematicTreeModel) and target.is_template:
-                    raise TextXSemanticError(
-                        f"kinematic tree '{template.name}' composes template "
-                        f"'{target.name}': a template inside a template is not supported "
-                        f"-- instance both in the scene, and join them there",
-                        **get_location(obj),
-                    )
                 raise TextXSemanticError(
-                    f"kinematic tree '{template.name}' declares no namespace, so it is a "
-                    f"template and must be self-contained -- but its "
+                    f"kinematic tree template '{template.name}' must be self-contained, "
+                    f"since instancing copies it -- but its "
                     f"{type(obj).__name__} '{getattr(obj, 'name', attr_name)}' references "
                     f"'{getattr(target, 'name', target)}', which is outside the tree",
                     **get_location(obj),
@@ -145,14 +143,16 @@ def build_instance_trees(model, metamodel):
     for tree in get_children_of_type(KinematicTreeModel, model):
         if tree.template is None:
             continue
-        # A non-template is rejected by the copy itself, and its 'ns' would read here as
-        # a reference escaping the tree.
-        if tree.template.is_template:
-            check_self_contained(tree.template)
+        if isinstance(tree.parent, ModelledAgent):
+            raise TextXSemanticError(
+                "a template instance must be declared at model level and named by the agent",
+                **get_location(tree),
+            )
+        check_self_contained(tree.template)
         tree.copy_template()
 
-    for obj, attr_name, tree, path in _pending_refs(model):
-        setattr(obj, attr_name, find(model, f"{tree.name}.{path}", _IN_TREE))
+    for obj, attr_name, tree, target in _pending_refs(model):
+        setattr(obj, attr_name, tree.copies[id(target)])
 
 
 def check_tree_composition(model, metamodel):
@@ -195,40 +195,65 @@ def _up(body, parent_joint) -> list:
     return chain if body is None else chain + [body]
 
 
-def check_tree_topology(model, metamodel):
-    """A tree closes no loops, and a serial chain runs root to tip without branching.
+def _reachable(root, tip, joints) -> bool:
+    """Whether directed joints connect `root` to `tip`, even through a graph cycle."""
+    children: dict[int, list] = {}
+    for joint in joints:
+        children.setdefault(id(joint.parent_frame.parent), []).append(joint.child_frame.parent)
 
-    An imported model's processors run before its own references resolve. Its joints are
-    checked anyway: through the copy, for a template, and through the composing tree
-    otherwise -- both in the model that imports it, where the frames are known.
+    seen: set[int] = set()
+    pending = [root]
+    while pending:
+        body = pending.pop()
+        if body is tip:
+            return True
+        if id(body) in seen:
+            continue
+        seen.add(id(body))
+        pending.extend(children.get(id(body), []))
+    return False
+
+
+def check_tree_topology(model, metamodel):
+    """A tree has one root and closes no loops; any chain runs root to tip.
+
+    A graph promises neither, so only the chain is its business. An imported model's
+    processors run before its own references resolve; its joints are checked anyway,
+    through the copy or the composing tree, in the model that imports it.
     """
-    for tree in get_children_of_type(KinematicTreeModel, model):
+    for tree in get_children(lambda x: isinstance(x, KinematicStructure), model):
         if any(j.parent_frame is None or j.child_frame is None for j in tree.all_joints):
             continue
-        parent_joint = _parent_joints(tree)
 
-        for joint in tree.all_joints:
-            body = joint.child_frame.parent
-            chain = _up(body, parent_joint)
-            # Coming back to a body already passed means the joints close a loop.
-            if len(chain) > len(set(id(b) for b in chain)):
+        if isinstance(tree, KinematicTreeModel):
+            parent_joint = _parent_joints(tree)
+            roots = tree.roots
+            if len(roots) > 1:
                 raise TextXSemanticError(
-                    f"joints of kinematic tree '{tree.name}' close a loop: "
-                    f"{' -> '.join(b.name for b in reversed(chain))}",
-                    **get_location(joint),
+                    f"kinematic tree '{tree.name}' has {len(roots)} bodies attached to "
+                    f"nothing ({', '.join(sorted(b.name for b in roots))}), but a tree has "
+                    f"one root -- join them, or hold them in a kgraph",
+                    **get_location(tree),
                 )
+
+            for joint in tree.all_joints:
+                chain = _up(joint.child_frame.parent, parent_joint)
+                # Coming back to a body already passed means the joints close a loop.
+                if len(chain) > len({id(b) for b in chain}):
+                    raise TextXSemanticError(
+                        f"joints of kinematic tree '{tree.name}' close a loop: "
+                        f"{' -> '.join(b.name for b in reversed(chain))}",
+                        **get_location(joint),
+                    )
 
         comp = tree.joints_spec.joint_comp if tree.joints_spec is not None else None
         if not isinstance(comp, SerialJoints):
             continue
         root, tip = comp.root_frame.parent, comp.tip_frame.parent
-        # In a tree the path down to a body is unique, so reaching the root by walking up
-        # from the tip is what makes the chain serial: no fork, no loop, no gap.
-        if not any(body is root for body in _up(tip, parent_joint)):
+        if not _reachable(root, tip, tree.all_joints):
             raise TextXSemanticError(
-                f"serial chain of kinematic tree '{tree.name}': tip "
-                f"'{comp.tip_frame.name}' is not below root '{comp.root_frame.name}' -- "
-                f"no joints lead from one to the other",
+                f"serial chain of '{tree.name}': tip '{comp.tip_frame.name}' is not below "
+                f"root '{comp.root_frame.name}' -- no joints lead from one to the other",
                 **get_location(comp),
             )
 
@@ -353,6 +378,8 @@ def scenex_metamodel():
             Frame,
             FrameAxis,
             KinematicTreeModel,
+            KinematicTreeTemplate,
+            KinematicGraph,
             RigidBody,
             RigidBodyInertia,
             JointsSpec,
@@ -372,10 +399,10 @@ def scenex_metamodel():
     )
     mm_scenex.register_scope_providers(
         {
-            # Trees are named flatly but nest under scene instances, and may live in
-            # an imported '.ktree' file.
-            "KinematicTreeModel.trees": scoping_providers.PlainNameImportURI(),
+            # Falls back to plain FQN when the ref is not into an instanced tree.
             "*.*": InstancedRefScopeProvider(),
+            # Trees are named flatly, but nest under scene instances and imports.
+            "KinematicTreeModel.trees": scoping_providers.PlainNameImportURI(),
         }
     )
     mm_scenex.register_model_processor(check_tree_composition)

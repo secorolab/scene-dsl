@@ -6,14 +6,26 @@ InertiaUnit: 'kg*m^2' ;
 EffortUnit: 'N*m' ;
 Polarity: 'PositivePolarity' | 'NegativePolarity' ;
 
-// An instance takes the template's structure as its own, so it is a tree like any other.
-// Without a namespace the tree is a template, so every use must be an instance.
-// A tree may have no bodies: composing sub-trees is a tree's whole job.
+KinematicGraph:
+'kgraph' '(' 'ns' '=' ns=[NamespaceDeclare|FQN] ')' name=IRI_TRUNK '{'
+    ( 'tree' '<' trees+=[KinematicTreeModel|FQN] '>' )*
+    bodies*=RigidBody
+    (joints_spec=JointsSpec)?
+'}'
+;
+
+KinematicTreeTemplate:
+'ktree' name=IRI_TRUNK '{'
+    bodies*=RigidBody
+    joints_spec=JointsSpec
+'}'
+;
+
 KinematicTreeModel:
 'ktree' 'inst' '(' 'ns' '=' ns=[NamespaceDeclare|FQN] ')' name=IRI_TRUNK
-    'of' '<' template=[KinematicTreeModel|FQN] '>'
+    'of' '<' template=[KinematicTreeTemplate|FQN] '>'
 |
-'ktree' ('(' 'ns' '=' ns=[NamespaceDeclare|FQN] ')')? name=IRI_TRUNK '{'
+'ktree' '(' 'ns' '=' ns=[NamespaceDeclare|FQN] ')' name=IRI_TRUNK '{'
     ( 'tree' '<' trees+=[KinematicTreeModel|FQN] '>' )*
     bodies*=RigidBody
     joints_spec=JointsSpec

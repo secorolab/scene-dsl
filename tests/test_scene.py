@@ -1,9 +1,16 @@
 import pytest
 from bdd_dsl.models.urirefs import URI_EXEC_PRED_PATH
+from rdflib import Literal, Namespace
+
 from scene_dsl.langs import scene_metamodel, scenex_metamodel
 from scene_dsl.rdf.scene import create_scene_model_graph
-from scene_dsl.rdf.scenex import URI_USD_STAGE, create_scenex_model_graph
+from scene_dsl.rdf.scenex import (
+    URI_EXEC_PRED_MODEL_ENTITY,
+    URI_USD_STAGE,
+    create_scenex_model_graph,
+)
 from scene_dsl.rdf_parser.scenex import SceneInstanceModel
+
 
 from .test_common import MODELS_DIR
 
@@ -78,3 +85,49 @@ scene (ns=n) dag_scene {
     model = scene_metamodel().model_from_file(model_path)
     with pytest.raises(RuntimeError, match="Shared or cyclic workspace compositions"):
         create_scene_model_graph(model)
+
+
+def test_model_entity_names_body_inside_a_scene_file(tmp_path):
+    """One scene file may hold many bodies: 'entity' says which one a model stands for."""
+    (tmp_path / "objects.scene").write_text(
+        """ns n = "https://example.test/"
+
+obj set (ns=n) objs { object table, object box }
+scene (ns=n) lab { obj set <objs> }
+"""
+    )
+    model_path = tmp_path / "lab.scenex"
+    model_path.write_text(
+        """import "objects.scene"
+
+ns nx = "https://example.test/x/"
+
+scene inst (ns=nx) si {
+    scene: <lab>
+    kgraph (ns=nx) kg {
+        body table_body { frame table_root { } }
+        body box_body { frame box_root { } }
+    }
+    obj <objs.table> {
+        model table-in-scene as mjcf { sys path = 'lab_scene.xml'
+            entity: "table"
+        }
+        body: <kg.table_body>
+    }
+    obj <objs.box> {
+        model box-in-scene as mjcf { sys path = 'lab_scene.xml'
+            entity: "box"
+        }
+        body: <kg.box_body>
+    }
+}
+"""
+    )
+
+    graph = create_scenex_model_graph(scenex_metamodel().model_from_file(model_path))
+
+    nx = Namespace("https://example.test/x/")
+    assert (nx["table-in-scene"], URI_EXEC_PRED_MODEL_ENTITY, Literal("table")) in graph
+    assert (nx["box-in-scene"], URI_EXEC_PRED_MODEL_ENTITY, Literal("box")) in graph
+    # A model without 'entity' says nothing about one.
+    assert (nx["table-in-scene"], URI_EXEC_PRED_PATH, Literal("lab_scene.xml")) in graph

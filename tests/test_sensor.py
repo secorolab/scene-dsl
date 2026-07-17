@@ -38,13 +38,13 @@ def test_lab_scenex_agent_tree_link_and_sensors_emit_rdf():
     ft_sensor = next(sensor for sensor in panda.sensors if sensor.name == "wrist_ft")
     imu_sensor = next(sensor for sensor in panda.sensors if sensor.name == "wrist_imu")
 
-    assert panda.ktree in scene_inst.ktree.trees
+    assert panda.ktree in scene_inst.kgraph.trees[0].trees
     orientation = panda.ktree.bodies[0].frames[0].poses[0].orientation
     assert np.allclose(orientation.rotation_matrix, np.eye(3))
 
     graph = create_scenex_model_graph(model)
 
-    assert (scene_inst.ktree.uri, RDF.type, URI_GEOM_TYPE_KTREE) in graph
+    assert (scene_inst.kgraph.trees[0].uri, RDF.type, URI_GEOM_TYPE_KTREE) in graph
     assert (panda.ktree.uri, RDF.type, URI_GEOM_TYPE_KTREE) in graph
     assert (joint.uri, RDF.type, URI_KC_TYPE_REVOLUTE_JOINT) in graph
     assert (panda.ktree.uri, URI_KC_PRED_JOINTS, joint.uri) in graph

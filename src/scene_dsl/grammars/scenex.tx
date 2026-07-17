@@ -13,15 +13,18 @@ distributions=Distribution*
 
 // A '.ktree' file is parsed with this metamodel: a second one registered for the
 // extension would reset the shared user classes mid-parse.
-ktrees*=KinematicTreeModel
+(ktrees+=KinematicTreeModel | ktree_templates+=KinematicTreeTemplate)*
 
 scene_insts+=SceneInstance*
 ;
 
 // 'for' names the kinematics this file describes. Only an agent has any.
+// 'entity' names a body inside the file -- an MJCF body, USD prim path, or URDF
+// link -- for files holding more than the one thing this model stands for.
 ElementModel:
 'model' name=IRI_TRUNK ('as' model_kind=ModelKind)? '{'
     model_spec=ModelSpecification
+    ('entity' ':' entity=STRING)?
 '}'
 ('for' '<' tree=[KinematicTreeModel|FQN] '>')?
 ;
@@ -62,7 +65,7 @@ ModelledAgentSet:
 SceneInstance:
 'scene' 'inst' '(' 'ns' '=' ns=[NamespaceDeclare|FQN] ')' name=IRI_TRUNK '{'
     'scene' ':' '<' scene=[SceneModel|FQN] '>'
-    ktree=KinematicTreeModel?
+    kgraph=KinematicGraph?
     models=ElementModel*
     (
     modelled_objs+=ModelledObject

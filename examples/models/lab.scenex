@@ -24,24 +24,76 @@ ktree (ns=lab_rob) arm1_gripper {
     }
 }
 
+ktree (ns=scene_lab_mjc) world_tree {
+    tree <panda_tree>
+    tree <ur10_tree>
+    tree <arm1_gripper>
+    tree <arm2>
+
+    body world_body {
+        frame world { }
+    }
+
+    body table_body {
+        frame table_root {
+            pose table_in_world {
+                wrt: <world_body.world>
+                xyz: (0.0, 0.0, 0.0) m
+                orientation: euler {
+                    angles: (0.0, 0.0, 0.0)
+                    unit: rad
+                }
+            }
+        }
+        inertia {
+            frame: table_root
+            mass: 10.0 kg
+            inertia-matrix: (
+                (1.0, 0.0, 0.0),
+                (0.0, 1.0, 0.0),
+                (0.0, 0.0, 1.0)
+            ) kg*m^2
+        }
+    }
+
+    joints {
+        // The table is placed by a pose, but a pose says where a body is, not what
+        // holds it: without this the table hangs from nothing.
+        fixed table_on_world {
+            parent: <world_body.world>
+            child: <table_body.table_root>
+        }
+        fixed ur10_on_table {
+            parent: <table_body.table_root>
+            child: <ur10_tree.ur10_body.ur10_base_link>
+        }
+        fixed panda_on_table {
+            parent: <table_body.table_root>
+            child: <panda_tree.panda_base_body.base_link>
+        }
+        fixed arm1_on_table {
+            parent: <table_body.table_root>
+            child: <arm1.base_link.base_link_origin>
+        }
+        fixed arm2_on_table {
+            parent: <table_body.table_root>
+            child: <arm2.base_link.base_link_origin>
+        }
+    }
+}
+
 scene inst (ns=scene_lab_mjc) pickplace_scene_mjc {
     scene: <pickplace_scene>
 
-    ktree (ns=scene_lab_mjc) world_tree {
-        tree <panda_tree>
-        tree <ur10_tree>
-        tree <arm1_gripper>
-        tree <arm2>
+    kgraph (ns=scene_lab_mjc) lab_graph {
+        tree <world_tree>
 
-        body world_body {
-            frame world { }
-        }
-
-        body table_body {
-            frame table_root {
-                pose table_in_world {
-                    wrt: <world_body.world>
-                    xyz: (0.0, 0.0, 0.0) m
+        // a free body
+        body box1_body {
+            frame box1_root {
+                pose box1_on_table {
+                    wrt: <world_tree.table_body.table_root>
+                    xyz: (0.45, 0.1, 0.75) m
                     orientation: euler {
                         angles: (0.0, 0.0, 0.0)
                         unit: rad
@@ -49,30 +101,20 @@ scene inst (ns=scene_lab_mjc) pickplace_scene_mjc {
                 }
             }
             inertia {
-                frame: table_root
-                mass: 10.0 kg
+                frame: box1_root
+                mass: 0.2 kg
                 inertia-matrix: (
-                    (1.0, 0.0, 0.0),
-                    (0.0, 1.0, 0.0),
-                    (0.0, 0.0, 1.0)
+                    (0.001, 0.0, 0.0),
+                    (0.0, 0.001, 0.0),
+                    (0.0, 0.0, 0.001)
                 ) kg*m^2
             }
         }
+    }
 
-        joints {
-            fixed panda_on_table {
-                parent: <table_body.table_root>
-                child: <panda_tree.panda_base_body.base_link>
-            }
-            fixed arm1_on_table {
-                parent: <table_body.table_root>
-                child: <arm1.base_link.base_link_origin>
-            }
-            fixed arm2_on_table {
-                parent: <table_body.table_root>
-                child: <arm2.base_link.base_link_origin>
-            }
-        }
+    obj <pickplace_objects.box1> {
+        model box1-mjc as mjcf { sys path = '~/.cache/mj_kdl_wrapper/assets/cube.xml' }
+        body: <lab_graph.box1_body>
     }
 
     obj <ws_objects.dining_table> {

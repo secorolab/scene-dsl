@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import Optional
 
 import numpy as np
-from rdflib import Namespace, URIRef
+from rdflib import URIRef
 
 from scene_dsl.classes.common import FloatVector, IHasNamespace
 from scene_dsl.classes.distrib import DistributionRef
@@ -85,12 +85,6 @@ class PoseSpec(IHasNamespace):
         self._orn_coord_uri = None
 
     @property
-    def namespace(self) -> Namespace:
-        if not isinstance(self.parent, Frame):
-            raise TypeError(f"parent of PoseSpec is not a Frame: {self.parent}")
-        return self.parent.namespace
-
-    @property
     def uri(self) -> URIRef:
         if self._uri is None:
             self._uri = self.namespace[self.scoped()]
@@ -166,12 +160,6 @@ class Frame(IHasNamespace, IDefaultFrame):
         self._uri = None
         self._origin_uri = None
         self._axis_vector_uris = {}
-
-    @property
-    def namespace(self) -> Namespace:
-        if not isinstance(self.parent, IHasNamespace):
-            raise TypeError(f"parent of frame has no namespace: {self.parent}")
-        return self.parent.namespace
 
     @property
     def uri(self) -> URIRef:

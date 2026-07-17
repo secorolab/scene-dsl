@@ -1,6 +1,4 @@
 # SPDX-License-Identifier: MPL-2.0
-from collections.abc import Iterable
-
 from rdflib import BNode, RDF, Graph, Literal, URIRef, XSD
 from rdflib.collection import Collection
 
@@ -100,11 +98,6 @@ def add_distribution(graph: Graph, distribution: Distribution) -> None:
 
     else:
         raise ValueError(f"Unsupported distribution specification: {distribution.spec}")
-
-
-def add_distributions(graph: Graph, distributions: Iterable[Distribution]) -> None:
-    for distribution in distributions:
-        add_distribution(graph=graph, distribution=distribution)
 
 
 def add_sampled_quantity(graph: Graph, quantity_uri: URIRef, distrib_ref: DistributionRef) -> None:

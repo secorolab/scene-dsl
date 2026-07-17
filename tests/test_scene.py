@@ -1,7 +1,10 @@
 import pytest
+from bdd_dsl.models.urirefs import URI_EXEC_PRED_PATH
 from scene_dsl.langs import scene_metamodel, scenex_metamodel
 from scene_dsl.rdf.scene import create_scene_model_graph
-from scene_dsl.rdf.scenex import create_scenex_model_graph
+from scene_dsl.rdf.scenex import URI_USD_STAGE, create_scenex_model_graph
+from scene_dsl.rdf_parser.scenex import SceneInstanceModel
+
 from .test_common import MODELS_DIR
 
 
@@ -17,6 +20,28 @@ def test_scenex_references_scene_and_generates_rdf():
     assert len(model.scene_insts) > 0
     graph = create_scenex_model_graph(model)
     assert len(graph) > 0
+
+
+def test_scenex_accepts_scene_level_usd_model():
+    model = scenex_metamodel().model_from_str(
+        """import "lab.scene"
+scene inst (ns=scene_lab_mjc) usd_scene {
+    scene: <pickplace_scene>
+    model usd_stage as usd { sys path = "/tmp/scene.usda" }
+}
+""",
+        file_name=str(MODELS_DIR / "usd_scene.scenex"),
+    )
+
+    scene_instance = model.scene_insts[0]
+    resource = scene_instance.models[0]
+    assert resource.model_kind == "usd"
+    assert resource.model_spec.path == "/tmp/scene.usda"
+
+    parsed = SceneInstanceModel(scene_instance.uri, create_scenex_model_graph(model))
+    [resource] = parsed.models.values()
+    assert URI_USD_STAGE in resource.types
+    assert resource.get_attr(URI_EXEC_PRED_PATH) == "/tmp/scene.usda"
 
 
 def test_shared_workspace_composition_is_rejected(tmp_path):

@@ -63,6 +63,7 @@ SceneInstance:
 'scene' 'inst' '(' 'ns' '=' ns=[NamespaceDeclare|FQN] ')' name=IRI_TRUNK '{'
     'scene' ':' '<' scene=[SceneModel|FQN] '>'
     ktree=KinematicTreeModel?
+    models=ElementModel*
     (
     modelled_objs+=ModelledObject
     |

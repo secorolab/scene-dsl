@@ -25,7 +25,10 @@ class IHasNamespace(IHasParent):
         The path, not the namespace, is what makes an element unique: two copies of one
         tree differ by the tree's name. Ancestors that name nothing drop out.
         """
-        parts = [self.name]
+        name = getattr(self, "name", None)
+        if name is None:
+            raise ValueError(f"{self.__class__.__name__} has no name to build an IRI from")
+        parts = [name]
         node = self.parent
         while node is not None and not isinstance(node, IHasNamespaceDeclare):
             name = getattr(node, "name", None)

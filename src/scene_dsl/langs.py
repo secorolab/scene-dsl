@@ -139,7 +139,8 @@ def check_self_contained(template) -> None:
 def build_instance_trees(model, metamodel):
     """Fill each instanced tree from its template, then land the refs written into it.
 
-    The first point at which the model is resolved enough to copy.
+    An imported model can reach this processor before its template reference resolves;
+    leave that instance for the caller's later resolution pass.
     """
     for tree in get_children_of_type(KinematicTreeInstance, model):
         if isinstance(tree.parent, ModelledAgent):
@@ -147,6 +148,8 @@ def build_instance_trees(model, metamodel):
                 "a template instance must be declared at model level and named by the agent",
                 **get_location(tree),
             )
+        if tree.template is None or tree.bodies:
+            continue
         check_self_contained(tree.template)
         tree.copy_template()
 
@@ -221,6 +224,8 @@ def check_tree_topology(model, metamodel):
     through the copy or the composing tree, in the model that imports it.
     """
     for tree in get_children(lambda x: isinstance(x, KinematicStructure), model):
+        if isinstance(tree, KinematicTreeInstance) and tree.template is None:
+            continue
         if any(j.parent_frame is None or j.child_frame is None for j in tree.all_joints):
             continue
 

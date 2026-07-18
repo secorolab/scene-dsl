@@ -21,7 +21,7 @@ from rdf_utils.resolver import install_resolver
 
 from scene_dsl.classes.common import FloatVector
 from scene_dsl.classes.geom import DirectionCosineOrientationSpec
-from scene_dsl.classes.ktree import RigidBodyInertia
+from scene_dsl.classes.ktree import KinematicTreeInstance, KinematicTreeTemplate, RigidBodyInertia
 from scene_dsl.langs import scenex_metamodel
 from scene_dsl.rdf.geom import ANGLE_UNITS, URI_GEOM_TYPE_FRAME
 from scene_dsl.rdf.ktree import (
@@ -66,6 +66,33 @@ from .test_common import MODELS_DIR, write_example_scene
 ZERO_POSE = (
     "pose default_pose { xyz: (0.0, 0.0, 0.0) m orientation: euler { angles: (0.0, 0.0, 0.0) } }"
 )
+
+
+def test_top_level_template_is_a_kinematic_tree_spec():
+    model = scenex_metamodel().model_from_str(
+        """ktree arm {
+    body base { frame root { } }
+    joints { }
+}
+"""
+    )
+
+    [tree] = model.ktrees
+    assert isinstance(tree, KinematicTreeTemplate)
+
+
+def test_top_level_tree_instance_is_a_distinct_kinematic_tree_spec():
+    model = scenex_metamodel().model_from_str(
+        """ns n = "https://example.test/"
+ktree arm {
+    body base { frame root { } }
+    joints { }
+}
+ktree inst (ns=n) robot_arm of <arm>
+"""
+    )
+
+    assert isinstance(model.ktrees[1], KinematicTreeInstance)
 
 
 def test_duplicate_model_uri_is_rejected(tmp_path):

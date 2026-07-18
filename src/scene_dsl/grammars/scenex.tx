@@ -13,7 +13,7 @@ distributions=Distribution*
 
 // A '.ktree' file is parsed with this metamodel: a second one registered for the
 // extension would reset the shared user classes mid-parse.
-(ktrees+=KinematicTreeModel | ktree_templates+=KinematicTreeTemplate)*
+ktrees*=KinematicTreeSpec
 
 scene_insts+=SceneInstance*
 ;
@@ -51,7 +51,11 @@ ModelledAgent:
     // One model file per device.
     models+=ElementModel
     // An imported device is instanced per robot, so it cannot be inline.
-    (ktree_inline=KinematicTreeModel | 'ktree' '<' ktree_ref=[KinematicTreeModel|FQN] '>')?
+    (
+        ktree_inline=KinematicTreeInstance
+        | ktree_inline=KinematicTreeModel
+        | 'ktree' '<' ktree_ref=[KinematicTreeModel|FQN] '>'
+    )?
     sensors=SensorBase*
 '}'
 ;

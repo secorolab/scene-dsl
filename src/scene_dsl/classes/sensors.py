@@ -2,7 +2,7 @@
 from __future__ import annotations
 from typing import Optional
 
-from rdflib import URIRef
+from rdflib import Namespace, URIRef
 
 from scene_dsl.classes.common import IHasNamespace, IntVector
 from scene_dsl.classes.geom import Frame
@@ -21,6 +21,12 @@ class SensorBase(IHasNamespace):
         self.update_rate = update_rate
         self.rate_unit = rate_unit
         self._uri = None
+
+    @property
+    def namespace(self) -> Namespace:
+        if not isinstance(self.parent, IHasNamespace):
+            raise TypeError(f"sensor parent has no namespace: {self.parent}")
+        return self.parent.namespace
 
     @property
     def uri(self) -> URIRef:

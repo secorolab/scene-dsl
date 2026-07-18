@@ -35,6 +35,7 @@ from scene_dsl.classes.ktree import (
     JointMimicSpec,
     JointOffset,
     KinematicTreeModel,
+    KinematicTreeInstance,
     KinematicTreeTemplate,
     JointsSpec,
     JointBase,
@@ -82,7 +83,7 @@ class InstancedRefScopeProvider(scoping_providers.FQNImportURI):
         model = get_model(obj)
         # Duplicate tree names collide on their IRI, and are reported there.
         trees = getattr(model, "ktrees", [])
-        tree = next((t for t in trees if t.name == head and t.template is not None), None)
+        tree = next((t for t in trees if t.name == head and getattr(t, "template", None)), None)
         if tree is None or not path:
             return super().__call__(obj, attr, obj_ref)
         if not isinstance(tree.template, KinematicTreeTemplate):
@@ -140,9 +141,7 @@ def build_instance_trees(model, metamodel):
 
     The first point at which the model is resolved enough to copy.
     """
-    for tree in get_children_of_type(KinematicTreeModel, model):
-        if tree.template is None:
-            continue
+    for tree in get_children_of_type(KinematicTreeInstance, model):
         if isinstance(tree.parent, ModelledAgent):
             raise TextXSemanticError(
                 "a template instance must be declared at model level and named by the agent",
@@ -378,6 +377,7 @@ def scenex_metamodel():
             Frame,
             FrameAxis,
             KinematicTreeModel,
+            KinematicTreeInstance,
             KinematicTreeTemplate,
             KinematicGraph,
             RigidBody,

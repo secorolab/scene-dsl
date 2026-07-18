@@ -21,10 +21,14 @@ KinematicTreeTemplate:
 '}'
 ;
 
-KinematicTreeModel:
+KinematicTreeSpec: KinematicTreeTemplate | KinematicTreeInstance | KinematicTreeModel ;
+
+KinematicTreeInstance:
 'ktree' 'inst' '(' 'ns' '=' ns=[NamespaceDeclare|FQN] ')' name=IRI_TRUNK
     'of' '<' template=[KinematicTreeTemplate|FQN] '>'
-|
+;
+
+KinematicTreeModel:
 'ktree' '(' 'ns' '=' ns=[NamespaceDeclare|FQN] ')' name=IRI_TRUNK '{'
     ( 'tree' '<' trees+=[KinematicTreeModel|FQN] '>' )*
     bodies*=RigidBody

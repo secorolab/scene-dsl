@@ -2,6 +2,7 @@ import pytest
 from bdd_dsl.models.urirefs import URI_EXEC_PRED_PATH
 from rdflib import Literal, Namespace
 
+from scene_dsl.classes.common import IHasNamespace
 from scene_dsl.langs import scene_metamodel, scenex_metamodel
 from scene_dsl.rdf.scene import create_scene_model_graph
 from scene_dsl.rdf.scenex import (
@@ -13,6 +14,14 @@ from scene_dsl.rdf_parser.scenex import SceneInstanceModel
 
 
 from .test_common import MODELS_DIR
+
+
+def test_namespace_must_be_declared_by_the_model_class():
+    class MissingNamespace(IHasNamespace):
+        pass
+
+    with pytest.raises(NotImplementedError, match="MissingNamespace"):
+        MissingNamespace(parent=object()).namespace
 
 
 def test_scene_parses_and_generates_rdf():

@@ -5,7 +5,7 @@ from copy import deepcopy
 from typing import Any, Optional
 
 import numpy as np
-from rdflib import URIRef
+from rdflib import Namespace, URIRef
 
 from scene_dsl.classes.common import (
     FloatVector,
@@ -94,27 +94,10 @@ class KinematicGraph(KinematicStructure):
 
 
 class KinematicTreeModel(KinematicStructure):
-    """A kinematic tree: one root, and no way back to a body once you leave it.
+    """A concrete kinematic tree: one root, and no way back to a body once you leave it."""
 
-    A tree written as 'ktree inst ... of <template>' starts out empty and takes the
-    template's structure as its own, so from then on it is a tree like any other.
-    """
-
-    def __init__(self, parent, ns, name, template, trees, bodies, joints_spec) -> None:
+    def __init__(self, parent, ns, name, trees, bodies, joints_spec) -> None:
         super().__init__(parent, ns, name, trees, bodies, joints_spec)
-        self.template = template
-
-    def copy_template(self) -> None:
-        """Take the template's structure as this tree's own, under its name and namespace.
-
-        The memo maps the template onto this tree, so every copied element lands with this
-        tree as its parent -- which is what scopes their IRIs -- and the template's
-        internal references follow onto the copies.
-        """
-        memo: dict[int, Any] = {id(self.template): self}
-        self.bodies = deepcopy(self.template.bodies, memo)
-        self.joints_spec = deepcopy(self.template.joints_spec, memo)
-        self.copies = memo
 
     def composition_cycle(self) -> list[KinematicTreeModel]:
         """The chain of composed trees leading from this tree back to itself, if any."""
@@ -134,6 +117,26 @@ class KinematicTreeModel(KinematicStructure):
         return walk(self, [self])
 
 
+class KinematicTreeInstance(KinematicTreeModel):
+    """A concrete tree copied from a namespace-less template."""
+
+    def __init__(self, parent, ns, name, template) -> None:
+        super().__init__(parent, ns, name, trees=[], bodies=[], joints_spec=None)
+        self.template = template
+
+    def copy_template(self) -> None:
+        """Take the template's structure as this tree's own, under its name and namespace.
+
+        The memo maps the template onto this tree, so every copied element lands with this
+        tree as its parent -- which is what scopes their IRIs -- and the template's
+        internal references follow onto the copies.
+        """
+        memo: dict[int, Any] = {id(self.template): self}
+        self.bodies = deepcopy(self.template.bodies, memo)
+        self.joints_spec = deepcopy(self.template.joints_spec, memo)
+        self.copies = memo
+
+
 class RigidBody(IHasNamespace, IDefaultFrame):
     name: str
     frames: list[Frame]
@@ -147,6 +150,14 @@ class RigidBody(IHasNamespace, IDefaultFrame):
         self._uri = None
         self._inertia_uri = None
         self._inertia_coord_uri = None
+
+    @property
+    def namespace(self) -> Namespace:
+        if isinstance(self.parent, KinematicTreeTemplate):
+            raise AttributeError(f"'{self.parent.name}' is a template, so it has no namespace")
+        if not isinstance(self.parent, KinematicStructure):
+            raise TypeError(f"parent of RigidBody has no namespace: {self.parent}")
+        return self.parent.namespace
 
     @property
     def uri(self) -> URIRef:
@@ -217,10 +228,24 @@ class JointsSpec(IHasNamespace):
         self.joints = joints
         self.joint_comp = joint_comp
 
+    @property
+    def namespace(self) -> Namespace:
+        if isinstance(self.parent, KinematicTreeTemplate):
+            raise AttributeError(f"'{self.parent.name}' is a template, so it has no namespace")
+        if not isinstance(self.parent, KinematicStructure):
+            raise TypeError(f"parent of JointsSpec is not a KinematicStructure: {self.parent}")
+        return self.parent.namespace
+
 
 class JointBase(IHasNamespace):
     def __init__(self, parent) -> None:
         super().__init__(parent=parent)
+
+    @property
+    def namespace(self) -> Namespace:
+        if not isinstance(self.parent, JointsSpec):
+            raise TypeError(f"parent of joint is not a JointsSpec: {self.parent}")
+        return self.parent.namespace
 
     @property
     def uri(self) -> URIRef:

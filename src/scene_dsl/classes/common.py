@@ -15,9 +15,9 @@ class IHasParent:
 class IHasNamespace(IHasParent):
     @property
     def namespace(self) -> Namespace:
-        # An element in a template has no namespace-bearing ancestor: the AttributeError
-        # this raises is what lets `getattr(x, "uri", None)` report absence.
-        return self.parent.namespace
+        raise NotImplementedError(
+            f"'namespace' property not implemented for '{self.__class__.__name__}'"
+        )
 
     def scoped(self, suffix: str = "") -> str:
         """IRI local name: the path from the namespace-declaring ancestor down to here.

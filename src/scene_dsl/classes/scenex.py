@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from rdflib import URIRef
+from rdflib import Namespace, URIRef
 
 from scene_dsl.classes.common import IHasNamespace, IHasNamespaceDeclare
 from scene_dsl.classes.ktree import KinematicGraph, KinematicTreeModel, RigidBody
@@ -31,6 +31,12 @@ class ElementModel(IHasNamespace):
         self._uri = None
 
     @property
+    def namespace(self) -> Namespace:
+        if not isinstance(self.parent, IHasNamespace):
+            raise TypeError(f"parent of ElementModel has no namespace: {self.parent}")
+        return self.parent.namespace
+
+    @property
     def uri(self) -> URIRef:
         if self._uri is None:
             self._uri = self.namespace[self.name]
@@ -51,6 +57,12 @@ class ModelledObject(IHasNamespace):
         self._modelled_uri = None
 
     @property
+    def namespace(self) -> Namespace:
+        if not isinstance(self.parent, SceneInstance):
+            raise TypeError(f"parent of ModelledObject is not a SceneInstance: {self.parent}")
+        return self.parent.namespace
+
+    @property
     def modelled_uri(self) -> URIRef:
         if self._modelled_uri is None:
             self._modelled_uri = self.namespace[f"modelled-obj-{self.parent.name}-{self.obj.name}"]
@@ -65,6 +77,12 @@ class ModelledObjectSet(IHasNamespace):
         super().__init__(parent=parent)
         self.obj_set = obj_set
         self.models = models
+
+    @property
+    def namespace(self) -> Namespace:
+        if not isinstance(self.parent, SceneInstance):
+            raise TypeError(f"parent of ModelledObjectSet is not a SceneInstance: {self.parent}")
+        return self.parent.namespace
 
     def modelled_uri(self, index: int) -> URIRef:
         obj = self.obj_set.objects[index]
@@ -91,6 +109,12 @@ class ModelledAgent(IHasNamespace):
         self._modelled_uri = None
 
     @property
+    def namespace(self) -> Namespace:
+        if not isinstance(self.parent, SceneInstance):
+            raise TypeError(f"parent of ModelledAgent is not a SceneInstance: {self.parent}")
+        return self.parent.namespace
+
+    @property
     def ktree(self) -> Optional[KinematicTreeModel]:
         """The agent's kinematics, however they were written: defined here, or named."""
         return self.ktree_inline or self.ktree_ref
@@ -110,6 +134,12 @@ class ModelledAgentSet(IHasNamespace):
         super().__init__(parent=parent)
         self.agn_set = agn_set
         self.models = models
+
+    @property
+    def namespace(self) -> Namespace:
+        if not isinstance(self.parent, SceneInstance):
+            raise TypeError(f"parent of ModelledAgentSet is not a SceneInstance: {self.parent}")
+        return self.parent.namespace
 
     def modelled_uri(self, index: int) -> URIRef:
         agn = self.agn_set.agents[index]

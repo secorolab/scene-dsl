@@ -6,9 +6,10 @@ from typing import Any, Optional
 from rdflib import Namespace, URIRef
 
 from scene_dsl.classes.common import IHasNamespace, IHasNamespaceDeclare
-from scene_dsl.classes.ktree import KinematicGraph, KinematicTreeModel, RigidBody
+from scene_dsl.classes.ktree import KinematicGraph, RigidBody
 from scene_dsl.classes.scene import (
     Agent,
+    AgentSet,
     Object,
     SceneModel,
     SimilarAgentSet,
@@ -21,13 +22,11 @@ class ElementModel(IHasNamespace):
     model_kind: Optional[str]
     _uri: Optional[URIRef]
 
-    def __init__(self, parent, name, model_kind, model_spec, tree=None, entity=None) -> None:
+    def __init__(self, parent, name, model_kind, model_spec) -> None:
         super().__init__(parent=parent)
         self.name = name
         self.model_kind = model_kind
         self.model_spec = model_spec
-        self.tree = tree
-        self.entity = entity or None
         self._uri = None
 
     @property
@@ -41,6 +40,22 @@ class ElementModel(IHasNamespace):
         if self._uri is None:
             self._uri = self.namespace[self.name]
         return self._uri
+
+
+class AgentModel(IHasNamespace):
+    """An agent model and the kinematics represented by its file."""
+
+    def __init__(self, parent, model, tree, entity=None) -> None:
+        super().__init__(parent=parent)
+        self.model = model
+        self.tree = tree
+        self.entity = entity or None
+
+    @property
+    def namespace(self) -> Namespace:
+        if not isinstance(self.parent, ModelledAgent):
+            raise TypeError(f"parent of AgentModel is not a ModelledAgent: {self.parent}")
+        return self.parent.namespace
 
 
 class ModelledObject(IHasNamespace):
@@ -91,59 +106,48 @@ class ModelledObjectSet(IHasNamespace):
 
 class ModelledAgent(IHasNamespace):
     agn: Agent
-    models: list[ElementModel]
+    models: list[AgentModel]
     sensors: list
     _modelled_uri: Optional[URIRef]
 
-    def __init__(
-        self, parent, agn, models, ktree_inline=None, ktree_ref=None, sensors=None
-    ) -> None:
+    def __init__(self, parent, agn, models, sensors=None) -> None:
         super().__init__(parent=parent)
         self.agn = agn
-        # What scopes the IRIs of everything this agent carries.
         self.name = agn.name
         self.models = models
-        self.ktree_inline = ktree_inline
-        self.ktree_ref = ktree_ref
         self.sensors = sensors or []
         self._modelled_uri = None
 
     @property
     def namespace(self) -> Namespace:
-        if not isinstance(self.parent, SceneInstance):
-            raise TypeError(f"parent of ModelledAgent is not a SceneInstance: {self.parent}")
+        if not isinstance(self.parent, (SceneInstance, ModelledAgentSet)):
+            raise TypeError(f"parent of ModelledAgent is not a scene or agent set: {self.parent}")
         return self.parent.namespace
-
-    @property
-    def ktree(self) -> Optional[KinematicTreeModel]:
-        """The agent's kinematics, however they were written: defined here, or named."""
-        return self.ktree_inline or self.ktree_ref
 
     @property
     def modelled_uri(self) -> URIRef:
         if self._modelled_uri is None:
-            self._modelled_uri = self.namespace[f"modelled-agn-{self.parent.name}-{self.agn.name}"]
+            scene = self.parent if isinstance(self.parent, SceneInstance) else self.parent.parent
+            self._modelled_uri = self.namespace[f"modelled-agn-{scene.name}-{self.agn.name}"]
         return self._modelled_uri
 
 
 class ModelledAgentSet(IHasNamespace):
-    agn_set: SimilarAgentSet
-    models: list[ElementModel]
+    """Concrete modelled agents grouped by their abstract agent set."""
 
-    def __init__(self, parent, agn_set, models) -> None:
+    agn_set: AgentSet | SimilarAgentSet
+    agents: list[ModelledAgent]
+
+    def __init__(self, parent, agn_set, agents) -> None:
         super().__init__(parent=parent)
         self.agn_set = agn_set
-        self.models = models
+        self.agents = agents
 
     @property
     def namespace(self) -> Namespace:
         if not isinstance(self.parent, SceneInstance):
             raise TypeError(f"parent of ModelledAgentSet is not a SceneInstance: {self.parent}")
         return self.parent.namespace
-
-    def modelled_uri(self, index: int) -> URIRef:
-        agn = self.agn_set.agents[index]
-        return self.namespace[f"modelled-agn-{self.parent.name}-{agn.name}"]
 
 
 class SceneInstance(IHasNamespaceDeclare):

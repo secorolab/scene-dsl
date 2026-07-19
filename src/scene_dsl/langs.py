@@ -58,6 +58,7 @@ from scene_dsl.classes.scene import (
     WorkspaceSet,
 )
 from scene_dsl.classes.scenex import (
+    AgentModel,
     ElementModel,
     ModelledAgent,
     ModelledAgentSet,
@@ -143,11 +144,6 @@ def build_instance_trees(model, metamodel):
     leave that instance for the caller's later resolution pass.
     """
     for tree in get_children_of_type(KinematicTreeInstance, model):
-        if isinstance(tree.parent, ModelledAgent):
-            raise TextXSemanticError(
-                "a template instance must be declared at model level and named by the agent",
-                **get_location(tree),
-            )
         if tree.template is None or tree.bodies:
             continue
         check_self_contained(tree.template)
@@ -263,50 +259,22 @@ def check_tree_topology(model, metamodel):
 
 
 def check_agent_models(model, metamodel):
-    """A model's 'for' must name kinematics the agent has, and only one model may.
-
-    Several devices means a file each, so each must say which; one file needs no 'for'.
-    """
-    for elem_model in get_children_of_type(ElementModel, model):
-        if elem_model.tree is None:
-            continue
-        if not isinstance(elem_model.parent, ModelledAgent):
-            raise TextXSemanticError(
-                f"model '{elem_model.name}' says 'for <{elem_model.tree.name}>', but only "
-                f"an agent has kinematics for a model to describe",
-                **get_location(elem_model),
-            )
-
+    """Only one model may drive a given kinematic tree of an agent."""
     for agent in get_children_of_type(ModelledAgent, model):
-        # An agent with no kinematics has nothing for a model to describe, so an empty
-        # set is the right answer here, not a reason to skip the check.
-        available = agent.ktree.subtrees if agent.ktree is not None else {}
         described: dict[int, ElementModel] = {}
-        for elem_model in agent.models:
-            if elem_model.tree is None:
-                if len(agent.models) > 1:
-                    raise TextXSemanticError(
-                        f"agent '{agent.agn.name}' has {len(agent.models)} models, so each "
-                        f"must say which kinematics it describes -- model "
-                        f"'{elem_model.name}' names none",
-                        **get_location(elem_model),
-                    )
+        for binding in agent.models:
+            elem_model = binding.model
+            tree = binding.tree
+            if tree is None:
                 continue
-            if id(elem_model.tree) not in available:
-                has = f"kinematics '{agent.ktree.name}'" if agent.ktree else "no kinematics"
-                raise TextXSemanticError(
-                    f"model '{elem_model.name}' describes tree "
-                    f"'{elem_model.tree.name}', but agent '{agent.agn.name}' has {has}",
-                    **get_location(elem_model),
-                )
-            first = described.get(id(elem_model.tree))
+            first = described.get(id(tree))
             if first is not None:
                 raise TextXSemanticError(
                     f"models '{first.name}' and '{elem_model.name}' both describe tree "
-                    f"'{elem_model.tree.name}': which one drives it is then undecided",
+                    f"'{tree.name}': which one drives it is then undecided",
                     **get_location(elem_model),
                 )
-            described[id(elem_model.tree)] = elem_model
+            described[id(tree)] = elem_model
 
 
 def check_unique_uris(model, metamodel):
@@ -369,6 +337,7 @@ def scenex_metamodel():
             NormalDistribution,
             UniformDistribution,
             UniformRotationDistribution,
+            AgentModel,
             ElementModel,
             ModelledObject,
             ModelledObjectSet,

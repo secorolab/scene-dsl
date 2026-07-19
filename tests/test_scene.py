@@ -6,6 +6,7 @@ from scene_dsl.classes.common import IHasNamespace
 from scene_dsl.langs import scene_metamodel, scenex_metamodel
 from scene_dsl.rdf.scene import create_scene_model_graph
 from scene_dsl.rdf.scenex import (
+    URI_EXEC_PRED_HAS_KTREE,
     URI_EXEC_PRED_MODEL_ENTITY,
     URI_USD_STAGE,
     create_scenex_model_graph,
@@ -96,38 +97,28 @@ scene (ns=n) dag_scene {
         create_scene_model_graph(model)
 
 
-def test_model_entity_names_body_inside_a_scene_file(tmp_path):
-    """One scene file may hold many bodies: 'entity' says which one a model stands for."""
-    (tmp_path / "objects.scene").write_text(
+def test_agent_kinematics_attach_to_bodies_in_one_model_file(tmp_path):
+    (tmp_path / "robot.scene").write_text(
         """ns n = "https://example.test/"
-
-obj set (ns=n) objs { object table, object box }
-scene (ns=n) lab { obj set <objs> }
+agn set (ns=n) agents { agent robot }
+scene (ns=n) lab { agn set <agents> }
 """
     )
     model_path = tmp_path / "lab.scenex"
     model_path.write_text(
-        """import "objects.scene"
+        """import "robot.scene"
 
 ns nx = "https://example.test/x/"
+ktree (ns=nx) arm { body arm_base { frame arm_root { } } joints { } }
+ktree (ns=nx) gripper { body grip_base { frame grip_root { } } joints { } }
 
 scene inst (ns=nx) si {
     scene: <lab>
-    kgraph (ns=nx) kg {
-        body table_body { frame table_root { } }
-        body box_body { frame box_root { } }
-    }
-    obj <objs.table> {
-        model table-in-scene as mjcf { sys path = 'lab_scene.xml'
-            entity: "table"
-        }
-        body: <kg.table_body>
-    }
-    obj <objs.box> {
-        model box-in-scene as mjcf { sys path = 'lab_scene.xml'
-            entity: "box"
-        }
-        body: <kg.box_body>
+    agn <agents.robot> {
+        model arm-in-scene as mjcf { sys path = "robot.xml" }
+            for <arm> at body "arm_body"
+        model gripper-in-scene as mjcf { sys path = "robot.xml" }
+            for <gripper> at body "gripper_body"
     }
 }
 """
@@ -136,7 +127,12 @@ scene inst (ns=nx) si {
     graph = create_scenex_model_graph(scenex_metamodel().model_from_file(model_path))
 
     nx = Namespace("https://example.test/x/")
-    assert (nx["table-in-scene"], URI_EXEC_PRED_MODEL_ENTITY, Literal("table")) in graph
-    assert (nx["box-in-scene"], URI_EXEC_PRED_MODEL_ENTITY, Literal("box")) in graph
-    # A model without 'entity' says nothing about one.
-    assert (nx["table-in-scene"], URI_EXEC_PRED_PATH, Literal("lab_scene.xml")) in graph
+    assert (nx["arm-in-scene"], URI_EXEC_PRED_MODEL_ENTITY, Literal("arm_body")) in graph
+    assert (nx["arm-in-scene"], URI_EXEC_PRED_HAS_KTREE, nx.arm) in graph
+    assert (
+        nx["gripper-in-scene"],
+        URI_EXEC_PRED_MODEL_ENTITY,
+        Literal("gripper_body"),
+    ) in graph
+    assert (nx["gripper-in-scene"], URI_EXEC_PRED_HAS_KTREE, nx.gripper) in graph
+    assert (nx["arm-in-scene"], URI_EXEC_PRED_PATH, Literal("robot.xml")) in graph

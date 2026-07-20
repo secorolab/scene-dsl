@@ -29,7 +29,6 @@ from scene_dsl.classes.geom import (
 from scene_dsl.classes.ktree import (
     Actuation,
     KinematicGraph,
-    KinematicStructure,
     FixedJoint,
     JointLimits,
     JointMimicSpec,
@@ -219,7 +218,7 @@ def check_tree_topology(model, metamodel):
     processors run before its own references resolve; its joints are checked anyway,
     through the copy or the composing tree, in the model that imports it.
     """
-    for tree in get_children(lambda x: isinstance(x, KinematicStructure), model):
+    for tree in get_children(lambda x: isinstance(x, KinematicGraph), model):
         if isinstance(tree, KinematicTreeInstance) and tree.template is None:
             continue
         if any(j.parent_frame is None or j.child_frame is None for j in tree.all_joints):

@@ -3,7 +3,7 @@
 
 from textx import get_children
 
-from scene_dsl.classes.ktree import KinematicStructure, RevoluteJoint, SerialJoints
+from scene_dsl.classes.ktree import KinematicGraph, RevoluteJoint, SerialJoints
 
 _FILL = {True: "#e8f0fe", False: "#ffffff"}  # keyed by 'is on a serial chain'
 
@@ -63,7 +63,7 @@ def _clusters(tree, on_chain: set, stands_for: dict, lines: list, depth: int, pr
 
 def create_dot(model) -> str:
     """One digraph per tree that nothing else composes, with a cluster per device."""
-    trees = get_children(lambda x: isinstance(x, KinematicStructure), model)
+    trees = get_children(lambda x: isinstance(x, KinematicGraph), model)
     composed = {id(sub) for tree in trees for sub in tree.trees}
     roots = [tree for tree in trees if id(tree) not in composed]
     stands_for = _modelled(model)

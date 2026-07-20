@@ -30,10 +30,11 @@ class KinematicTreeTemplate(IHasParent):
         self.joints_spec = joints_spec
 
 
-class KinematicStructure(IHasNamespaceDeclare, IDefaultFrame):
+class KinematicGraph(IHasNamespaceDeclare, IDefaultFrame):
     """Bodies, the joints between them, and the trees composed into them.
 
-    Every element under it takes its namespace from it.
+    The kinematics of a whole scene, where bodies may hang from nothing. Every element
+    under it takes its namespace from it.
     """
 
     name: str
@@ -48,9 +49,9 @@ class KinematicStructure(IHasNamespaceDeclare, IDefaultFrame):
         self.joints_spec = joints_spec
 
     @property
-    def subtrees(self) -> dict[int, KinematicStructure]:
-        """This structure and every tree composed below it, keyed by identity."""
-        found: dict[int, KinematicStructure] = {}
+    def subtrees(self) -> dict[int, KinematicGraph]:
+        """This graph and every tree composed below it, keyed by identity."""
+        found: dict[int, KinematicGraph] = {}
         stack = [self]
         while stack:
             tree = stack.pop()
@@ -63,7 +64,7 @@ class KinematicStructure(IHasNamespaceDeclare, IDefaultFrame):
 
     @property
     def all_joints(self) -> list[JointBase]:
-        """Every joint of this structure and of the trees it composes."""
+        """Every joint of this graph and of the trees it composes."""
         return [
             joint
             for tree in self.subtrees.values()
@@ -73,7 +74,7 @@ class KinematicStructure(IHasNamespaceDeclare, IDefaultFrame):
 
     @property
     def roots(self) -> list[RigidBody]:
-        """The bodies no joint attaches: what the rest of the structure hangs from."""
+        """The bodies no joint attaches: what the rest of the graph hangs from."""
         attached = {id(joint.child_frame.parent) for joint in self.all_joints}
         return [
             body
@@ -89,12 +90,11 @@ class KinematicStructure(IHasNamespaceDeclare, IDefaultFrame):
         return self.bodies[0].default_frame
 
 
-class KinematicGraph(KinematicStructure):
-    """The kinematics of a whole scene: trees, and the bodies that hang from nothing."""
+class KinematicTreeModel(KinematicGraph):
+    """A graph with one root -- the body no joint attaches -- and no loops.
 
-
-class KinematicTreeModel(KinematicStructure):
-    """A concrete kinematic tree: one root, and no way back to a body once you leave it."""
+    `roots` derives it from the joints; check_tree_topology enforces that there is one.
+    """
 
     def __init__(self, parent, ns, name, trees, bodies, joints_spec) -> None:
         super().__init__(parent, ns, name, trees, bodies, joints_spec)
@@ -155,8 +155,8 @@ class RigidBody(IHasNamespace, IDefaultFrame):
     def namespace(self) -> Namespace:
         if isinstance(self.parent, KinematicTreeTemplate):
             raise AttributeError(f"'{self.parent.name}' is a template, so it has no namespace")
-        if not isinstance(self.parent, KinematicStructure):
-            raise TypeError(f"parent of RigidBody has no namespace: {self.parent}")
+        if not isinstance(self.parent, KinematicGraph):
+            raise TypeError(f"parent of RigidBody is not a kinematic graph: {self.parent}")
         return self.parent.namespace
 
     @property
@@ -232,8 +232,8 @@ class JointsSpec(IHasNamespace):
     def namespace(self) -> Namespace:
         if isinstance(self.parent, KinematicTreeTemplate):
             raise AttributeError(f"'{self.parent.name}' is a template, so it has no namespace")
-        if not isinstance(self.parent, KinematicStructure):
-            raise TypeError(f"parent of JointsSpec is not a KinematicStructure: {self.parent}")
+        if not isinstance(self.parent, KinematicGraph):
+            raise TypeError(f"parent of JointsSpec is not a kinematic graph: {self.parent}")
         return self.parent.namespace
 
 

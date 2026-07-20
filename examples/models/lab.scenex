@@ -190,20 +190,23 @@ scene inst (ns=scene_lab_mjc) pickplace_scene_mjc {
     }
 
     obj <pickplace_objects.box1> {
-        model box1-mjc as mjcf { sys path = '~/.cache/mj_kdl_wrapper/assets/cube.xml' }
-        body: <lab_graph.box1_body>
+        model box1-mjc as mjcf { sys path = '~/.cache/mj_kdl_wrapper/assets/cube.xml'
+            map body <lab_graph.box1_body> to "cube"
+        }
     }
 
     obj <ws_objects.dining_table> {
         model mjc-table as mjcf { sys path = '~/.cache/mj_kdl_wrapper/assets/table.xml' }
-        model mjc-ros as mjcf { ros pkg = "test_pkg", path = "assets/table.xml" }
-        body: <world_tree.table_body>
+        model mjc-ros as mjcf { ros pkg = "test_pkg", path = "assets/table.xml"
+            map body <world_tree.table_body> to "table"
+        }
     }
 
     agn <isaac_agents.panda> {
         model panda-mjc as mjcf {
             sys path = '../robot-models/franka_emika_panda/mjx_panda.xml'
-        } for <panda_tree>
+            map tree <panda_tree> to "panda"
+        }
         camera wrist_cam {
             frame: <panda_tree.panda_base_body.base_link>
             type: rgb
@@ -226,22 +229,26 @@ scene inst (ns=scene_lab_mjc) pickplace_scene_mjc {
     agn <isaac_agents.ur10> {
         model ur10-mjc as mjcf {
             sys path = '~/.cache/mj_kdl_wrapper/menagerie/universal_robots_ur10e/ur10e.xml'
-        } for <ur10_tree>
+            map tree <ur10_tree> to "ur10e"
+        }
     }
 
     agn <isaac_agents.arm1_gripper> {
         model arm1-mjc as mjcf {
             sys path = '~/.cache/mj_kdl_wrapper/menagerie/kinova_gen3/gen3.xml'
-        } for <arm1>
+            map tree <arm1> to "gen3"
+        }
         model gripper-mjc as mjcf {
             sys path = '~/.cache/mj_kdl_wrapper/assets/robotiq_2f85/2f85.xml'
-        } for <gripper>
+            map tree <gripper> to "2f85"
+        }
     }
 
     agn <isaac_agents.kinova2> {
         model kinova2-mjc as mjcf {
             sys path = '~/.cache/mj_kdl_wrapper/menagerie/kinova_gen3/gen3.xml'
-        } for <arm2>
+            map tree <arm2> to "gen3"
+        }
     }
 }
 

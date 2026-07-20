@@ -4,6 +4,7 @@
 from textx import get_children
 
 from scene_dsl.classes.ktree import KinematicGraph, RevoluteJoint, SerialJoints
+from scene_dsl.classes.scenex import BodyMapping
 
 _FILL = {True: "#e8f0fe", False: "#ffffff"}  # keyed by 'is on a serial chain'
 
@@ -34,12 +35,14 @@ def _chain(tree) -> list:
 
 
 def _modelled(model) -> dict[int, str]:
-    """Object name each body stands for, where a scene says so."""
+    """Object name each body stands for, where a scene's model maps one."""
     return {
-        id(obj.body): obj.obj.name
+        id(mapping.body): obj.obj.name
         for inst in getattr(model, "scene_insts", [])
         for obj in inst.modelled_objs
-        if obj.body is not None
+        for elem_model in obj.models
+        for mapping in elem_model.mappings
+        if isinstance(mapping, BodyMapping)
     }
 
 

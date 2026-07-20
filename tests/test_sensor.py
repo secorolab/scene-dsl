@@ -33,7 +33,7 @@ def test_lab_scenex_agent_tree_link_and_sensors_emit_rdf():
     model = scenex_metamodel().model_from_file(MODELS_DIR / "lab.scenex")
     scene_inst = model.scene_insts[0]
     panda = next(agent for agent in scene_inst.modelled_agns if agent.agn.name == "panda")
-    tree = panda.models[0].tree
+    tree = panda.models[0].mappings[0].tree
     joint = next(joint for joint in tree.joints_spec.joints if joint.name == "panda_joint1")
     sensor = next(sensor for sensor in panda.sensors if sensor.name == "wrist_cam")
     ft_sensor = next(sensor for sensor in panda.sensors if sensor.name == "wrist_ft")
@@ -106,12 +106,12 @@ ktree (ns=n) h_tree { body h_body { frame h_wrist { } } joints { } }
 scene inst (ns=n) sx {
     scene: <s>
     agn <agns.robot> {
-        model r-mjc as mjcf { sys path = "r.xml" } for <r_tree>
+        model r-mjc as mjcf {sys path = "r.xml" map tree <r_tree> }
         camera wrist { frame: <r_tree.r_body.r_wrist> type: rgb resolution: (640, 480)
             fov: 1.2 rad update-rate: 30.0 Hz }
     }
     agn <agns.helper> {
-        model h-mjc as mjcf { sys path = "h.xml" } for <h_tree>
+        model h-mjc as mjcf {sys path = "h.xml" map tree <h_tree> }
         camera wrist { frame: <h_tree.h_body.h_wrist> type: rgb resolution: (640, 480)
             fov: 1.2 rad update-rate: 30.0 Hz }
     }

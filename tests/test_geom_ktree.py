@@ -33,6 +33,7 @@ from scene_dsl.rdf.ktree import (
     URI_KC_TYPE_KC,
     URI_KC_TYPE_SERIAL,
     URI_KC_PRED_BETWEEN_ATTACHMENTS,
+    URI_KC_PRED_JOINTS,
     URI_KC_TYPE_REVOLUTE_JOINT,
     MASS_UNITS,
     URI_DYN_PRED_ABOUT,
@@ -57,8 +58,7 @@ from scene_dsl.rdf.ktree import (
     ACTUATION_INTERFACE_TYPES,
 )
 from scene_dsl.rdf.scenex import (
-    URI_EXEC_PRED_HAS_KTREE,
-    URI_EXEC_PRED_LINKS_BODY,
+    URI_EXEC_PRED_MAPS,
     create_scenex_model_graph,
 )
 from .test_common import MODELS_DIR, write_example_scene
@@ -96,25 +96,32 @@ ktree inst (ns=n) robot_arm of <arm>
 
 
 def test_duplicate_model_uri_is_rejected(tmp_path):
+    """Two models of one object mint one IRI; two objects each naming a model do not."""
     write_example_scene(tmp_path)
-    model_path = tmp_path / "duplicate_model.scenex"
-    model_path.write_text(
-        """import "example.scene"
-ns n = "https://example.test/"
-scene inst (ns=n) sx {
-    scene: <s>
-    obj <objs.cup> {
-        model dup as urdf { sys path = "cup.urdf" }
-    }
-    obj <objs.bowl> {
-        model dup as urdf { sys path = "bowl.urdf" }
-    }
-}
-"""
-    )
 
+    def scenex(second_obj: str) -> str:
+        return f"""import "example.scene"
+ns n = "https://example.test/"
+scene inst (ns=n) sx {{
+    scene: <s>
+    obj <objs.cup> {{
+        model dup as urdf {{ sys path = "cup.urdf" }}
+    }}
+    obj <{second_obj}> {{
+        model dup as urdf {{ sys path = "bowl.urdf" }}
+    }}
+}}
+"""
+
+    path = tmp_path / "duplicate_model.scenex"
+    path.write_text(scenex("objs.bowl"))
+    model = scenex_metamodel().model_from_file(path)
+    cup, bowl = (m.models[0].uri for m in model.scene_insts[0].modelled_objs)
+    assert cup != bowl
+
+    path.write_text(scenex("objs.cup"))
     with pytest.raises(TextXSemanticError, match="minted by both"):
-        scenex_metamodel().model_from_file(model_path)
+        scenex_metamodel().model_from_file(path)
 
 
 def test_joint_iri_is_scoped_by_tree(tmp_path):
@@ -138,7 +145,7 @@ ktree (ns=n) t {
 scene inst (ns=n) sx {
     scene: <s>
     agn <agns.robot> {
-        model m as urdf { sys path = "robot.urdf" } for <t>
+        model m as urdf {sys path = "robot.urdf" map tree <t> }
     }
 }
 """
@@ -173,7 +180,7 @@ ktree (ns=n) t {
 scene inst (ns=n) sx {
     scene: <s>
     agn <agns.robot> {
-        model m as urdf { sys path = "robot.urdf" } for <t>
+        model m as urdf {sys path = "robot.urdf" map tree <t> }
     }
 }
 """
@@ -217,15 +224,15 @@ scene inst (ns=n) sx {{
     }}
     }}
     obj <objs.cup> {{
-        model cup_model as urdf {{ sys path = "cup.urdf" }}
-        body: <g.cup_body>
+        model cup_model as urdf {{ sys path = "cup.urdf"
+            map body <g.cup_body> }}
     }}
 }}
 """
     )
 
     model = scenex_metamodel().model_from_file(model_path)
-    cup_body = model.scene_insts[0].modelled_objs[0].body
+    cup_body = model.scene_insts[0].modelled_objs[0].models[0].mappings[0].body
     pose = cup_body.frames[0].poses[0]
     graph = create_scenex_model_graph(model)
     position_coord = PositionCoordModel(pose.position_coord_uri, graph)
@@ -296,7 +303,9 @@ scene inst (ns=n) sx {{
 """
     )
 
-    cup_body = scenex_metamodel().model_from_file(model_path).scene_insts[0].kgraph.trees[0].bodies[0]
+    cup_body = (
+        scenex_metamodel().model_from_file(model_path).scene_insts[0].kgraph.trees[0].bodies[0]
+    )
     assert cup_body.inertia.mass == 0.0
 
     with pytest.raises(ValueError, match="RigidBodyInertia.mass must be"):
@@ -367,8 +376,8 @@ scene inst (ns={name}) {name} {{
         tree <world_tree>
     }}
     obj <objs.cup> {{
-        model cup_model as urdf {{ sys path = "cup.urdf" }}
-        body: <world_tree.table_body>
+        model cup_model as urdf {{ sys path = "cup.urdf"
+            map body <world_tree.table_body> }}
     }}
 }}
 """
@@ -411,7 +420,8 @@ def test_ktree_import_does_not_break_local_refs(tmp_path):
 
     model = scenex_metamodel().model_from_file(path)
     # A ref into the *local* tree, resolved while an imported .ktree is in the repository.
-    assert model.scene_insts[0].modelled_objs[0].body.name == "table_body"
+    obj_model = model.scene_insts[0].modelled_objs[0]
+    assert obj_model.models[0].mappings[0].body.name == "table_body"
 
 
 def test_modelled_object_can_reference_instanced_body(tmp_path):
@@ -420,13 +430,13 @@ def test_modelled_object_can_reference_instanced_body(tmp_path):
     path = tmp_path / "scene_a.scenex"
     path.write_text(
         _scene_using_device("scene_a").replace(
-            "body: <world_tree.table_body>", "body: <arm.arm_base>"
+            "map body <world_tree.table_body>", "map body <arm.arm_base>"
         )
     )
 
     graph = create_scenex_model_graph(scenex_metamodel().model_from_file(path))
     assert URIRef("https://example.test/scene_a/arm/arm_base") in graph.objects(
-        predicate=URI_EXEC_PRED_LINKS_BODY
+        predicate=URI_EXEC_PRED_MAPS
     )
 
 
@@ -813,46 +823,63 @@ def test_each_agent_model_names_its_kinematics():
     graph = create_scenex_model_graph(model)
 
     for agent in agents.values():
-        for binding in agent.models:
-            assert (binding.tree.uri, RDF.type, URI_GEOM_TYPE_KTREE) in graph
+        for elem_model in agent.models:
+            for mapping in elem_model.mappings:
+                assert (mapping.tree.uri, RDF.type, URI_GEOM_TYPE_KTREE) in graph
 
     # One device model, two robots: the arms are separate kinematics under separate agents.
-    arm1 = agents["arm1_gripper"].models[0].tree
-    arm2 = agents["kinova2"].models[0].tree
+    arm1 = agents["arm1_gripper"].models[0].mappings[0].tree
+    arm2 = agents["kinova2"].models[0].mappings[0].tree
     assert arm1 is not arm2
     assert arm1.uri != arm2.uri
 
 
-def test_modelled_agent_set_contains_modelled_agents(tmp_path):
-    scene = tmp_path / "robots.scene"
-    scene.write_text(
+def _agent_set_scene(tmp_path) -> None:
+    (tmp_path / "robots.scene").write_text(
         """ns n = "https://example.test/"
 agn set (ns=n) robots { agent robot0, agent robot1 }
-scene (ns=n) s { agn set <robots> }
+agn set (ns=n) others { agent helper }
+scene (ns=n) s { agn set <robots> agn set <others> }
 """
     )
-    model = scenex_metamodel().model_from_str(
-        """import "robots.scene"
+
+
+def _agent_set_scenex(second_agn: str) -> str:
+    return f"""import "robots.scene"
 ns n = "https://example.test/"
-ktree (ns=n) arm0 { body base0 { frame root0 { } } joints { } }
-ktree (ns=n) arm1 { body base1 { frame root1 { } } joints { } }
-scene inst (ns=n) sx {
+ktree (ns=n) arm0 {{ body base0 {{ frame root0 {{ }} }} joints {{ }} }}
+ktree (ns=n) arm1 {{ body base1 {{ frame root1 {{ }} }} joints {{ }} }}
+scene inst (ns=n) sx {{
     scene: <s>
-    agn set <robots> {
-        agn <robots.robot0> { model robot0-mjc { sys path = "robot.xml" } for <arm0> }
-        agn <robots.robot1> { model robot1-mjc { sys path = "robot.xml" } for <arm1> }
-    }
-}
-""",
-        file_name=str(tmp_path / "robots.scenex"),
+    agn set <robots> {{
+        agn <robots.robot0> {{ model robot0-mjc {{sys path = "robot.xml" map tree <arm0> }} }}
+        agn <{second_agn}> {{ model robot1-mjc {{sys path = "robot.xml" map tree <arm1> }} }}
+    }}
+}}
+"""
+
+
+def test_modelled_agent_set_contains_modelled_agents(tmp_path):
+    _agent_set_scene(tmp_path)
+    model = scenex_metamodel().model_from_str(
+        _agent_set_scenex("robots.robot1"), file_name=str(tmp_path / "robots.scenex")
     )
 
     agent_set = model.scene_insts[0].modelled_agn_sets[0]
-    assert [agent.agn.name for agent in agent_set.agents] == ["robot0", "robot1"]
+    assert [agent.agn.name for agent in agent_set.models] == ["robot0", "robot1"]
     graph = create_scenex_model_graph(model)
-    for agent in agent_set.agents:
-        binding = agent.models[0]
-        assert (binding.model.uri, URI_EXEC_PRED_HAS_KTREE, binding.tree.uri) in graph
+    for agent in agent_set.models:
+        [mapping] = agent.models[0].mappings
+        assert (mapping.uri, URI_EXEC_PRED_MAPS, mapping.tree.uri) in graph
+
+
+def test_agent_modelled_under_a_set_it_is_not_in_is_rejected(tmp_path):
+    """The grouping claims membership, so an outsider inside it is an error."""
+    _agent_set_scene(tmp_path)
+    with pytest.raises(TextXSemanticError, match="is not one of its agents"):
+        scenex_metamodel().model_from_str(
+            _agent_set_scenex("others.helper"), file_name=str(tmp_path / "robots.scenex")
+        )
 
 
 def test_assembled_agent_carries_a_model_file_per_device():
@@ -869,14 +896,16 @@ def test_assembled_agent_carries_a_model_file_per_device():
     )
 
     # Assembled: one file per device, each bound to the sub-tree it describes.
-    bindings = {binding.model.name: binding for binding in agents["arm1_gripper"].models}
+    models = {elem_model.name: elem_model for elem_model in agents["arm1_gripper"].models}
     for model_name, device in (("arm1-mjc", "arm1"), ("gripper-mjc", "gripper")):
         tree_uri = URIRef(f"{robots_ns}{device}")
-        assert bindings[model_name].tree.uri == tree_uri
-        assert (bindings[model_name].model.uri, URI_EXEC_PRED_HAS_KTREE, tree_uri) in graph
+        [mapping] = models[model_name].mappings
+        assert mapping.tree.uri == tree_uri
+        assert (mapping.uri, URI_EXEC_PRED_MAPS, tree_uri) in graph
 
     (bare,) = agents["kinova2"].models
-    assert list(graph.objects(bare.model.uri, URI_EXEC_PRED_HAS_KTREE)) == [bare.tree.uri]
+    [bare_mapping] = bare.mappings
+    assert list(graph.objects(bare_mapping.uri, URI_EXEC_PRED_MAPS)) == [bare_mapping.tree.uri]
 
 
 def test_arm_and_gripper_compose_into_one_chain():
@@ -886,15 +915,25 @@ def test_arm_and_gripper_compose_into_one_chain():
     scene_ns = "https://secorolab.github.io/models/acceptance-criteria/bdd/scenes/secorolab-mjc/"
     assembled = {t.name: t for t in model.scene_insts[0].kgraph.trees[0].trees}["arm1_gripper"]
 
-    assert (assembled.uri, RDF.type, URI_KC_TYPE_KC) in graph
-    assert (assembled.uri, RDF.type, URI_KC_TYPE_SERIAL) in graph
+    # The tree branches (the gripper's driver hangs off it): it carries a chain, is not one.
+    assert (assembled.uri, RDF.type, URI_KC_TYPE_KC) not in graph
+    assert (assembled.uri, RDF.type, URI_KC_TYPE_SERIAL) not in graph
+
+    chain = URIRef(f"{scene_ns}robots/arm1_gripper/chain")
+    assert (chain, RDF.type, URI_KC_TYPE_KC) in graph
+    assert set(graph.objects(chain, URI_KC_PRED_JOINTS)) == {
+        URIRef(f"{scene_ns}robots/arm1/joint_{i}") for i in range(1, 8)
+    } | {
+        URIRef(f"{scene_ns}robots/arm1_gripper/g_mount_on_pinch_site"),
+        URIRef(f"{scene_ns}robots/gripper/g_base_on_mount"),
+    }
     assert (
-        assembled.uri,
+        chain,
         NS_MM_KC_EXT["root"],
         URIRef(f"{scene_ns}robots/arm1/base_link/base_link_origin"),
     ) in graph
     assert (
-        assembled.uri,
+        chain,
         NS_MM_KC_EXT["tip"],
         URIRef(f"{scene_ns}robots/gripper/g_base/g_pinch"),
     ) in graph
@@ -921,15 +960,16 @@ def test_agent_models_may_name_separate_kinematic_trees(tmp_path):
     path = tmp_path / "wrong_tree.scenex"
     path.write_text(
         _agent_scene(
-            """        model a-mjc as mjcf { sys path = "a.xml" } for <arm1>
-        model b-mjc as mjcf { sys path = "b.xml" } for <arm2>"""
+            """        model a-mjc as mjcf {sys path = "a.xml" map tree <arm1> }
+        model b-mjc as mjcf {sys path = "b.xml" map tree <arm2> }"""
         )
     )
     agent = scenex_metamodel().model_from_file(path).scene_insts[0].modelled_agns[0]
-    assert [binding.tree.name for binding in agent.models] == ["arm1", "arm2"]
+    assert [m.mappings[0].tree.name for m in agent.models] == ["arm1", "arm2"]
 
 
-def test_agent_model_without_kinematics_is_rejected(tmp_path):
+def test_agent_model_without_kinematics_is_allowed(tmp_path):
+    """A model file need not stand for any kinematics: the mapping is what says it does."""
     write_example_scene(tmp_path)
     write_device_ktree(tmp_path)
     path = tmp_path / "no_ktree.scenex"
@@ -946,8 +986,8 @@ scene inst (ns=lab) sx {
 }
 """
     )
-    with pytest.raises(TextXSyntaxError):
-        scenex_metamodel().model_from_file(path)
+    agent = scenex_metamodel().model_from_file(path).scene_insts[0].modelled_agns[0]
+    assert agent.models[0].mappings == []
 
 
 def test_two_models_describing_one_tree_is_rejected(tmp_path):
@@ -957,11 +997,11 @@ def test_two_models_describing_one_tree_is_rejected(tmp_path):
     path = tmp_path / "dup_for.scenex"
     path.write_text(
         _agent_scene(
-            """        model a-mjc as mjcf { sys path = "a.xml" } for <arm1>
-        model b-mjc as mjcf { sys path = "b.xml" } for <arm1>"""
+            """        model a-mjc as mjcf {sys path = "a.xml" map tree <arm1> }
+        model b-mjc as mjcf {sys path = "b.xml" map tree <arm1> }"""
         )
     )
-    with pytest.raises(TextXSemanticError, match="both describe tree 'arm1'"):
+    with pytest.raises(TextXSemanticError, match="both map 'arm1'"):
         scenex_metamodel().model_from_file(path)
 
 
@@ -977,7 +1017,7 @@ ktree (ns=lab) b { tree <a> body bb { frame bf { } } joints { } }
 scene inst (ns=lab) sx {
     scene: <s>
     agn <agns.robot> {
-        model a-mjc as mjcf { sys path = "a.xml" } for <a>
+        model a-mjc as mjcf {sys path = "a.xml" map tree <a> }
     }
 }
 """
@@ -986,23 +1026,23 @@ scene inst (ns=lab) sx {
         scenex_metamodel().model_from_file(path)
 
 
-def test_assembled_agent_model_without_for_is_rejected(tmp_path):
-    """Several models and no 'for' leaves the files an unordered pile."""
+def test_agent_models_need_not_all_map_something(tmp_path):
+    """One file stands for a device, another for nothing in the scene: both are models."""
     write_example_scene(tmp_path)
     write_device_ktree(tmp_path)
     path = tmp_path / "no_for.scenex"
     path.write_text(
         _agent_scene(
-            """        model a-mjc as mjcf { sys path = "a.xml" } for <arm1>
+            """        model a-mjc as mjcf {sys path = "a.xml" map tree <arm1> }
         model b-mjc as mjcf { sys path = "b.xml" }"""
         )
     )
-    with pytest.raises(TextXSyntaxError):
-        scenex_metamodel().model_from_file(path)
+    agent = scenex_metamodel().model_from_file(path).scene_insts[0].modelled_agns[0]
+    assert [len(m.mappings) for m in agent.models] == [1, 0]
 
 
-def test_for_is_only_part_of_an_agent_model(tmp_path):
-    """An object model has no grammar for kinematics."""
+def test_object_model_may_map_a_tree(tmp_path):
+    """An articulated object is kinematics too: obj and agn share one mapping grammar."""
     write_example_scene(tmp_path)
     write_device_ktree(tmp_path)
     path = tmp_path / "obj_for.scenex"
@@ -1014,13 +1054,13 @@ ktree inst (ns=lab) arm1 of <arm_tree>
 scene inst (ns=lab) sx {
     scene: <s>
     obj <objs.cup> {
-        model cup_model as urdf { sys path = "cup.urdf" } for <arm1>
+        model cup_model as urdf {sys path = "cup.urdf" map tree <arm1> }
     }
 }
 """
     )
-    with pytest.raises(TextXSyntaxError):
-        scenex_metamodel().model_from_file(path)
+    obj_model = scenex_metamodel().model_from_file(path).scene_insts[0].modelled_objs[0]
+    assert obj_model.models[0].mappings[0].tree.name == "arm1"
 
 
 def test_lab_scenex_generated_geometry_validates_against_shacl():
@@ -1116,7 +1156,7 @@ scene inst (ns=n) sx {
         tree <world_tree>
     }
     agn <agns.robot> {
-        model robot_mjcf as mjcf { sys path = "robot.xml" } for <world_tree>
+        model robot_mjcf as mjcf {sys path = "robot.xml" map tree <world_tree> }
     }
 }
 """
@@ -1148,7 +1188,7 @@ ktree (ns=n) t {{
 scene inst (ns=n) sx {{
     scene: <s>
     agn <agns.robot> {{
-        model m as urdf {{ sys path = "r.urdf" }} for <t>
+        model m as urdf {{ sys path = "r.urdf" map tree <t> }}
     }}
 }}
 """
@@ -1232,6 +1272,37 @@ def test_serial_chain_that_branches_is_rejected(tmp_path):
         scenex_metamodel().model_from_file(path)
 
 
+def test_serial_chain_may_start_below_the_tree_root(tmp_path):
+    """A chain selects a path through its tree, so it need not start at the tree's root."""
+    write_example_scene(tmp_path)
+    path = tmp_path / "midroot.scenex"
+    path.write_text(
+        _tree_scene(
+            """            body b1 { frame f1 { } }
+            body b2 { frame f2 { } }
+            body b3 { frame f3 { } }""",
+            """                fixed j1 { parent: <b1.f1> child: <b2.f2> }
+                fixed j2 { parent: <b2.f2> child: <b3.f3> }
+                serial { root: <b2.f2> tip: <b3.f3> }""",
+        )
+    )
+    graph = create_scenex_model_graph(scenex_metamodel().model_from_file(path))
+    # The chain keeps its own root; the tree keeps the one derived from its joints.
+    chain_root = URIRef("https://example.test/t/b2/f2")
+    tree_root = URIRef("https://example.test/t/b1/f1")
+    assert (URIRef("https://example.test/t/chain"), NS_MM_KC_EXT["root"], chain_root) in graph
+    assert (URIRef("https://example.test/t"), NS_MM_KC_EXT["root"], tree_root) in graph
+
+
+def test_every_tree_carries_its_root():
+    """The root comes from the joints, so a tree has one with or without a chain."""
+    model = scenex_metamodel().model_from_file(MODELS_DIR / "lab.scenex")
+    graph = create_scenex_model_graph(model)
+    trees = set(graph.subjects(RDF.type, URI_GEOM_TYPE_KTREE))
+    assert trees
+    assert trees <= set(graph.subjects(NS_MM_KC_EXT["root"], None))
+
+
 def test_serial_chain_across_two_devices_is_accepted():
     """arm1_gripper's chain spans two instanced devices, and is a chain."""
     model = scenex_metamodel().model_from_file(MODELS_DIR / "lab.scenex")
@@ -1295,8 +1366,43 @@ scene inst (ns=n) sx {
 """
     )
 
-    graph = scenex_metamodel().model_from_file(path).scene_insts[0].kgraph
-    assert {joint.name for joint in graph.joints_spec.joints} == {"a_to_c", "b_to_c", "c_to_a"}
+    model = scenex_metamodel().model_from_file(path)
+    kgraph = model.scene_insts[0].kgraph
+    assert {joint.name for joint in kgraph.joints_spec.joints} == {"a_to_c", "b_to_c", "c_to_a"}
+
+    # Joints and chain export as a tree's do; the root does not, a graph having none.
+    graph = create_scenex_model_graph(model)
+    assert set(graph.objects(kgraph.uri, URI_KC_PRED_JOINTS)) == {
+        URIRef(f"https://example.test/graph/{name}") for name in ("a_to_c", "b_to_c", "c_to_a")
+    }
+    assert not list(graph.objects(kgraph.uri, NS_MM_KC_EXT["root"]))
+
+    chain = URIRef("https://example.test/graph/chain")
+    assert (chain, RDF.type, URI_KC_TYPE_SERIAL) in graph
+    assert set(graph.objects(chain, URI_KC_PRED_JOINTS)) == {
+        URIRef("https://example.test/graph/b_to_c"),
+        URIRef("https://example.test/graph/c_to_a"),
+    }
+
+
+def test_a_tree_without_bodies_is_rejected(tmp_path):
+    """A tree is rooted at a body, so one declaring none has nothing to be rooted at."""
+    write_example_scene(tmp_path)
+    path = tmp_path / "empty.scenex"
+    path.write_text(
+        """import "example.scene"
+ns lab = "https://example.test/lab/"
+ktree (ns=lab) t {
+    joints { }
+}
+scene inst (ns=lab) sx {
+    scene: <s>
+    kgraph (ns=lab) g { tree <t> }
+}
+"""
+    )
+    with pytest.raises(TextXSemanticError, match="declares no body to be rooted at"):
+        scenex_metamodel().model_from_file(path)
 
 
 def test_a_free_body_in_a_tree_is_rejected(tmp_path):

@@ -9,7 +9,7 @@ from textx.exceptions import TextXSemanticError
 from textx.model import ObjCrossRef
 from textx.scoping import Postponed
 
-from scene_dsl.classes.common import FloatVector, IntVector
+from scene_dsl.classes.common import FloatVector, IHasNamespace, IntVector
 from scene_dsl.classes.distrib import (
     Distribution,
     DistributionRef,
@@ -57,13 +57,14 @@ from scene_dsl.classes.scene import (
     WorkspaceSet,
 )
 from scene_dsl.classes.scenex import (
-    AgentModel,
+    BodyMapping,
     ElementModel,
     ModelledAgent,
     ModelledAgentSet,
     ModelledObject,
     ModelledObjectSet,
     SceneInstance,
+    TreeMapping,
 )
 from scene_dsl.classes.sensors import (
     CameraSensorSpec,
@@ -245,6 +246,13 @@ def check_tree_topology(model, metamodel):
                         **get_location(joint),
                     )
 
+            # After the loop check, since a cyclic tree has no root either.
+            if not roots:
+                raise TextXSemanticError(
+                    f"kinematic tree '{tree.name}' declares no body to be rooted at",
+                    **get_location(tree),
+                )
+
         comp = tree.joints_spec.joint_comp if tree.joints_spec is not None else None
         if not isinstance(comp, SerialJoints):
             continue
@@ -257,28 +265,49 @@ def check_tree_topology(model, metamodel):
             )
 
 
-def check_agent_models(model, metamodel):
-    """Only one model may drive a given kinematic tree of an agent."""
-    for agent in get_children_of_type(ModelledAgent, model):
+def check_model_mappings(model, metamodel):
+    """Within a scene, only one model may map a given tree or body."""
+    for scene_inst in get_children_of_type(SceneInstance, model):
         described: dict[int, ElementModel] = {}
-        for binding in agent.models:
-            elem_model = binding.model
-            tree = binding.tree
-            if tree is None:
-                continue
-            first = described.get(id(tree))
-            if first is not None:
+        for elem_model in get_children_of_type(ElementModel, scene_inst):
+            for mapping in elem_model.mappings:
+                target = mapping.target
+                first = described.get(id(target))
+                if first is elem_model:
+                    raise TextXSemanticError(
+                        f"model '{elem_model.name}' maps '{target.name}' twice",
+                        **get_location(mapping),
+                    )
+                if first is not None:
+                    raise TextXSemanticError(
+                        f"models '{first.name}' and '{elem_model.name}' both map "
+                        f"'{target.name}': which one drives it is then undecided",
+                        **get_location(mapping),
+                    )
+                described[id(target)] = elem_model
+
+
+def check_agent_set_membership(model, metamodel):
+    """Grouping agents under a set claims they belong to it, so hold the claim to it."""
+    for agn_set_model in get_children_of_type(ModelledAgentSet, model):
+        members = {id(agn) for agn in agn_set_model.agn_set.agents}
+        for agn_model in agn_set_model.models:
+            if id(agn_model.agn) not in members:
                 raise TextXSemanticError(
-                    f"models '{first.name}' and '{elem_model.name}' both describe tree "
-                    f"'{tree.name}': which one drives it is then undecided",
-                    **get_location(elem_model),
+                    f"agent '{agn_model.agn.name}' is modelled under set "
+                    f"'{agn_set_model.agn_set.name}', but is not one of its agents",
+                    **get_location(agn_model),
                 )
-            described[id(tree)] = elem_model
 
 
 def check_unique_uris(model, metamodel):
     # Elements minting the same IRI silently become one node with merged types.
     seen: dict[URIRef, object] = {}
+
+    def described(obj) -> str:
+        # Not everything minting an IRI is named: a mapping is known by what it maps.
+        name = getattr(obj, "name", None)
+        return f"{obj.__class__.__name__} '{name}'" if name else obj.__class__.__name__
 
     def record(obj) -> None:
         uri = obj.uri
@@ -288,19 +317,24 @@ def check_unique_uris(model, metamodel):
             loc = get_location(first)
             raise TextXSemanticError(
                 f"IRI '{uri}' is minted by both "
-                f"{first.__class__.__name__} '{first.name}' "
-                f"({loc['filename']}:{loc['line']}) and "
-                f"{obj.__class__.__name__} '{obj.name}' "
-                "-- names must be unique per IRI",
+                f"{described(first)} ({loc['filename']}:{loc['line']}) and "
+                f"{described(obj)} -- names must be unique per IRI",
                 **get_location(obj),
             )
 
         seen[uri] = obj
 
-    for obj in get_children(
-        lambda x: getattr(x, "uri", None) is not None and getattr(x, "name", None) is not None,
-        model,
-    ):
+    def mints_iri(obj) -> bool:
+        if not isinstance(obj, IHasNamespace):
+            return False
+        try:
+            obj.uri
+        except AttributeError:
+            # A template's elements have no namespace, so they mint nothing.
+            return False
+        return True
+
+    for obj in get_children(mints_iri, model):
         record(obj)
 
 
@@ -336,8 +370,9 @@ def scenex_metamodel():
             NormalDistribution,
             UniformDistribution,
             UniformRotationDistribution,
-            AgentModel,
+            BodyMapping,
             ElementModel,
+            TreeMapping,
             ModelledObject,
             ModelledObjectSet,
             ModelledAgent,
@@ -381,6 +416,7 @@ def scenex_metamodel():
     mm_scenex.register_model_processor(check_tree_composition)
     mm_scenex.register_model_processor(build_instance_trees)
     mm_scenex.register_model_processor(check_tree_topology)
-    mm_scenex.register_model_processor(check_agent_models)
+    mm_scenex.register_model_processor(check_model_mappings)
+    mm_scenex.register_model_processor(check_agent_set_membership)
     mm_scenex.register_model_processor(check_unique_uris)
     return mm_scenex

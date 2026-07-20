@@ -33,8 +33,8 @@ class KinematicTreeTemplate(IHasParent):
 class KinematicGraph(IHasNamespaceDeclare, IDefaultFrame):
     """Bodies, the joints between them, and the trees composed into them.
 
-    The kinematics of a whole scene, where bodies may hang from nothing. Every element
-    under it takes its namespace from it.
+    A whole scene's kinematics: bodies may hang from nothing, and everything under it
+    takes its namespace from it.
     """
 
     name: str
@@ -91,10 +91,7 @@ class KinematicGraph(IHasNamespaceDeclare, IDefaultFrame):
 
 
 class KinematicTreeModel(KinematicGraph):
-    """A graph with one root -- the body no joint attaches -- and no loops.
-
-    `roots` derives it from the joints; check_tree_topology enforces that there is one.
-    """
+    """A graph with one root -- the body no joint attaches -- and no loops."""
 
     def __init__(self, parent, ns, name, trees, bodies, joints_spec) -> None:
         super().__init__(parent, ns, name, trees, bodies, joints_spec)
@@ -425,8 +422,26 @@ class JointMimicSpec:
         self.offset = offset
 
 
-class JointComposition:
-    pass
+class JointComposition(IHasNamespace):
+    """How a tree's joints compose. A node of its own: the tree is not the composition."""
+
+    # A tree has one composition, so it needs no name of its own to be scoped by.
+    name = "chain"
+
+    @property
+    def namespace(self) -> Namespace:
+        if not isinstance(self.parent, JointsSpec):
+            raise TypeError(f"parent of JointComposition is not a JointsSpec: {self.parent}")
+        return self.parent.namespace
+
+    @property
+    def uri(self) -> URIRef:
+        return self.namespace[self.scoped()]
+
+    @property
+    def tree(self) -> KinematicGraph:
+        """The tree whose joints this composes."""
+        return self.parent.parent
 
 
 class SerialJoints(JointComposition):
@@ -434,9 +449,26 @@ class SerialJoints(JointComposition):
     tip_frame: Frame
 
     def __init__(self, parent, root_frame, tip_frame) -> None:
-        self.parent = parent
+        super().__init__(parent=parent)
         self.root_frame = root_frame
         self.tip_frame = tip_frame
+
+    @property
+    def joints(self) -> list[JointBase]:
+        """The joints from root to tip, walked up from the tip. Empty if unconnected."""
+        parent_joint = {id(j.child_frame.parent): j for j in self.tree.all_joints}
+        root = self.root_frame.parent
+        body = self.tip_frame.parent
+        seen: set[int] = set()
+        chain = []
+        while body is not root:
+            joint = parent_joint.get(id(body))
+            if joint is None or id(body) in seen:
+                return []
+            seen.add(id(body))
+            chain.append(joint)
+            body = joint.parent_frame.parent
+        return list(reversed(chain))
 
 
 class Actuation:

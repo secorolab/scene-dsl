@@ -19,8 +19,13 @@ scene_insts+=SceneInstance*
 ElementModel:
 'model' name=IRI_TRUNK ('as' model_kind=ModelKind)? '{'
     model_spec=ModelSpecification
+    mappings*=ElementMapping
 '}'
 ;
+
+ElementMapping: TreeMapping | BodyMapping ;
+TreeMapping: 'map' 'tree' '<' tree=[KinematicTreeModel|FQN] '>' ('to' entity=STRING)? ;
+BodyMapping: 'map' 'body' '<' body=[RigidBody|FQN] '>' ('to' entity=STRING)? ;
 
 ModelKind: 'urdf' | 'mjcf' | 'usd' ;
 ModelSpecification: SystemPath | RosPath | PyModuleAttr ;
@@ -30,7 +35,6 @@ RosPath: 'ros' 'pkg' '=' pkg=STRING ',' 'path' '=' path=STRING ;
 ModelledObject:
 'obj' '<' obj=[Object|FQN] '>' '{'
     models+=ElementModel+
-    ('body' ':' '<' body=[RigidBody|FQN] '>')?
 '}'
 ;
 
@@ -40,20 +44,16 @@ ModelledObjectSet:
 '}'
 ;
 
-AgentModel:
-model=ElementModel 'for' '<' tree=[KinematicTreeModel|FQN] '>' ('at' 'body' entity=STRING)?
-;
-
 ModelledAgent:
 'agn' '<' agn=[Agent|FQN] '>' '{'
-    models+=AgentModel
+    models+=ElementModel
     sensors=SensorBase*
 '}'
 ;
 
 ModelledAgentSet:
 'agn' 'set' '<' agn_set=[AgentSetBase|FQN] '>' '{'
-    agents+=ModelledAgent+
+    models+=ModelledAgent+
 '}'
 ;
 

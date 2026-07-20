@@ -6,7 +6,8 @@ from scene_dsl.classes.common import IHasNamespace
 from scene_dsl.langs import scene_metamodel, scenex_metamodel
 from scene_dsl.rdf.scene import create_scene_model_graph
 from scene_dsl.rdf.scenex import (
-    URI_EXEC_PRED_HAS_KTREE,
+    URI_EXEC_PRED_HAS_MAPPING,
+    URI_EXEC_PRED_MAPS,
     URI_EXEC_PRED_MODEL_ENTITY,
     URI_USD_STAGE,
     create_scenex_model_graph,
@@ -115,10 +116,8 @@ ktree (ns=nx) gripper { body grip_base { frame grip_root { } } joints { } }
 scene inst (ns=nx) si {
     scene: <lab>
     agn <agents.robot> {
-        model arm-in-scene as mjcf { sys path = "robot.xml" }
-            for <arm> at body "arm_body"
-        model gripper-in-scene as mjcf { sys path = "robot.xml" }
-            for <gripper> at body "gripper_body"
+        model arm-in-scene as mjcf {sys path = "robot.xml" map tree <arm> to "arm_body" }
+        model gripper-in-scene as mjcf {sys path = "robot.xml" map tree <gripper> to "gripper_body" }
     }
 }
 """
@@ -127,12 +126,12 @@ scene inst (ns=nx) si {
     graph = create_scenex_model_graph(scenex_metamodel().model_from_file(model_path))
 
     nx = Namespace("https://example.test/x/")
-    assert (nx["arm-in-scene"], URI_EXEC_PRED_MODEL_ENTITY, Literal("arm_body")) in graph
-    assert (nx["arm-in-scene"], URI_EXEC_PRED_HAS_KTREE, nx.arm) in graph
-    assert (
-        nx["gripper-in-scene"],
-        URI_EXEC_PRED_MODEL_ENTITY,
-        Literal("gripper_body"),
-    ) in graph
-    assert (nx["gripper-in-scene"], URI_EXEC_PRED_HAS_KTREE, nx.gripper) in graph
-    assert (nx["arm-in-scene"], URI_EXEC_PRED_PATH, Literal("robot.xml")) in graph
+    # `entity` hangs off the mapping, not the model: one file may map several trees.
+    for model_name, tree, entity in (
+        ("si/robot/arm-in-scene", nx.arm, "arm_body"),
+        ("si/robot/gripper-in-scene", nx.gripper, "gripper_body"),
+    ):
+        [mapping] = list(graph.objects(nx[model_name], URI_EXEC_PRED_HAS_MAPPING))
+        assert (mapping, URI_EXEC_PRED_MAPS, tree) in graph
+        assert (mapping, URI_EXEC_PRED_MODEL_ENTITY, Literal(entity)) in graph
+    assert (nx["si/robot/arm-in-scene"], URI_EXEC_PRED_PATH, Literal("robot.xml")) in graph

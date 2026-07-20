@@ -32,6 +32,7 @@ from scene_dsl.classes.scenex import (
     ModelledObject,
     ModelledObjectSet,
     SceneInstance,
+    TreeMapping,
 )
 from scene_dsl.rdf.common import add_py_module_attr
 from scene_dsl.rdf.distrib import add_distribution
@@ -44,9 +45,9 @@ URI_EXEC_TYPE_SCENE_MODEL = NS_MM_EXEC["SceneModel"]
 URI_EXEC_PRED_MODEL = NS_MM_EXEC["has-model"]
 URI_EXEC_PRED_HAS_MODELLED_OBJ = NS_MM_EXEC["has-modelled-object"]
 URI_EXEC_PRED_HAS_MODELLED_AGN = NS_MM_EXEC["has-modelled-agent"]
-URI_EXEC_PRED_LINKS_BODY = NS_MM_EXEC["has-body"]
-URI_EXEC_PRED_HAS_KTREE = NS_MM_EXEC["has-kinematic-tree"]
 URI_EXEC_PRED_MODEL_ENTITY = NS_MM_EXEC["model-entity"]
+URI_EXEC_PRED_HAS_MAPPING = NS_MM_EXEC["has-mapping"]
+URI_EXEC_PRED_MAPS = NS_MM_EXEC["maps"]
 
 NS_XML = Namespace("https://www.w3.org/TR/2006/REC-xml11-20060816#")
 NS_URDF = Namespace("https://wiki.ros.org/urdf/XML/")
@@ -99,6 +100,7 @@ def add_model_spec(graph: Graph, elem_model: ElementModel) -> None:
     elif elem_model.model_kind is not None:
         raise ValueError(f"Unhandled model kind: {elem_model.model_kind}")
 
+
 def _ensure_unique_scene_uri(
     node_uri: URIRef, scene_inst: SceneInstance, seen_uris: set[URIRef]
 ) -> None:
@@ -110,21 +112,48 @@ def _ensure_unique_scene_uri(
     seen_uris.add(node_uri)
 
 
+def add_element_model(
+    graph: Graph,
+    scene_inst: SceneInstance,
+    elem_model: ElementModel,
+    type_uri: URIRef,
+    seen_model_uris: set[URIRef],
+    seen_ktrees: set[URIRef],
+) -> None:
+    """A model file: what it is, where it lives, and what of the scene it stands for."""
+    _ensure_unique_scene_uri(elem_model.uri, scene_inst, seen_model_uris)
+    graph.add((elem_model.uri, RDF.type, type_uri))
+    add_model_spec(graph, elem_model)
+
+    # A node per mapping: one model may map several targets, so `entity` cannot hang off
+    # the model itself. What it maps says its kind, so it needs no type of its own.
+    for mapping in elem_model.mappings:
+        target = mapping.target
+        graph.add((elem_model.uri, URI_EXEC_PRED_HAS_MAPPING, mapping.uri))
+        graph.add((mapping.uri, URI_EXEC_PRED_MAPS, target.uri))
+        if mapping.entity is not None:
+            graph.add((mapping.uri, URI_EXEC_PRED_MODEL_ENTITY, Literal(mapping.entity)))
+        if isinstance(mapping, TreeMapping) and target.uri not in seen_ktrees:
+            _ensure_unique_scene_uri(target.uri, scene_inst, seen_model_uris)
+            add_kinematic_tree(graph, target, seen_trees=seen_ktrees)
+
+
 def add_modelled_obj(
-    graph: Graph, scene_inst: SceneInstance, obj_model: ModelledObject, seen_model_uris: set[URIRef]
+    graph: Graph,
+    scene_inst: SceneInstance,
+    obj_model: ModelledObject,
+    seen_model_uris: set[URIRef],
+    seen_ktrees: set[URIRef],
 ) -> None:
     graph.add((obj_model.modelled_uri, RDF.type, URI_ENV_TYPE_MOD_OBJ))
     graph.add((obj_model.modelled_uri, URI_ENV_PRED_OF_OBJ, obj_model.obj.uri))
     graph.add((scene_inst.uri, URI_EXEC_PRED_HAS_MODELLED_OBJ, obj_model.modelled_uri))
 
-    if obj_model.body is not None:
-        graph.add((obj_model.modelled_uri, URI_EXEC_PRED_LINKS_BODY, obj_model.body.uri))
-
     for model in obj_model.models:
-        _ensure_unique_scene_uri(model.uri, scene_inst, seen_model_uris)
+        add_element_model(
+            graph, scene_inst, model, URI_ENV_TYPE_OBJ_MODEL, seen_model_uris, seen_ktrees
+        )
         graph.add((obj_model.modelled_uri, URI_ENV_PRED_HAS_OBJ_MODEL, model.uri))
-        graph.add((model.uri, RDF.type, URI_ENV_TYPE_OBJ_MODEL))
-        add_model_spec(graph, model)
 
 
 def add_modelled_agn(
@@ -138,38 +167,13 @@ def add_modelled_agn(
     graph.add((agn_model.modelled_uri, URI_AGN_PRED_OF_AGN, agn_model.agn.uri))
     graph.add((scene_inst.uri, URI_EXEC_PRED_HAS_MODELLED_AGN, agn_model.modelled_uri))
 
-    for binding in agn_model.models:
-        model = binding.model
-        _ensure_unique_scene_uri(model.uri, scene_inst, seen_model_uris)
+    for model in agn_model.models:
+        add_element_model(
+            graph, scene_inst, model, URI_AGN_TYPE_AGN_MODEL, seen_model_uris, seen_ktrees
+        )
         graph.add((agn_model.modelled_uri, URI_AGN_PRED_HAS_AGN_MODEL, model.uri))
-        graph.add((model.uri, RDF.type, URI_AGN_TYPE_AGN_MODEL))
-        add_model_spec(graph, model)
-        graph.add((model.uri, URI_EXEC_PRED_HAS_KTREE, binding.tree.uri))
-        if binding.entity is not None:
-            graph.add((model.uri, URI_EXEC_PRED_MODEL_ENTITY, Literal(binding.entity)))
-        if binding.tree.uri not in seen_ktrees:
-            _ensure_unique_scene_uri(binding.tree.uri, scene_inst, seen_model_uris)
-            add_kinematic_tree(graph, binding.tree, seen_trees=seen_ktrees)
 
     add_sensors(graph, agn_model)
-
-
-def add_modelled_obj_set(
-    graph: Graph,
-    scene_inst: SceneInstance,
-    obj_model_set: ModelledObjectSet,
-    seen_model_uris: set[URIRef],
-) -> None:
-    for model in obj_model_set.models:
-        _ensure_unique_scene_uri(model.uri, scene_inst, seen_model_uris)
-        graph.add((model.uri, RDF.type, URI_ENV_TYPE_OBJ_MODEL))
-        add_model_spec(graph, model)
-        for index, obj in enumerate(obj_model_set.obj_set.objects):
-            modelled_uri = obj_model_set.modelled_uri(index=index)
-            graph.add((modelled_uri, RDF.type, URI_ENV_TYPE_MOD_OBJ))
-            graph.add((modelled_uri, URI_ENV_PRED_OF_OBJ, obj.uri))
-            graph.add((scene_inst.uri, URI_EXEC_PRED_HAS_MODELLED_OBJ, modelled_uri))
-            graph.add((modelled_uri, URI_ENV_PRED_HAS_OBJ_MODEL, model.uri))
 
 
 def add_modelled_agn_set(
@@ -179,8 +183,29 @@ def add_modelled_agn_set(
     seen_model_uris: set[URIRef],
     seen_ktrees: set[URIRef],
 ) -> None:
-    for agn_model in agn_model_set.agents:
+    # The grouping is a claim of membership, checked in check_agent_set_membership: the
+    # agents are already tied to their set in the scene model, so it adds no triple.
+    for agn_model in agn_model_set.models:
         add_modelled_agn(graph, scene_inst, agn_model, seen_model_uris, seen_ktrees)
+
+
+def add_modelled_obj_set(
+    graph: Graph,
+    scene_inst: SceneInstance,
+    obj_model_set: ModelledObjectSet,
+    seen_model_uris: set[URIRef],
+    seen_ktrees: set[URIRef],
+) -> None:
+    for model in obj_model_set.models:
+        add_element_model(
+            graph, scene_inst, model, URI_ENV_TYPE_OBJ_MODEL, seen_model_uris, seen_ktrees
+        )
+        for index, obj in enumerate(obj_model_set.obj_set.objects):
+            modelled_uri = obj_model_set.modelled_uri(index=index)
+            graph.add((modelled_uri, RDF.type, URI_ENV_TYPE_MOD_OBJ))
+            graph.add((modelled_uri, URI_ENV_PRED_OF_OBJ, obj.uri))
+            graph.add((scene_inst.uri, URI_EXEC_PRED_HAS_MODELLED_OBJ, modelled_uri))
+            graph.add((modelled_uri, URI_ENV_PRED_HAS_OBJ_MODEL, model.uri))
 
 
 def add_modelled_scene(graph: Graph, scene_inst: SceneInstance) -> None:
@@ -190,20 +215,22 @@ def add_modelled_scene(graph: Graph, scene_inst: SceneInstance) -> None:
 
     add_scene_model(graph=graph, scene=scene_inst.scene, set_uris=set())
 
-    for model in scene_inst.models:
-        graph.add((model.uri, RDF.type, URI_EXEC_TYPE_SCENE_MODEL))
-        graph.add((scene_inst.uri, URI_EXEC_PRED_MODEL, model.uri))
-        add_model_spec(graph=graph, elem_model=model)
-
     seen_model_uris = set()
     seen_ktrees = set()
     if scene_inst.kgraph is not None:
         _ensure_unique_scene_uri(scene_inst.kgraph.uri, scene_inst, seen_model_uris)
         add_kinematic_graph(graph, scene_inst.kgraph, seen_trees=seen_ktrees)
+
+    for model in scene_inst.models:
+        add_element_model(
+            graph, scene_inst, model, URI_EXEC_TYPE_SCENE_MODEL, seen_model_uris, seen_ktrees
+        )
+        graph.add((scene_inst.uri, URI_EXEC_PRED_MODEL, model.uri))
+
     for obj_model in scene_inst.modelled_objs:
-        add_modelled_obj(graph, scene_inst, obj_model, seen_model_uris)
+        add_modelled_obj(graph, scene_inst, obj_model, seen_model_uris, seen_ktrees)
     for obj_model_set in scene_inst.modelled_obj_sets:
-        add_modelled_obj_set(graph, scene_inst, obj_model_set, seen_model_uris)
+        add_modelled_obj_set(graph, scene_inst, obj_model_set, seen_model_uris, seen_ktrees)
     for agn_model in scene_inst.modelled_agns:
         add_modelled_agn(graph, scene_inst, agn_model, seen_model_uris, seen_ktrees=seen_ktrees)
     for agn_model_set in scene_inst.modelled_agn_sets:

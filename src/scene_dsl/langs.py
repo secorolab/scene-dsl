@@ -272,6 +272,8 @@ def check_model_mappings(model, metamodel):
         for elem_model in get_children_of_type(ElementModel, scene_inst):
             for mapping in elem_model.mappings:
                 target = mapping.target
+                if target is None:
+                    continue
                 first = described.get(id(target))
                 if first is elem_model:
                     raise TextXSemanticError(

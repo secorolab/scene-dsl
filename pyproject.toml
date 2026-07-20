@@ -29,6 +29,3 @@ scenex-dot = "scene_dsl.registration:scenex_dot_gen_desc"
 
 [tool.ruff]
 line-length = 100
-
-[tool.pytest.ini_options]
-addopts = "-p no:launch_testing -p no:launch_ros -p no:launch_pytest"

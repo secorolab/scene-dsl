@@ -1,11 +1,29 @@
 import pytest
 from bdd_dsl.models.urirefs import URI_EXEC_PRED_PATH
+from rdflib import Literal, Namespace
+
+from scene_dsl.classes.common import IHasNamespace
 from scene_dsl.langs import scene_metamodel, scenex_metamodel
 from scene_dsl.rdf.scene import create_scene_model_graph
-from scene_dsl.rdf.scenex import URI_USD_STAGE, create_scenex_model_graph
+from scene_dsl.rdf.scenex import (
+    URI_EXEC_PRED_HAS_MAPPING,
+    URI_EXEC_PRED_MAPS,
+    URI_EXEC_PRED_MODEL_ENTITY,
+    URI_USD_STAGE,
+    create_scenex_model_graph,
+)
 from scene_dsl.rdf_parser.scenex import SceneInstanceModel
 
+
 from .test_common import MODELS_DIR
+
+
+def test_namespace_must_be_declared_by_the_model_class():
+    class MissingNamespace(IHasNamespace):
+        pass
+
+    with pytest.raises(NotImplementedError, match="MissingNamespace"):
+        MissingNamespace(parent=object()).namespace
 
 
 def test_scene_parses_and_generates_rdf():
@@ -78,3 +96,42 @@ scene (ns=n) dag_scene {
     model = scene_metamodel().model_from_file(model_path)
     with pytest.raises(RuntimeError, match="Shared or cyclic workspace compositions"):
         create_scene_model_graph(model)
+
+
+def test_agent_kinematics_attach_to_bodies_in_one_model_file(tmp_path):
+    (tmp_path / "robot.scene").write_text(
+        """ns n = "https://example.test/"
+agn set (ns=n) agents { agent robot }
+scene (ns=n) lab { agn set <agents> }
+"""
+    )
+    model_path = tmp_path / "lab.scenex"
+    model_path.write_text(
+        """import "robot.scene"
+
+ns nx = "https://example.test/x/"
+ktree (ns=nx) arm { body arm_base { frame arm_root { } } joints { } }
+ktree (ns=nx) gripper { body grip_base { frame grip_root { } } joints { } }
+
+scene inst (ns=nx) si {
+    scene: <lab>
+    agn <agents.robot> {
+        model arm-in-scene as mjcf {sys path = "robot.xml" map tree <arm> to "arm_body" }
+        model gripper-in-scene as mjcf {sys path = "robot.xml" map tree <gripper> to "gripper_body" }
+    }
+}
+"""
+    )
+
+    graph = create_scenex_model_graph(scenex_metamodel().model_from_file(model_path))
+
+    nx = Namespace("https://example.test/x/")
+    # `entity` hangs off the mapping, not the model: one file may map several trees.
+    for model_name, tree, entity in (
+        ("si/robot/arm-in-scene", nx.arm, "arm_body"),
+        ("si/robot/gripper-in-scene", nx.gripper, "gripper_body"),
+    ):
+        [mapping] = list(graph.objects(nx[model_name], URI_EXEC_PRED_HAS_MAPPING))
+        assert (mapping, URI_EXEC_PRED_MAPS, tree) in graph
+        assert (mapping, URI_EXEC_PRED_MODEL_ENTITY, Literal(entity)) in graph
+    assert (nx["si/robot/arm-in-scene"], URI_EXEC_PRED_PATH, Literal("robot.xml")) in graph

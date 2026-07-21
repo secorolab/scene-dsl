@@ -56,6 +56,7 @@ from rdf_utils.models.vocab import (
 )
 
 from scene_dsl.classes.ktree import (
+    KinematicGraph,
     Actuation,
     JointMimicSpec,
     FixedJoint,
@@ -70,6 +71,7 @@ from scene_dsl.rdf.geom import (
 )
 
 URI_GEOM_TYPE_KTREE = NS_MM_GEOM["KinematicTree"]
+URI_GEOM_TYPE_KGRAPH = NS_MM_GEOM["KinematicGraph"]
 # Not in rdf_utils' vocab module yet; see comp-rob2b/robot-models kinova/gen3/7dof.
 URI_KC_TYPE_REVOLUTE_JOINT_ORIENTED_AXIS = NS_MM_KC["RevoluteJointWithOrientedAxisOfRotation"]
 
@@ -229,6 +231,30 @@ def add_joint(graph: Graph, joint: JointBase) -> None:
     raise ValueError(f"Unsupported joint type: {joint}")
 
 
+def add_joints_spec(graph: Graph, owner: KinematicGraph) -> None:
+    """The joints a graph declares and the composition over them, hung off that graph."""
+    if owner.joints_spec is None:
+        return
+
+    for joint in owner.joints_spec.joints:
+        graph.add(triple=(owner.uri, URI_KC_PRED_JOINTS, joint.uri))
+        add_joint(graph=graph, joint=joint)
+
+    joint_comp = owner.joints_spec.joint_comp
+    if joint_comp is None:
+        return
+    if not isinstance(joint_comp, SerialJoints):
+        raise ValueError(f"JointComposition type not handled for: {joint_comp}")
+
+    # A graph may branch and still carry a chain: the chain is the composition, not it.
+    graph.add(triple=(joint_comp.uri, RDF.type, URI_KC_TYPE_KC))
+    graph.add(triple=(joint_comp.uri, RDF.type, URI_KC_TYPE_SERIAL))
+    for chain_joint in joint_comp.joints:
+        graph.add(triple=(joint_comp.uri, URI_KC_PRED_JOINTS, chain_joint.uri))
+    graph.add(triple=(joint_comp.uri, NS_MM_KC_EXT["root"], joint_comp.root_frame.uri))
+    graph.add(triple=(joint_comp.uri, NS_MM_KC_EXT["tip"], joint_comp.tip_frame.uri))
+
+
 def add_kinematic_tree(graph: Graph, tree: KinematicTreeModel, seen_trees: set[URIRef]) -> None:
     if tree.uri in seen_trees:
         raise ValueError(f"add_kinematic_tree: duplicate KinematicTree URI: {tree.uri}")
@@ -236,29 +262,23 @@ def add_kinematic_tree(graph: Graph, tree: KinematicTreeModel, seen_trees: set[U
 
     graph.add(triple=(tree.uri, RDF.type, URI_GEOM_TYPE_KTREE))
     for linked_tree in tree.trees:
-        if linked_tree.is_template:
-            raise ValueError(
-                f"kinematic tree '{linked_tree.name}' declares no namespace, so it is a "
-                f"template and describes no particular device: '{tree.name}' must compose "
-                f"an instance of it, e.g. 'ktree inst (ns=...) <name> of <{linked_tree.name}>'"
-            )
         add_kinematic_tree(graph=graph, tree=linked_tree, seen_trees=seen_trees)
 
     for body in tree.bodies:
         add_body(graph=graph, body=body)
 
-    for joint in tree.joints_spec.joints:
-        graph.add(triple=(tree.uri, URI_KC_PRED_JOINTS, joint.uri))
-        add_joint(graph=graph, joint=joint)
+    # Derived from the joints, so a tree has a root with or without a chain over it.
+    graph.add(triple=(tree.uri, NS_MM_KC_EXT["root"], tree.roots[0].default_frame.uri))
 
-    if tree.joints_spec.joint_comp is not None:
-        if isinstance(tree.joints_spec.joint_comp, SerialJoints):
-            joint_comp = tree.joints_spec.joint_comp
-            graph.add(triple=(tree.uri, RDF.type, URI_KC_TYPE_KC))
-            graph.add(triple=(tree.uri, RDF.type, URI_KC_TYPE_SERIAL))
-            graph.add(triple=(tree.uri, NS_MM_KC_EXT["root"], joint_comp.root_frame.uri))
-            graph.add(triple=(tree.uri, NS_MM_KC_EXT["tip"], joint_comp.tip_frame.uri))
-        else:
-            raise ValueError(
-                f"JointComposition type not handled for: {tree.joints_spec.joint_comp}"
-            )
+    add_joints_spec(graph=graph, owner=tree)
+
+
+def add_kinematic_graph(graph: Graph, kgraph: KinematicGraph, seen_trees: set[URIRef]) -> None:
+    """A scene's kinematics: the trees it composes, and the bodies hanging from nothing."""
+    graph.add(triple=(kgraph.uri, RDF.type, URI_GEOM_TYPE_KGRAPH))
+    for tree in kgraph.trees:
+        add_kinematic_tree(graph=graph, tree=tree, seen_trees=seen_trees)
+    for body in kgraph.bodies:
+        add_body(graph=graph, body=body)
+    # A graph may hang from many bodies, so it has no one root to export.
+    add_joints_spec(graph=graph, owner=kgraph)

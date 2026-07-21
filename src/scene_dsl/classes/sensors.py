@@ -24,10 +24,9 @@ class SensorBase(IHasNamespace):
 
     @property
     def namespace(self) -> Namespace:
-        agent = self.parent
-        if not isinstance(agent, IHasNamespace):
-            raise TypeError(f"sensor parent has no namespace: {agent}")
-        return agent.namespace
+        if not isinstance(self.parent, IHasNamespace):
+            raise TypeError(f"sensor parent has no namespace: {self.parent}")
+        return self.parent.namespace
 
     @property
     def uri(self) -> URIRef:

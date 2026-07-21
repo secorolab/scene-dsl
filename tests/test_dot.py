@@ -18,8 +18,8 @@ def test_dot_draws_the_chain_across_two_devices():
     edges = _edges(dot)
 
     # each device is a cluster of its own, nested in the tree that assembles them
-    assert 'subgraph "cluster_world_tree/arm1_gripper"' in dot
-    assert 'subgraph "cluster_world_tree/arm1_gripper/gripper"' in dot
+    assert 'subgraph "cluster_lab_graph/world_tree/arm1_gripper"' in dot
+    assert 'subgraph "cluster_lab_graph/world_tree/arm1_gripper/gripper"' in dot
 
     # the chain runs from the arm's base, across the mount, to the gripper's tip
     assert CHAIN in edges['"arm1/base_link" -> "arm1/shoulder_link"']

@@ -30,7 +30,7 @@ def test_shared_distributions_generate_sampled_quantity_links():
 
     assert (uniform_xyz.uri, RDF.type, URI_DISTRIB_TYPE_DISTRIB) in graph
     assert (normal_xyz.uri, RDF.type, URI_DISTRIB_TYPE_NORMAL) in graph
-    poses = model.scene_insts[0].ktree.bodies[1].frames[0].poses
+    poses = model.scene_insts[0].kgraph.bodies[1].frames[0].poses
     uniform_pose, normal_pose = poses
     assert isinstance(uniform_pose, PoseSpec)
     assert (uniform_pose.position_coord_uri, RDF.type, URI_DISTRIB_TYPE_SAMPLED_QUANTITY) in graph

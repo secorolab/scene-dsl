@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MPL-2.0
-from typing import Any, Optional
+from typing import Any
 from uuid import UUID, uuid4
 
 from rdflib import Namespace, URIRef
@@ -42,35 +42,32 @@ class IHasNamespace(IHasParent):
 
 
 class IHasNamespaceDeclare(IHasNamespace):
-    """Root of a namespace: everything below it mints IRIs under `ns`.
-
-    A subclass may declare no namespace -- a tree describing a device without being any
-    particular one -- and then mints no IRI until something gives it one.
-    """
+    """Root of a namespace: everything below it mints IRIs under `ns`."""
 
     name: str
+    ns_prefix: str
+    _ns_obj: Namespace
 
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
         self.ns = kwargs.get("ns", None)
+        if self.ns is None:
+            raise ValueError("Namespace declaration requires 'ns'")
+        self.ns_prefix = self.ns.name
+
         self.name = kwargs.get("name", None)
         if self.name is None:
             raise ValueError("Namespace declaration requires 'name'")
 
-    @property
-    def ns_prefix(self) -> Optional[str]:
-        return self.ns.name if self.ns is not None else None
+        self._ns_obj = Namespace(self.ns.uri)
 
     @property
     def namespace(self) -> Namespace:
-        if self.ns is None:
-            # AttributeError so `getattr(x, "uri", None)` reports absence, not blows up.
-            raise AttributeError(f"'{self.name}' declares no namespace, so it has no IRIs")
-        return Namespace(self.ns.uri)
+        return self._ns_obj
 
     @property
     def uri(self) -> URIRef:
-        return self.namespace[self.name]
+        return self._ns_obj[self.name]
 
     def __str__(self) -> str:
         return f"<({self.__class__.__name__}) {self.ns_prefix}:{self.name}>"

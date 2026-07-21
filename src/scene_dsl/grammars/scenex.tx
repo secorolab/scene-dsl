@@ -11,20 +11,22 @@ imports*=Import
 namespaces=NamespaceDeclare*
 distributions=Distribution*
 
-// A '.ktree' file is parsed with this metamodel: a second one registered for the
-// extension would reset the shared user classes mid-parse.
-ktrees*=KinematicTreeModel
+ktrees*=KinematicTreeSpec
 
 scene_insts+=SceneInstance*
 ;
 
-// 'for' names the kinematics this file describes. Only an agent has any.
 ElementModel:
 'model' name=IRI_TRUNK ('as' model_kind=ModelKind)? '{'
     model_spec=ModelSpecification
+    mappings*=ElementMapping
 '}'
-('for' '<' tree=[KinematicTreeModel|FQN] '>')?
 ;
+
+ElementMapping: TreeMapping | BodyMapping ;
+TreeMapping: 'map' 'tree' '<' tree=[KinematicTreeModel|FQN] '>' ('to' entity=STRING)? ;
+BodyMapping: 'map' 'body' '<' body=[RigidBody|FQN] '>' ('to' entity=STRING)? ;
+
 ModelKind: 'urdf' | 'mjcf' | 'usd' ;
 ModelSpecification: SystemPath | RosPath | PyModuleAttr ;
 SystemPath: 'sys' 'path' '=' path=STRING ;
@@ -33,7 +35,6 @@ RosPath: 'ros' 'pkg' '=' pkg=STRING ',' 'path' '=' path=STRING ;
 ModelledObject:
 'obj' '<' obj=[Object|FQN] '>' '{'
     models+=ElementModel+
-    ('body' ':' '<' body=[RigidBody|FQN] '>')?
 '}'
 ;
 
@@ -45,24 +46,21 @@ ModelledObjectSet:
 
 ModelledAgent:
 'agn' '<' agn=[Agent|FQN] '>' '{'
-    // One model file per device.
     models+=ElementModel
-    // An imported device is instanced per robot, so it cannot be inline.
-    (ktree_inline=KinematicTreeModel | 'ktree' '<' ktree_ref=[KinematicTreeModel|FQN] '>')?
     sensors=SensorBase*
 '}'
 ;
 
 ModelledAgentSet:
-'agn' 'set' '<' agn_set=[SimilarAgentSet|FQN] '>' '{'
-    models+=ElementModel+
+'agn' 'set' '<' agn_set=[AgentSetBase|FQN] '>' '{'
+    models+=ModelledAgent+
 '}'
 ;
 
 SceneInstance:
 'scene' 'inst' '(' 'ns' '=' ns=[NamespaceDeclare|FQN] ')' name=IRI_TRUNK '{'
     'scene' ':' '<' scene=[SceneModel|FQN] '>'
-    ktree=KinematicTreeModel?
+    kgraph=KinematicGraph?
     models=ElementModel*
     (
     modelled_objs+=ModelledObject

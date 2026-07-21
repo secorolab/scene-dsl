@@ -25,7 +25,8 @@ distrib (ns=scene_lab_mjc) normal-scalar {
 
 scene inst (ns=scene_lab_mjc) sampled {
     scene: <pickplace_scene>
-    ktree (ns=scene_lab_mjc) tree {
+    // No joints: these bodies are placed, not attached, which is a graph's business.
+    kgraph (ns=scene_lab_mjc) sampled_graph {
         body world { frame root { } }
         body thing {
             frame frame {
@@ -33,6 +34,5 @@ scene inst (ns=scene_lab_mjc) sampled {
                 pose normal-p { wrt: <world.root> xyz: sample <normal-xyz> m orientation: euler { angles: (0.0, 0.0, 0.0) } }
             }
         }
-        joints { }
     }
 }

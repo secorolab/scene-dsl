@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: MPL-2.0
 from rdflib import Namespace, RDF, Graph, Literal, URIRef, XSD
 
-from bdd_dsl.models.namespace import NS_MM_EXEC
 from rdf_utils.models.vocab import (
+    URI_EXEC_PRED_HAS_KINEMATICS,
     URI_QUDT_PRED_QUANTITY_KIND,
     URI_QUDT_PRED_UNIT,
     URI_QUDT_PRED_VALUE,
@@ -22,7 +22,6 @@ from scene_dsl.rdf.geom import ANGLE_UNITS
 NS_MM_SENS = Namespace(f"{URL_SECORO_MM}/robot/sensors#")
 NS_SOSA = Namespace("http://www.w3.org/ns/sosa/")
 
-URI_EXEC_PRED_HAS_KINEMATICS = NS_MM_EXEC["has-kinematics"]
 URI_SENS_PRED_CAMERA_KIND = NS_MM_SENS["camera-kind"]
 URI_SENS_PRED_FIELD_OF_VIEW = NS_MM_SENS["field-of-view"]
 URI_SENS_PRED_FRAME = NS_MM_SENS["frame"]

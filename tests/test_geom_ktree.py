@@ -57,10 +57,8 @@ from scene_dsl.rdf.ktree import (
     URI_ACT_TYPE_ACTUATION,
     ACTUATION_INTERFACE_TYPES,
 )
-from scene_dsl.rdf.scenex import (
-    URI_EXEC_PRED_MAPS,
-    create_scenex_model_graph,
-)
+from rdf_utils.models.vocab import URI_EXEC_PRED_MAPS
+from scene_dsl.rdf.scenex import create_scenex_model_graph
 from .test_common import MODELS_DIR, write_example_scene
 
 ZERO_POSE = (

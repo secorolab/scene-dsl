@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: MPL-2.0
-from bdd_dsl.execution.common import load_attr_path
 from rdflib import Graph, URIRef
 from rdf_utils.models.common import ModelBase
+from rdf_utils.models.execution import load_attr_path
+from rdf_utils.models.vocab import URI_EXEC_PRED_MODEL, URI_EXEC_TYPE_SCENE_INST
 
-from scene_dsl.rdf.scenex import URI_EXEC_PRED_MODEL, URI_EXEC_TYPE_SCENE_INST
 
 
 class SceneInstanceModel(ModelBase):

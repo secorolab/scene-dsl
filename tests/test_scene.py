@@ -1,14 +1,16 @@
 import pytest
-from bdd_dsl.models.urirefs import URI_EXEC_PRED_PATH
+from rdf_utils.models.vocab import (
+    URI_EXEC_PRED_HAS_MAPPING,
+    URI_EXEC_PRED_MAPS,
+    URI_EXEC_PRED_MODEL_ENTITY,
+    URI_EXEC_PRED_PATH,
+)
 from rdflib import Literal, Namespace
 
 from scene_dsl.classes.common import IHasNamespace
 from scene_dsl.langs import scene_metamodel, scenex_metamodel
 from scene_dsl.rdf.scene import create_scene_model_graph
 from scene_dsl.rdf.scenex import (
-    URI_EXEC_PRED_HAS_MAPPING,
-    URI_EXEC_PRED_MAPS,
-    URI_EXEC_PRED_MODEL_ENTITY,
     URI_USD_STAGE,
     create_scenex_model_graph,
 )

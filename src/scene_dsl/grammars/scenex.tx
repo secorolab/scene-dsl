@@ -46,7 +46,7 @@ ModelledObjectSet:
 
 ModelledAgent:
 'agn' '<' agn=[Agent|FQN] '>' '{'
-    models+=ElementModel
+    models*=ElementModel
     sensors=SensorBase*
 '}'
 ;

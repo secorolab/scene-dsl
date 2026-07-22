@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MPL-2.0
 from typing import Any, Optional
 
-from bdd_dsl.models.namespace import NS_MM_EXEC, NS_MM_ROS
+from bdd_dsl.models.namespace import NS_MM_ROS
 from bdd_dsl.models.urirefs import (
     URI_AGN_PRED_HAS_AGN_MODEL,
     URI_AGN_PRED_OF_AGN,
@@ -12,8 +12,18 @@ from bdd_dsl.models.urirefs import (
     URI_ENV_PRED_OF_OBJ,
     URI_ENV_TYPE_MOD_OBJ,
     URI_ENV_TYPE_OBJ_MODEL,
+)
+from rdf_utils.models.vocab import (
+    URI_EXEC_PRED_HAS_MAPPING,
+    URI_EXEC_PRED_HAS_MODELLED_AGN,
+    URI_EXEC_PRED_HAS_MODELLED_OBJ,
+    URI_EXEC_PRED_MAPS,
+    URI_EXEC_PRED_MODEL,
+    URI_EXEC_PRED_MODEL_ENTITY,
     URI_EXEC_PRED_PATH,
     URI_EXEC_TYPE_RES_PATH,
+    URI_EXEC_TYPE_SCENE_INST,
+    URI_EXEC_TYPE_SCENE_MODEL,
     URI_EXEC_TYPE_SYS_RES,
 )
 from rdf_utils.namespace import (
@@ -40,14 +50,6 @@ from scene_dsl.rdf.ktree import add_kinematic_graph, add_kinematic_tree
 from scene_dsl.rdf.scene import add_scene_model
 from scene_dsl.rdf.sensors import add_sensors
 
-URI_EXEC_TYPE_SCENE_INST = NS_MM_EXEC["SceneInstance"]
-URI_EXEC_TYPE_SCENE_MODEL = NS_MM_EXEC["SceneModel"]
-URI_EXEC_PRED_MODEL = NS_MM_EXEC["has-model"]
-URI_EXEC_PRED_HAS_MODELLED_OBJ = NS_MM_EXEC["has-modelled-object"]
-URI_EXEC_PRED_HAS_MODELLED_AGN = NS_MM_EXEC["has-modelled-agent"]
-URI_EXEC_PRED_MODEL_ENTITY = NS_MM_EXEC["model-entity"]
-URI_EXEC_PRED_HAS_MAPPING = NS_MM_EXEC["has-mapping"]
-URI_EXEC_PRED_MAPS = NS_MM_EXEC["maps"]
 
 NS_XML = Namespace("https://www.w3.org/TR/2006/REC-xml11-20060816#")
 NS_URDF = Namespace("https://wiki.ros.org/urdf/XML/")

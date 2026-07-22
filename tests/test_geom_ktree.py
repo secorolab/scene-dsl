@@ -4,9 +4,38 @@ from textx.exceptions import TextXSemanticError, TextXSyntaxError
 
 from rdf_utils.constraints import check_shacl_constraints
 from rdf_utils.models.vocab import (
+    URI_ACT_PRED_COMMAND_INTERFACE,
+    URI_ACT_PRED_JOINT,
+    URI_ACT_PRED_STATE_INTERFACE,
+    URI_ACT_TYPE_ACTUATION,
+    URI_DYN_PRED_ABOUT,
+    URI_DYN_PRED_IXX,
+    URI_DYN_PRED_IXY,
+    URI_DYN_PRED_IXZ,
+    URI_DYN_PRED_IYY,
+    URI_DYN_PRED_IYZ,
+    URI_DYN_PRED_IZZ,
+    URI_DYN_TYPE_MOMENT_OF_INERTIA_XYZ,
+    URI_DYN_TYPE_PRODUCT_OF_INERTIA_XYZ,
+    URI_GEOM_TYPE_KGRAPH,
+    URI_GEOM_TYPE_KTREE,
+    URI_GEOM_TYPE_RIGID_BODY,
+    URI_KC_EXT_PRED_DEPENDENT_JOINT,
+    URI_KC_EXT_PRED_INDEPENDENT_JOINT,
+    URI_KC_EXT_PRED_OFFSET,
+    URI_KC_EXT_PRED_ROOT,
+    URI_KC_EXT_PRED_TIP,
+    URI_KC_EXT_TYPE_JOINT_COUPLING,
+    URI_KC_EXT_TYPE_SCLERONOMIC,
+    URI_KC_PRED_BETWEEN_ATTACHMENTS,
+    URI_KC_PRED_JOINTS,
+    URI_KC_TYPE_KC,
+    URI_KC_TYPE_REVOLUTE_JOINT,
+    URI_KC_TYPE_SERIAL,
     URI_QUDT_QK_ANGLE,
     URI_QUDT_PRED_QUANTITY_KIND,
     URI_QUDT_PRED_UNIT,
+    URI_QUDT_TYPE_QUANTITY,
 )
 from rdf_utils.models.geometry import (
     OrientCoordModel,
@@ -26,35 +55,7 @@ from scene_dsl.langs import scenex_metamodel
 from scene_dsl.rdf.geom import ANGLE_UNITS, URI_GEOM_TYPE_FRAME
 from scene_dsl.rdf.ktree import (
     INERTIA_UNITS,
-    URI_GEOM_TYPE_KGRAPH,
-    URI_GEOM_TYPE_RIGID_BODY,
-    NS_MM_KC_EXT,
-    URI_GEOM_TYPE_KTREE,
-    URI_KC_TYPE_KC,
-    URI_KC_TYPE_SERIAL,
-    URI_KC_PRED_BETWEEN_ATTACHMENTS,
-    URI_KC_PRED_JOINTS,
-    URI_KC_TYPE_REVOLUTE_JOINT,
     MASS_UNITS,
-    URI_DYN_PRED_ABOUT,
-    URI_DYN_PRED_IXX,
-    URI_DYN_PRED_IXY,
-    URI_DYN_PRED_IXZ,
-    URI_DYN_PRED_IYY,
-    URI_DYN_PRED_IYZ,
-    URI_DYN_PRED_IZZ,
-    URI_DYN_TYPE_MOMENT_OF_INERTIA_XYZ,
-    URI_DYN_TYPE_PRODUCT_OF_INERTIA_XYZ,
-    URI_ACT_PRED_COMMAND_INTERFACE,
-    URI_ACT_PRED_JOINT,
-    URI_KC_EXT_PRED_DEPENDENT_JOINT,
-    URI_KC_EXT_PRED_OFFSET,
-    URI_QUDT_TYPE_QUANTITY,
-    URI_KC_EXT_PRED_INDEPENDENT_JOINT,
-    URI_KC_EXT_TYPE_JOINT_COUPLING,
-    URI_KC_EXT_TYPE_SCLERONOMIC,
-    URI_ACT_PRED_STATE_INTERFACE,
-    URI_ACT_TYPE_ACTUATION,
     ACTUATION_INTERFACE_TYPES,
 )
 from rdf_utils.models.vocab import URI_EXEC_PRED_MAPS
@@ -927,12 +928,12 @@ def test_arm_and_gripper_compose_into_one_chain():
     }
     assert (
         chain,
-        NS_MM_KC_EXT["root"],
+        URI_KC_EXT_PRED_ROOT,
         URIRef(f"{scene_ns}robots/arm1/base_link/base_link_origin"),
     ) in graph
     assert (
         chain,
-        NS_MM_KC_EXT["tip"],
+        URI_KC_EXT_PRED_TIP,
         URIRef(f"{scene_ns}robots/gripper/g_base/g_pinch"),
     ) in graph
 
@@ -1288,8 +1289,8 @@ def test_serial_chain_may_start_below_the_tree_root(tmp_path):
     # The chain keeps its own root; the tree keeps the one derived from its joints.
     chain_root = URIRef("https://example.test/t/b2/f2")
     tree_root = URIRef("https://example.test/t/b1/f1")
-    assert (URIRef("https://example.test/t/chain"), NS_MM_KC_EXT["root"], chain_root) in graph
-    assert (URIRef("https://example.test/t"), NS_MM_KC_EXT["root"], tree_root) in graph
+    assert (URIRef("https://example.test/t/chain"), URI_KC_EXT_PRED_ROOT, chain_root) in graph
+    assert (URIRef("https://example.test/t"), URI_KC_EXT_PRED_ROOT, tree_root) in graph
 
 
 def test_every_tree_carries_its_root():
@@ -1298,7 +1299,7 @@ def test_every_tree_carries_its_root():
     graph = create_scenex_model_graph(model)
     trees = set(graph.subjects(RDF.type, URI_GEOM_TYPE_KTREE))
     assert trees
-    assert trees <= set(graph.subjects(NS_MM_KC_EXT["root"], None))
+    assert trees <= set(graph.subjects(URI_KC_EXT_PRED_ROOT, None))
 
 
 def test_serial_chain_across_two_devices_is_accepted():
@@ -1373,7 +1374,7 @@ scene inst (ns=n) sx {
     assert set(graph.objects(kgraph.uri, URI_KC_PRED_JOINTS)) == {
         URIRef(f"https://example.test/graph/{name}") for name in ("a_to_c", "b_to_c", "c_to_a")
     }
-    assert not list(graph.objects(kgraph.uri, NS_MM_KC_EXT["root"]))
+    assert not list(graph.objects(kgraph.uri, URI_KC_EXT_PRED_ROOT))
 
     chain = URIRef("https://example.test/graph/chain")
     assert (chain, RDF.type, URI_KC_TYPE_SERIAL) in graph

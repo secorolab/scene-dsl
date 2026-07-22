@@ -1,11 +1,4 @@
 # SPDX-License-Identifier: MPL-2.0
-from rdf_utils.namespace import (
-    NS_MM_DYN_COORD,
-    NS_MM_GEOM,
-    NS_MM_KC,
-    NS_MM_KC_EXT,
-    NS_MM_QUDT_UNIT,
-)
 from rdflib import RDF, Graph, Literal, URIRef, XSD
 from rdf_utils.models.vocab import (
     URI_ACT_PRED_COMMAND_INTERFACE,
@@ -17,6 +10,8 @@ from rdf_utils.models.vocab import (
     URI_KC_EXT_PRED_INDEPENDENT_JOINT,
     URI_KC_EXT_PRED_MULTIPLIER,
     URI_KC_EXT_PRED_OFFSET,
+    URI_KC_EXT_PRED_ROOT,
+    URI_KC_EXT_PRED_TIP,
     URI_KC_EXT_TYPE_JOINT_COUPLING,
     URI_KC_EXT_TYPE_SCLERONOMIC,
     URI_KC_PRED_BETWEEN_ATTACHMENTS,
@@ -28,6 +23,7 @@ from rdf_utils.models.vocab import (
     URI_KC_STAT_JNT_VEL,
     URI_KC_TYPE_JOINT,
     URI_KC_TYPE_REVOLUTE_JOINT,
+    URI_KC_TYPE_REVOLUTE_JOINT_ORIENTED_AXIS,
     URI_QUDT_PRED_QUANTITY_KIND,
     URI_QUDT_PRED_VALUE,
     URI_QUDT_QK_ANGLE,
@@ -35,9 +31,12 @@ from rdf_utils.models.vocab import (
     URI_QUDT_UNIT_G,
     URI_QUDT_UNIT_RAD,
     URI_QUDT_UNIT_KG,
+    URI_QUDT_UNIT_KG_M2,
     URI_QUDT_PRED_UNIT,
     URI_GEOM_TYPE_COLLINEAR,
     URI_GEOM_TYPE_RIGID_BODY,
+    URI_GEOM_TYPE_KGRAPH,
+    URI_GEOM_TYPE_KTREE,
     URI_GEOM_TYPE_SIMPLICIAL_COMPLEX,
     URI_GEOM_PRED_LINES,
     URI_GEOM_PRED_SIMPLICES,
@@ -53,6 +52,14 @@ from rdf_utils.models.vocab import (
     URI_DYN_TYPE_MASS_SCALAR,
     URI_DYN_TYPE_RIGID_BODY_INERTIA,
     URI_DYN_TYPE_RIGID_BODY_INERTIA_COORD,
+    URI_DYN_TYPE_MOMENT_OF_INERTIA_XYZ,
+    URI_DYN_TYPE_PRODUCT_OF_INERTIA_XYZ,
+    URI_DYN_PRED_IXX,
+    URI_DYN_PRED_IXY,
+    URI_DYN_PRED_IXZ,
+    URI_DYN_PRED_IYY,
+    URI_DYN_PRED_IYZ,
+    URI_DYN_PRED_IZZ,
 )
 
 from scene_dsl.classes.ktree import (
@@ -70,11 +77,6 @@ from scene_dsl.rdf.geom import (
     add_position_coord,
 )
 
-URI_GEOM_TYPE_KTREE = NS_MM_GEOM["KinematicTree"]
-URI_GEOM_TYPE_KGRAPH = NS_MM_GEOM["KinematicGraph"]
-# Not in rdf_utils' vocab module yet; see comp-rob2b/robot-models kinova/gen3/7dof.
-URI_KC_TYPE_REVOLUTE_JOINT_ORIENTED_AXIS = NS_MM_KC["RevoluteJointWithOrientedAxisOfRotation"]
-
 ACTUATION_INTERFACE_TYPES = {
     "position": URI_KC_STAT_JNT_POSITION,
     "velocity": URI_KC_STAT_JNT_VEL,
@@ -83,15 +85,7 @@ ACTUATION_INTERFACE_TYPES = {
 }
 
 MASS_UNITS = {"kg": URI_QUDT_UNIT_KG, "g": URI_QUDT_UNIT_G}
-INERTIA_UNITS = {"kg*m^2": NS_MM_QUDT_UNIT["KiloGM-M2"]}
-URI_DYN_TYPE_MOMENT_OF_INERTIA_XYZ = NS_MM_DYN_COORD["MomentOfInertiaXYZ"]
-URI_DYN_TYPE_PRODUCT_OF_INERTIA_XYZ = NS_MM_DYN_COORD["ProductOfInertiaXYZ"]
-URI_DYN_PRED_IXX = NS_MM_DYN_COORD["ixx"]
-URI_DYN_PRED_IXY = NS_MM_DYN_COORD["ixy"]
-URI_DYN_PRED_IXZ = NS_MM_DYN_COORD["ixz"]
-URI_DYN_PRED_IYY = NS_MM_DYN_COORD["iyy"]
-URI_DYN_PRED_IYZ = NS_MM_DYN_COORD["iyz"]
-URI_DYN_PRED_IZZ = NS_MM_DYN_COORD["izz"]
+INERTIA_UNITS = {"kg*m^2": URI_QUDT_UNIT_KG_M2}
 
 
 def add_body(graph: Graph, body) -> None:
@@ -251,8 +245,8 @@ def add_joints_spec(graph: Graph, owner: KinematicGraph) -> None:
     graph.add(triple=(joint_comp.uri, RDF.type, URI_KC_TYPE_SERIAL))
     for chain_joint in joint_comp.joints:
         graph.add(triple=(joint_comp.uri, URI_KC_PRED_JOINTS, chain_joint.uri))
-    graph.add(triple=(joint_comp.uri, NS_MM_KC_EXT["root"], joint_comp.root_frame.uri))
-    graph.add(triple=(joint_comp.uri, NS_MM_KC_EXT["tip"], joint_comp.tip_frame.uri))
+    graph.add(triple=(joint_comp.uri, URI_KC_EXT_PRED_ROOT, joint_comp.root_frame.uri))
+    graph.add(triple=(joint_comp.uri, URI_KC_EXT_PRED_TIP, joint_comp.tip_frame.uri))
 
 
 def add_kinematic_tree(graph: Graph, tree: KinematicTreeModel, seen_trees: set[URIRef]) -> None:
@@ -268,7 +262,7 @@ def add_kinematic_tree(graph: Graph, tree: KinematicTreeModel, seen_trees: set[U
         add_body(graph=graph, body=body)
 
     # Derived from the joints, so a tree has a root with or without a chain over it.
-    graph.add(triple=(tree.uri, NS_MM_KC_EXT["root"], tree.roots[0].default_frame.uri))
+    graph.add(triple=(tree.uri, URI_KC_EXT_PRED_ROOT, tree.roots[0].default_frame.uri))
 
     add_joints_spec(graph=graph, owner=tree)
 

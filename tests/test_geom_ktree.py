@@ -1,8 +1,12 @@
 import pytest
-from rdflib import RDF, Literal, URIRef
-from textx.exceptions import TextXSemanticError, TextXSyntaxError
-
 from rdf_utils.constraints import check_shacl_constraints
+from rdf_utils.models.geom_coord import (
+    OrientCoordModel,
+    PoseCoordModel,
+    PositionCoordModel,
+    get_coord_vectorxyz,
+    get_euler_angles_abg,
+)
 from rdf_utils.models.vocab import (
     URI_ACT_PRED_COMMAND_INTERFACE,
     URI_ACT_PRED_JOINT,
@@ -17,6 +21,7 @@ from rdf_utils.models.vocab import (
     URI_DYN_PRED_IZZ,
     URI_DYN_TYPE_MOMENT_OF_INERTIA_XYZ,
     URI_DYN_TYPE_PRODUCT_OF_INERTIA_XYZ,
+    URI_EXEC_PRED_MAPS,
     URI_GEOM_TYPE_KGRAPH,
     URI_GEOM_TYPE_KTREE,
     URI_GEOM_TYPE_RIGID_BODY,
@@ -32,21 +37,15 @@ from rdf_utils.models.vocab import (
     URI_KC_TYPE_KC,
     URI_KC_TYPE_REVOLUTE_JOINT,
     URI_KC_TYPE_SERIAL,
-    URI_QUDT_QK_ANGLE,
     URI_QUDT_PRED_QUANTITY_KIND,
     URI_QUDT_PRED_UNIT,
+    URI_QUDT_QK_ANGLE,
     URI_QUDT_TYPE_QUANTITY,
 )
-from rdf_utils.models.geometry import (
-    OrientCoordModel,
-    PoseCoordModel,
-    PositionCoordModel,
-    get_coord_vectorxyz,
-    get_euler_angles_abg,
-)
-
 from rdf_utils.namespace import URL_MM_GEOM_SHACL_EXTS, URL_MM_GEOM_SHACL_REL, URL_SECORO_MM
 from rdf_utils.resolver import install_resolver
+from rdflib import RDF, Literal, URIRef
+from textx.exceptions import TextXSemanticError, TextXSyntaxError
 
 from scene_dsl.classes.common import FloatVector
 from scene_dsl.classes.geom import DirectionCosineOrientationSpec
@@ -54,12 +53,12 @@ from scene_dsl.classes.ktree import KinematicTreeInstance, KinematicTreeTemplate
 from scene_dsl.langs import scenex_metamodel
 from scene_dsl.rdf.geom import ANGLE_UNITS, URI_GEOM_TYPE_FRAME
 from scene_dsl.rdf.ktree import (
+    ACTUATION_INTERFACE_TYPES,
     INERTIA_UNITS,
     MASS_UNITS,
-    ACTUATION_INTERFACE_TYPES,
 )
-from rdf_utils.models.vocab import URI_EXEC_PRED_MAPS
 from scene_dsl.rdf.scenex import create_scenex_model_graph
+
 from .test_common import MODELS_DIR, write_example_scene
 
 ZERO_POSE = (

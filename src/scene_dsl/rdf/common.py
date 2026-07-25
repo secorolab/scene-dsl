@@ -1,18 +1,18 @@
 # SPDX-License-Identifier: MPL-2.0
 from typing import Any
 
-from rdflib import RDF, Graph, Literal, URIRef
 from rdf_utils.models.python import (
     URI_PY_PRED_ATTR_NAME,
     URI_PY_PRED_MODULE_NAME,
     URI_PY_TYPE_MODULE_ATTR,
 )
-from rdf_utils.models.geometry import (
-    URI_GEOM_TYPE_VECTOR_XYZ,
+from rdf_utils.models.vocab import (
     URI_GEOM_PRED_X,
     URI_GEOM_PRED_Y,
     URI_GEOM_PRED_Z,
+    URI_GEOM_TYPE_VECTOR_XYZ,
 )
+from rdflib import RDF, Graph, Literal, URIRef
 
 from scene_dsl.classes.common import FloatVector, parse_py_module_attr
 

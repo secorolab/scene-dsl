@@ -42,9 +42,9 @@ jobs:
           pip install "./rdf-utils[all]"
           pip install ./bdd-dsl
           pip install ./scene-dsl
-      - name: Lint with ruff
-        run: |
-          ruff check scene-dsl/src scene-dsl/tests
       - name: Test with pytest
         run: |
           pytest -q scene-dsl/tests
+      - name: Lint with ruff
+        run: |
+          ruff check scene-dsl/src scene-dsl/tests

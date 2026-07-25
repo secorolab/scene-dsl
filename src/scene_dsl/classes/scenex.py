@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MPL-2.0
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 
 from rdflib import Namespace, URIRef
 
@@ -19,9 +19,9 @@ from scene_dsl.classes.scene import (
 
 class ElementModel(IHasNamespace):
     model_spec: Any
-    model_kind: Optional[str]
+    model_kind: str | None
     mappings: list[ElementMapping]
-    _uri: Optional[URIRef]
+    _uri: URIRef | None
 
     def __init__(self, parent, name, model_kind, model_spec, mappings=None) -> None:
         super().__init__(parent=parent)
@@ -47,8 +47,8 @@ class ElementModel(IHasNamespace):
 class ElementMapping(IHasNamespace):
     """A scene element, and the name its model file knows it by."""
 
-    entity: Optional[str]
-    _uri: Optional[URIRef]
+    entity: str | None
+    _uri: URIRef | None
 
     def __init__(self, parent, entity=None) -> None:
         super().__init__(parent=parent)
@@ -102,7 +102,7 @@ class BodyMapping(ElementMapping):
 class ModelledObject(IHasNamespace):
     obj: Object
     models: list[ElementModel]
-    _modelled_uri: Optional[URIRef]
+    _modelled_uri: URIRef | None
 
     def __init__(self, parent, obj, models) -> None:
         super().__init__(parent=parent)
@@ -148,7 +148,7 @@ class ModelledAgent(IHasNamespace):
     agn: Agent
     models: list[ElementModel]
     sensors: list
-    _modelled_uri: Optional[URIRef]
+    _modelled_uri: URIRef | None
 
     def __init__(self, parent, agn, models, sensors=None) -> None:
         super().__init__(parent=parent)
@@ -198,7 +198,7 @@ class ModelledAgentSet(IHasNamespace):
 
 class SceneInstance(IHasNamespaceDeclare):
     scene: SceneModel
-    kgraph: Optional[KinematicGraph]
+    kgraph: KinematicGraph | None
     models: list[ElementModel]
     modelled_objs: list[ModelledObject]
     modelled_obj_sets: list[ModelledObjectSet]

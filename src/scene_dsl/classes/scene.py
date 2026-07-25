@@ -1,15 +1,13 @@
 # SPDX-License-Identifier: MPL-2.0
 from __future__ import annotations
 
-from typing import Optional
-
 from rdflib import Namespace, URIRef
 
 from scene_dsl.classes.common import IHasNamespace, IHasNamespaceDeclare, SetBase
 
 
 class Object(IHasNamespace):
-    _uri: Optional[URIRef]
+    _uri: URIRef | None
 
     def __init__(self, parent, name) -> None:
         super().__init__(parent=parent)
@@ -30,7 +28,7 @@ class Object(IHasNamespace):
 
 
 class Workspace(IHasNamespace):
-    _uri: Optional[URIRef]
+    _uri: URIRef | None
 
     def __init__(self, parent, name) -> None:
         super().__init__(parent=parent)
@@ -51,7 +49,7 @@ class Workspace(IHasNamespace):
 
 
 class Agent(IHasNamespace):
-    _uri: Optional[URIRef]
+    _uri: URIRef | None
 
     def __init__(self, parent, name) -> None:
         super().__init__(parent=parent)
@@ -132,7 +130,7 @@ class WorkspaceComposition(IHasNamespaceDeclare):
     objects: list[Object]
     ws: Workspace
     workspaces: list[Workspace]
-    ws_comps: list["WorkspaceComposition"]
+    ws_comps: list[WorkspaceComposition]
 
     def __init__(self, parent, ns, name, ws, objects, workspaces, ws_comps) -> None:
         super().__init__(parent=parent, ns=ns, name=name)

@@ -1,6 +1,5 @@
 # SPDX-License-Identifier: MPL-2.0
 from __future__ import annotations
-from typing import Optional
 
 from rdflib import Namespace, URIRef
 
@@ -12,7 +11,7 @@ class SensorBase(IHasNamespace):
     frame: Frame
     update_rate: float
     rate_unit: str
-    _uri: Optional[URIRef]
+    _uri: URIRef | None
 
     def __init__(self, parent, name, frame, update_rate, rate_unit) -> None:
         super().__init__(parent=parent)

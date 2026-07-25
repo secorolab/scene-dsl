@@ -1,8 +1,6 @@
 # SPDX-License-Identifier: MPL-2.0
 from __future__ import annotations
 
-from typing import Optional
-
 import numpy as np
 from rdflib import Namespace, URIRef
 
@@ -62,13 +60,13 @@ class PoseSpec(IHasNamespace):
     length_unit: str
     orientation: OrientationSpec
 
-    _wrt: Optional[Frame]
-    _uri: Optional[URIRef]
-    _uri_coord: Optional[URIRef]
-    _position_uri: Optional[URIRef]
-    _position_coord_uri: Optional[URIRef]
-    _orn_uri: Optional[URIRef]
-    _orn_coord_uri: Optional[URIRef]
+    _wrt: Frame | None
+    _uri: URIRef | None
+    _uri_coord: URIRef | None
+    _position_uri: URIRef | None
+    _position_coord_uri: URIRef | None
+    _orn_uri: URIRef | None
+    _orn_coord_uri: URIRef | None
 
     def __init__(self, parent, name, wrt, position_spec, length_unit, orientation) -> None:
         super().__init__(parent=parent)
@@ -155,8 +153,8 @@ class Frame(IHasNamespace, IDefaultFrame):
     name: str
     poses: list[PoseSpec]
 
-    _uri: Optional[URIRef]
-    _origin_uri: Optional[URIRef]
+    _uri: URIRef | None
+    _origin_uri: URIRef | None
     _axis_vector_uris: dict[str, URIRef]
 
     def __init__(self, parent, name, poses) -> None:
@@ -188,7 +186,7 @@ class Frame(IHasNamespace, IDefaultFrame):
     @property
     def default_frame(self) -> Frame:
         if not isinstance(self.parent, IDefaultFrame):
-            raise ValueError(
+            raise TypeError(
                 f"Frame({self.name}).default_frame: parent not a IDefaultFrame: {self.parent}"
             )
 

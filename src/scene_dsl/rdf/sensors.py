@@ -1,6 +1,4 @@
 # SPDX-License-Identifier: MPL-2.0
-from rdflib import Namespace, RDF, Graph, Literal, URIRef, XSD
-
 from rdf_utils.models.vocab import (
     URI_EXEC_PRED_HAS_KINEMATICS,
     URI_QUDT_PRED_QUANTITY_KIND,
@@ -15,6 +13,7 @@ from rdf_utils.models.vocab import (
     URI_QUDT_TYPE_QUANTITY,
 )
 from rdf_utils.namespace import NS_MM_QUDT_UNIT, URL_SECORO_MM
+from rdflib import RDF, XSD, Graph, Literal, Namespace, URIRef
 
 from scene_dsl.classes.sensors import CameraSensorSpec, ForceTorqueSensorSpec, ImuSensorSpec
 from scene_dsl.rdf.geom import ANGLE_UNITS
@@ -98,7 +97,7 @@ def add_sensors(graph: Graph, agn_model) -> None:
         elif isinstance(sensor, ImuSensorSpec):
             graph.add((sensor.uri, RDF.type, URI_SENS_TYPE_IMU))
         else:
-            raise ValueError(f"Unsupported sensor type: {sensor}")
+            raise TypeError(f"Unsupported sensor type: {sensor}")
 
         for observed in sensor.observes:
             graph.add((sensor.uri, URI_SOSA_PRED_OBSERVES, OBSERVED_QUANTITIES[observed]))

@@ -1,7 +1,5 @@
 import numpy as np
 import pytest
-from rdflib import RDF
-
 from rdf_utils.models.distribution import (
     DistributionModel,
     distrib_from_sampled_quantity,
@@ -13,9 +11,12 @@ from rdf_utils.models.vocab import (
     URI_DISTRIB_TYPE_NORMAL,
     URI_DISTRIB_TYPE_SAMPLED_QUANTITY,
 )
+from rdflib import RDF
+
 from scene_dsl.classes.geom import PoseSpec
 from scene_dsl.langs import scenex_metamodel
 from scene_dsl.rdf.scenex import create_scenex_model_graph
+
 from .test_common import MODELS_DIR
 
 

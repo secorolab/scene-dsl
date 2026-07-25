@@ -2,12 +2,12 @@
 from textx import GeneratorDesc, LanguageDesc
 
 from scene_dsl.gens import (
+    scene_graph_gen,
+    scene_graph_gen_console,
     scenex_dot_gen,
     scenex_dot_gen_console,
     scenex_graph_gen,
     scenex_graph_gen_console,
-    scene_graph_gen,
-    scene_graph_gen_console,
 )
 from scene_dsl.langs import scene_metamodel, scenex_metamodel
 

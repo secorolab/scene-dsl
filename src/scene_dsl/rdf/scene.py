@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MPL-2.0
-from typing import Any, Optional
+from typing import Any
 
 from bdd_dsl.models.urirefs import (
     URI_AGN_PRED_HAS_AGN,
@@ -47,7 +47,7 @@ def add_obj_set(
     graph: Graph,
     obj_set: ObjectSet | SimilarObjectSet,
     set_uris: set[URIRef],
-    scn_comp_uri: Optional[URIRef] = None,
+    scn_comp_uri: URIRef | None = None,
 ) -> None:
     _add_scene_set_common(graph=graph, scene_set=obj_set, set_uris=set_uris)
 
@@ -59,7 +59,7 @@ def add_obj_set(
 
 
 def add_ws_set(
-    graph: Graph, ws_set: WorkspaceSet, set_uris: set[URIRef], scn_comp_uri: Optional[URIRef] = None
+    graph: Graph, ws_set: WorkspaceSet, set_uris: set[URIRef], scn_comp_uri: URIRef | None = None
 ) -> None:
     _add_scene_set_common(graph=graph, scene_set=ws_set, set_uris=set_uris)
 
@@ -74,7 +74,7 @@ def add_agn_set(
     graph: Graph,
     agn_set: AgentSet | SimilarAgentSet,
     set_uris: set[URIRef],
-    scn_comp_uri: Optional[URIRef] = None,
+    scn_comp_uri: URIRef | None = None,
 ) -> None:
     _add_scene_set_common(graph=graph, scene_set=agn_set, set_uris=set_uris)
 
@@ -86,7 +86,7 @@ def add_agn_set(
 
 
 def add_scene_set(
-    graph: Graph, scene_set: SceneSet, set_uris: set[URIRef], scn_comp_uri: Optional[URIRef] = None
+    graph: Graph, scene_set: SceneSet, set_uris: set[URIRef], scn_comp_uri: URIRef | None = None
 ):
     if isinstance(scene_set, (ObjectSet, SimilarObjectSet)):
         add_obj_set(graph=graph, obj_set=scene_set, set_uris=set_uris, scn_comp_uri=scn_comp_uri)
@@ -95,7 +95,7 @@ def add_scene_set(
     elif isinstance(scene_set, (AgentSet, SimilarAgentSet)):
         add_agn_set(graph=graph, agn_set=scene_set, set_uris=set_uris, scn_comp_uri=scn_comp_uri)
     else:
-        raise ValueError(f"Unhandled SceneSet type: {type(scene_set)}")
+        raise TypeError(f"Unhandled SceneSet type: {type(scene_set)}")
 
 
 def add_ws_comp(
@@ -206,7 +206,7 @@ def add_scene_model(
     return scene_has_obj, scene_has_ws, scene_has_agn
 
 
-def create_scene_model_graph(model: Any, g: Optional[Graph] = None) -> Graph:
+def create_scene_model_graph(model: Any, g: Graph | None = None) -> Graph:
     if g is None:
         g = Graph()
 

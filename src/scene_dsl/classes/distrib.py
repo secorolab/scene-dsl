@@ -1,6 +1,5 @@
 # SPDX-License-Identifier: MPL-2.0
 from __future__ import annotations
-from typing import Optional
 
 from scene_dsl.classes.common import FloatVector, IHasNamespaceDeclare
 
@@ -47,10 +46,10 @@ class UniformDistribution:
 
 class NormalDistribution:
     dimension: int
-    mean_scalar: Optional[float]
-    mean_vector: Optional[FloatVector]
-    std_dev: Optional[float]
-    covariance: Optional[FloatMatrix]
+    mean_scalar: float | None
+    mean_vector: FloatVector | None
+    std_dev: float | None
+    covariance: FloatMatrix | None
 
     def __init__(
         self,

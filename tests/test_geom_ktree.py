@@ -237,14 +237,22 @@ scene inst (ns=n) sx {{
     orient_coord = OrientCoordModel(pose.orientation_coord_uri, graph)
     pose_coord = PoseCoordModel(pose.uri_coord, graph)
 
-    assert position_coord.position == pose.position_uri
-    assert position_coord.of == pose.of_frame.origin_uri
-    assert position_coord.wrt == pose.wrt.origin_uri
+    assert position_coord.position.id == pose.position_uri
+    assert position_coord.position.pose_ids == {pose.uri}
+    assert position_coord.position.coordinate_ids == {pose.position_coord_uri}
+    assert position_coord.position.of_id == pose.of_frame.origin_uri
+    assert position_coord.position.wrt_id == pose.wrt.origin_uri
     assert position_coord.as_seen_by == pose.wrt.uri
-    assert pose_coord.pose == pose.uri
-    assert pose_coord.of.id == pose.of_frame.uri
-    assert pose_coord.wrt.id == pose.wrt.uri
-    assert pose_coord.as_seen_by == pose.wrt.uri
+    assert orient_coord.relation.id == pose.orientation_uri
+    assert orient_coord.relation.pose_ids == {pose.uri}
+    assert orient_coord.relation.coordinate_ids == {pose.orientation_coord_uri}
+    assert pose_coord.relation.id == pose.uri
+    assert pose_coord.relation.coordinate_ids == {pose.uri_coord}
+    assert pose_coord.relation.position.id == pose.position_uri
+    assert pose_coord.relation.orientation.id == pose.orientation_uri
+    assert pose_coord.relation.of_frame.id == pose.of_frame.uri
+    assert pose_coord.relation.wrt_frame.id == pose.wrt.uri
+    assert pose_coord.as_seen_by.id == pose.wrt.uri
 
     assert get_coord_vectorxyz(position_coord, graph) == tuple(pose.position_spec.values)
 

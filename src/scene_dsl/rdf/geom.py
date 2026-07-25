@@ -1,44 +1,42 @@
 # SPDX-License-Identifier: MPL-2.0
-from rdflib import RDF, Graph, Literal, URIRef
-
 from rdf_utils.collection import add_literal_list_pred
 from rdf_utils.models.vocab import (
     URI_GEOM_PRED_ALPHA,
     URI_GEOM_PRED_AXES_SEQ,
     URI_GEOM_PRED_BETA,
-    URI_GEOM_PRED_OF_ORIENT,
-    URI_GEOM_PRED_OF_POSITION,
-    URI_GEOM_PRED_START,
-    URI_GEOM_PRED_VECT_X,
-    URI_GEOM_PRED_VECT_Y,
-    URI_GEOM_PRED_VECT_Z,
     URI_GEOM_PRED_DIRECTION_COSINE_X,
     URI_GEOM_PRED_DIRECTION_COSINE_Y,
     URI_GEOM_PRED_DIRECTION_COSINE_Z,
     URI_GEOM_PRED_GAMMA,
     URI_GEOM_PRED_OF,
+    URI_GEOM_PRED_OF_ORIENT,
     URI_GEOM_PRED_OF_POSE,
+    URI_GEOM_PRED_OF_POSITION,
     URI_GEOM_PRED_ORIGIN,
     URI_GEOM_PRED_SEEN_BY,
+    URI_GEOM_PRED_START,
+    URI_GEOM_PRED_VECT_X,
+    URI_GEOM_PRED_VECT_Y,
+    URI_GEOM_PRED_VECT_Z,
     URI_GEOM_PRED_WRT,
-    URI_GEOM_TYPE_BOUND_VECTOR,
-    URI_GEOM_TYPE_ORIENT,
-    URI_GEOM_TYPE_ORIENT_COORD,
-    URI_GEOM_TYPE_ORIENT_REF,
-    URI_GEOM_TYPE_POSITION,
-    URI_GEOM_TYPE_POSITION_COORD,
-    URI_GEOM_TYPE_POSITION_REF,
-    URI_GEOM_TYPE_VECTOR,
     URI_GEOM_TYPE_ANGLES_ABG,
+    URI_GEOM_TYPE_BOUND_VECTOR,
     URI_GEOM_TYPE_DIRECTION_COSINE_XYZ,
     URI_GEOM_TYPE_EULER_ANGLES,
     URI_GEOM_TYPE_EXTRINSIC,
     URI_GEOM_TYPE_FRAME,
     URI_GEOM_TYPE_INTRINSIC,
+    URI_GEOM_TYPE_ORIENT,
+    URI_GEOM_TYPE_ORIENT_COORD,
+    URI_GEOM_TYPE_ORIENT_REF,
     URI_GEOM_TYPE_POINT,
     URI_GEOM_TYPE_POSE,
     URI_GEOM_TYPE_POSE_COORD,
     URI_GEOM_TYPE_POSE_REF,
+    URI_GEOM_TYPE_POSITION,
+    URI_GEOM_TYPE_POSITION_COORD,
+    URI_GEOM_TYPE_POSITION_REF,
+    URI_GEOM_TYPE_VECTOR,
     URI_GEOM_TYPE_VECTOR_XYZ,
     URI_QUDT_PRED_QUANTITY_KIND,
     URI_QUDT_PRED_UNIT,
@@ -50,6 +48,8 @@ from rdf_utils.models.vocab import (
     URI_QUDT_UNIT_MM,
     URI_QUDT_UNIT_RAD,
 )
+from rdflib import RDF, Graph, Literal, URIRef
+
 from scene_dsl.classes.common import FloatVector
 from scene_dsl.classes.distrib import (
     DistributionRef,
@@ -110,7 +110,7 @@ def add_position_coord(
     if isinstance(position_spec, DistributionRef):
         distribution_spec = position_spec.distribution.spec
         if not isinstance(distribution_spec, (UniformDistribution, NormalDistribution)):
-            raise ValueError(
+            raise TypeError(
                 f"add_position_coord({pos_coord_uri}): sampling requires a uniform or normal distribution"
             )
         if distribution_spec.dimension != 3:
@@ -190,7 +190,7 @@ def add_orientation_coord(graph: Graph, pose: PoseSpec) -> None:
         )
     elif isinstance(pose.orientation, DistributionRef):
         if not isinstance(pose.orientation.distribution.spec, UniformRotationDistribution):
-            raise ValueError(
+            raise TypeError(
                 f"add_orientation_coord({pose.orientation_coord_uri}): sampling requires a UniformRotationDistribution specification"
             )
         add_sampled_quantity(
@@ -199,7 +199,7 @@ def add_orientation_coord(graph: Graph, pose: PoseSpec) -> None:
             distrib_ref=pose.orientation,
         )
     else:
-        raise ValueError(
+        raise TypeError(
             f"add_orientation_coord({pose.orientation_coord_uri}): Unsupported orientation: {pose.orientation}"
         )
 

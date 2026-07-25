@@ -1,9 +1,8 @@
 # SPDX-License-Identifier: MPL-2.0
-from rdflib import Graph, URIRef
 from rdf_utils.models.common import ModelBase
 from rdf_utils.models.execution import load_attr_path
 from rdf_utils.models.vocab import URI_EXEC_PRED_MODEL, URI_EXEC_TYPE_SCENE_INST
-
+from rdflib import Graph, URIRef
 
 
 class SceneInstanceModel(ModelBase):
@@ -17,9 +16,7 @@ class SceneInstanceModel(ModelBase):
 
         self.models = {}
         for model_id in graph.objects(subject=scn_inst_id, predicate=URI_EXEC_PRED_MODEL):
-            assert isinstance(model_id, URIRef), (
-                f"unexpected scene model ID type: {type(model_id)}"
-            )
+            assert isinstance(model_id, URIRef), f"unexpected scene model ID type: {type(model_id)}"
             model = ModelBase(node_id=model_id, graph=graph)
             assert model_id not in self.models, (
                 f"scene instance '{self.id}' has duplicate model '{model_id}'"

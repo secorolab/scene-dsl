@@ -1,6 +1,4 @@
 import numpy as np
-from rdflib import RDF, Literal, URIRef, XSD
-
 from rdf_utils.models.vocab import (
     URI_EXEC_PRED_HAS_KINEMATICS,
     URI_GEOM_TYPE_KTREE,
@@ -8,6 +6,8 @@ from rdf_utils.models.vocab import (
     URI_KC_TYPE_REVOLUTE_JOINT,
     URI_QUDT_TYPE_QUANTITY,
 )
+from rdflib import RDF, XSD, Literal, URIRef
+
 from scene_dsl.langs import scenex_metamodel
 from scene_dsl.rdf.scenex import create_scenex_model_graph
 from scene_dsl.rdf.sensors import (
@@ -26,6 +26,7 @@ from scene_dsl.rdf.sensors import (
     URI_SOSA_TYPE_PLATFORM,
     URI_SOSA_TYPE_SENSOR,
 )
+
 from .test_common import MODELS_DIR
 
 

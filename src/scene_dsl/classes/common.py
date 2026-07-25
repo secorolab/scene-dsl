@@ -124,7 +124,7 @@ class IntVector:
 def parse_py_module_attr(model: Any) -> tuple[str, str]:
     modules = getattr(model, "modules", None)
     if not isinstance(modules, list):
-        raise ValueError(
+        raise TypeError(
             f"PyModuleAttr {model} doesn't have 'modules' field of list type: {modules}"
         )
     attr_name = getattr(model, "attr_name", None)

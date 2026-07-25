@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MPL-2.0
-from typing import Any, Optional
+from typing import Any
 
 from bdd_dsl.models.namespace import NS_MM_ROS
 from bdd_dsl.models.urirefs import (
@@ -49,7 +49,6 @@ from scene_dsl.rdf.distrib import add_distribution
 from scene_dsl.rdf.ktree import add_kinematic_graph, add_kinematic_tree
 from scene_dsl.rdf.scene import add_scene_model
 from scene_dsl.rdf.sensors import add_sensors
-
 
 NS_XML = Namespace("https://www.w3.org/TR/2006/REC-xml11-20060816#")
 NS_URDF = Namespace("https://wiki.ros.org/urdf/XML/")
@@ -239,7 +238,7 @@ def add_modelled_scene(graph: Graph, scene_inst: SceneInstance) -> None:
         add_modelled_agn_set(graph, scene_inst, agn_model_set, seen_model_uris, seen_ktrees)
 
 
-def create_scenex_model_graph(model: Any, g: Optional[Graph] = None) -> Graph:
+def create_scenex_model_graph(model: Any, g: Graph | None = None) -> Graph:
     if g is None:
         g = Graph()
 

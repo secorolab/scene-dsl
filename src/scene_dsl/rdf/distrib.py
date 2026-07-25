@@ -1,22 +1,22 @@
 # SPDX-License-Identifier: MPL-2.0
-from rdflib import BNode, RDF, Graph, Literal, URIRef, XSD
-from rdflib.collection import Collection
-
 from rdf_utils.collection import add_literal_list_pred, add_node_list_pred
 from rdf_utils.models.vocab import (
+    URI_DISTRIB_PRED_COV,
     URI_DISTRIB_PRED_DIM,
     URI_DISTRIB_PRED_FROM_DISTRIB,
     URI_DISTRIB_PRED_LOWER,
     URI_DISTRIB_PRED_MEAN,
     URI_DISTRIB_PRED_STD,
-    URI_DISTRIB_PRED_COV,
     URI_DISTRIB_PRED_UPPER,
     URI_DISTRIB_TYPE_DISTRIB,
-    URI_DISTRIB_TYPE_SAMPLED_QUANTITY,
     URI_DISTRIB_TYPE_NORMAL,
+    URI_DISTRIB_TYPE_SAMPLED_QUANTITY,
     URI_DISTRIB_TYPE_UNIFORM,
     URI_DISTRIB_TYPE_UNIFORM_ROT,
 )
+from rdflib import RDF, XSD, BNode, Graph, Literal, URIRef
+from rdflib.collection import Collection
+
 from scene_dsl.classes.distrib import (
     Distribution,
     DistributionRef,
@@ -97,7 +97,7 @@ def add_distribution(graph: Graph, distribution: Distribution) -> None:
         graph.add((distribution.uri, RDF.type, URI_DISTRIB_TYPE_UNIFORM_ROT))
 
     else:
-        raise ValueError(f"Unsupported distribution specification: {distribution.spec}")
+        raise TypeError(f"Unsupported distribution specification: {distribution.spec}")
 
 
 def add_sampled_quantity(graph: Graph, quantity_uri: URIRef, distrib_ref: DistributionRef) -> None:

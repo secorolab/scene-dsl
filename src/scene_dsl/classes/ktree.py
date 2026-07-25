@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from typing import Any, Optional
+from typing import Any
 
 import numpy as np
 from rdflib import Namespace, URIRef
@@ -40,7 +40,7 @@ class KinematicGraph(IHasNamespaceDeclare, IDefaultFrame):
     name: str
     trees: list[KinematicTreeModel]
     bodies: list[RigidBody]
-    joints_spec: Optional[JointsSpec]
+    joints_spec: JointsSpec | None
 
     def __init__(self, parent, ns, name, trees, bodies, joints_spec) -> None:
         super().__init__(parent=parent, ns=ns, name=name)
@@ -137,7 +137,7 @@ class KinematicTreeInstance(KinematicTreeModel):
 class RigidBody(IHasNamespace, IDefaultFrame):
     name: str
     frames: list[Frame]
-    inertia: Optional[RigidBodyInertia]
+    inertia: RigidBodyInertia | None
 
     def __init__(self, parent, name, frames, inertia) -> None:
         super().__init__(parent=parent)
@@ -151,7 +151,9 @@ class RigidBody(IHasNamespace, IDefaultFrame):
     @property
     def namespace(self) -> Namespace:
         if isinstance(self.parent, KinematicTreeTemplate):
-            raise AttributeError(f"'{self.parent.name}' is a template, so it has no namespace")
+            raise AttributeError(  # noqa: TRY004
+                f"'{self.parent.name}' is a template, so it has no namespace"
+            )
         if not isinstance(self.parent, KinematicGraph):
             raise TypeError(f"parent of RigidBody is not a kinematic graph: {self.parent}")
         return self.parent.namespace
@@ -218,7 +220,7 @@ class RigidBodyInertia:
 
 class JointsSpec(IHasNamespace):
     joints: list[JointBase]
-    joint_comp: Optional[Any]
+    joint_comp: Any | None
 
     def __init__(self, parent, joints, joint_comp) -> None:
         super().__init__(parent=parent)
@@ -228,7 +230,9 @@ class JointsSpec(IHasNamespace):
     @property
     def namespace(self) -> Namespace:
         if isinstance(self.parent, KinematicTreeTemplate):
-            raise AttributeError(f"'{self.parent.name}' is a template, so it has no namespace")
+            raise AttributeError(  # noqa: TRY004
+                f"'{self.parent.name}' is a template, so it has no namespace"
+            )
         if not isinstance(self.parent, KinematicGraph):
             raise TypeError(f"parent of JointsSpec is not a kinematic graph: {self.parent}")
         return self.parent.namespace
@@ -271,19 +275,19 @@ class FixedJoint(JointBase):
 class RevoluteJoint(JointBase):
     parent_frame_axis: FrameAxis
     child_frame_axis: FrameAxis
-    actuation: Optional[Actuation]
-    offset: Optional[JointOffset]
-    limits: Optional[JointLimits]
-    mimic: Optional[JointMimicSpec]
+    actuation: Actuation | None
+    offset: JointOffset | None
+    limits: JointLimits | None
+    mimic: JointMimicSpec | None
     polarity: str
 
-    _uri: Optional[URIRef]
-    _actuation_uri: Optional[URIRef]
-    _mimic_uri: Optional[URIRef]
-    _mimic_offset_uri: Optional[URIRef]
-    _common_axis_uri: Optional[URIRef]
-    _offset_uri: Optional[URIRef]
-    _offset_coord_uri: Optional[URIRef]
+    _uri: URIRef | None
+    _actuation_uri: URIRef | None
+    _mimic_uri: URIRef | None
+    _mimic_offset_uri: URIRef | None
+    _common_axis_uri: URIRef | None
+    _offset_uri: URIRef | None
+    _offset_coord_uri: URIRef | None
 
     def __init__(
         self,
@@ -378,14 +382,14 @@ class JointOffset:
 
 
 class JointLimits:
-    position: Optional[tuple[float, float]]
-    position_unit: Optional[str]
-    velocity: Optional[tuple[float, float]]
-    velocity_unit: Optional[str]
-    acceleration: Optional[tuple[float, float]]
-    acceleration_unit: Optional[str]
-    effort: Optional[tuple[float, float]]
-    effort_unit: Optional[str]
+    position: tuple[float, float] | None
+    position_unit: str | None
+    velocity: tuple[float, float] | None
+    velocity_unit: str | None
+    acceleration: tuple[float, float] | None
+    acceleration_unit: str | None
+    effort: tuple[float, float] | None
+    effort_unit: str | None
 
     def __init__(
         self,

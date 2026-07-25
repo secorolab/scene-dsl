@@ -16,7 +16,6 @@ from scene_dsl.rdf.scenex import (
 )
 from scene_dsl.rdf_parser.scenex import SceneInstanceModel
 
-
 from .test_common import MODELS_DIR
 
 
@@ -25,7 +24,7 @@ def test_namespace_must_be_declared_by_the_model_class():
         pass
 
     with pytest.raises(NotImplementedError, match="MissingNamespace"):
-        MissingNamespace(parent=object()).namespace
+        _ = MissingNamespace(parent=object()).namespace
 
 
 def test_scene_parses_and_generates_rdf():

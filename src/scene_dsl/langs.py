@@ -1,9 +1,8 @@
 # SPDX-License-Identifier: MPL-2.0
 from importlib import resources
 
-from rdflib import URIRef
-
 import textx.scoping.providers as scoping_providers
+from rdflib import URIRef
 from textx import get_children, get_children_of_type, get_location, get_model, metamodel_from_file
 from textx.exceptions import TextXSemanticError
 from textx.model import ObjCrossRef
@@ -28,17 +27,17 @@ from scene_dsl.classes.geom import (
 )
 from scene_dsl.classes.ktree import (
     Actuation,
-    KinematicGraph,
     FixedJoint,
+    JointBase,
+    JointComposition,
     JointLimits,
     JointMimicSpec,
     JointOffset,
-    KinematicTreeModel,
-    KinematicTreeInstance,
-    KinematicTreeTemplate,
     JointsSpec,
-    JointBase,
-    JointComposition,
+    KinematicGraph,
+    KinematicTreeInstance,
+    KinematicTreeModel,
+    KinematicTreeTemplate,
     RevoluteJoint,
     RigidBody,
     RigidBodyInertia,
@@ -330,7 +329,7 @@ def check_unique_uris(model, metamodel):
         if not isinstance(obj, IHasNamespace):
             return False
         try:
-            obj.uri
+            _ = obj.uri
         except AttributeError:
             # A template's elements have no namespace, so they mint nothing.
             return False

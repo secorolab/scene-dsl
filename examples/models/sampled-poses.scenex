@@ -23,15 +23,24 @@ distrib (ns=scene_lab_mjc) normal-scalar {
     normal { dimension: 1 mean: 0.0 std-dev: 0.5 }
 }
 
-scene inst (ns=scene_lab_mjc) sampled {
+scene inst (ns=scene_lab_mjc) sampled_poses {
     scene: <pickplace_scene>
     // No joints: these bodies are placed, not attached, which is a graph's business.
-    kgraph (ns=scene_lab_mjc) sampled_graph {
+    kgraph (ns=scene_lab_mjc) sampled_poses_graph {
         body world { frame root { } }
-        body thing {
-            frame frame {
-                pose p { wrt: <world.root> xyz: sample <uniform-xyz> m orientation: sample <rot> }
-                pose normal-p { wrt: <world.root> xyz: sample <normal-xyz> m orientation: euler { angles: (0.0, 0.0, 0.0) } }
+        body table {
+            frame surface {
+                pose fixed { wrt: <world.root> xyz: (1.0, 2.0, 0.75) m orientation: euler { angles: (0.0, 0.0, 0.0) } }
+            }
+        }
+        body uniform_object {
+            frame center {
+                pose random { wrt: <table.surface> xyz: sample <uniform-xyz> m orientation: sample <rot> }
+            }
+        }
+        body normal_object {
+            frame center {
+                pose random { wrt: <table.surface> xyz: sample <normal-xyz> m orientation: sample <rot> }
             }
         }
     }

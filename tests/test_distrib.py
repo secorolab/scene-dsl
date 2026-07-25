@@ -1,9 +1,15 @@
 import numpy as np
 import pytest
+from rdf_utils.constraints import ConstraintViolation
 from rdf_utils.models.distribution import (
     DistributionModel,
     distrib_from_sampled_quantity,
     sample_from_distrib,
+)
+from rdf_utils.models.geom_coord import (
+    get_rotation_between_frames,
+    get_transform_between_frames,
+    get_translation_between_points,
 )
 from rdf_utils.models.vocab import (
     URI_DISTRIB_PRED_FROM_DISTRIB,
@@ -21,7 +27,7 @@ from .test_common import MODELS_DIR
 
 
 def test_shared_distributions_generate_sampled_quantity_links():
-    model = scenex_metamodel().model_from_file(MODELS_DIR / "distributions.scenex")
+    model = scenex_metamodel().model_from_file(MODELS_DIR / "sampled-poses.scenex")
     graph = create_scenex_model_graph(model)
     distributions = {distribution.name: distribution for distribution in model.distributions}
     uniform_xyz = distributions["uniform-xyz"]
@@ -31,8 +37,9 @@ def test_shared_distributions_generate_sampled_quantity_links():
 
     assert (uniform_xyz.uri, RDF.type, URI_DISTRIB_TYPE_DISTRIB) in graph
     assert (normal_xyz.uri, RDF.type, URI_DISTRIB_TYPE_NORMAL) in graph
-    poses = model.scene_insts[0].kgraph.bodies[1].frames[0].poses
-    uniform_pose, normal_pose = poses
+    bodies = {body.name: body for body in model.scene_insts[0].kgraph.bodies}
+    uniform_pose = bodies["uniform_object"].frames[0].poses[0]
+    normal_pose = bodies["normal_object"].frames[0].poses[0]
     assert isinstance(uniform_pose, PoseSpec)
     assert (uniform_pose.position_coord_uri, RDF.type, URI_DISTRIB_TYPE_SAMPLED_QUANTITY) in graph
     assert (
@@ -47,6 +54,11 @@ def test_shared_distributions_generate_sampled_quantity_links():
     ) in graph
     assert (normal_pose.position_coord_uri, RDF.type, URI_DISTRIB_TYPE_SAMPLED_QUANTITY) in graph
     assert (normal_pose.position_coord_uri, URI_DISTRIB_PRED_FROM_DISTRIB, normal_xyz.uri) in graph
+    assert (
+        normal_pose.orientation_coord_uri,
+        URI_DISTRIB_PRED_FROM_DISTRIB,
+        rotation.uri,
+    ) in graph
 
     uniform_sample = sample_from_distrib(
         distrib_from_sampled_quantity(uniform_pose.position_coord_uri, graph), size=(4, 3)
@@ -76,9 +88,93 @@ def test_shared_distributions_generate_sampled_quantity_links():
 
 
 def test_non_three_dimensional_normal_is_rejected_for_xyz_sampling():
-    model = scenex_metamodel().model_from_file(MODELS_DIR / "distributions.scenex")
+    model = scenex_metamodel().model_from_file(MODELS_DIR / "sampled-poses.scenex")
     next(
         distribution for distribution in model.distributions if distribution.name == "normal-xyz"
     ).spec.dimension = 2
     with pytest.raises(ValueError, match="dimension 3"):
         create_scenex_model_graph(model)
+
+
+def test_pose_paths_resolve_concrete_and_sampled_coordinates():
+    model = scenex_metamodel().model_from_file(MODELS_DIR / "sampled-poses.scenex")
+    graph = create_scenex_model_graph(model)
+    bodies = {body.name: body for body in model.scene_insts[0].kgraph.bodies}
+    world = bodies["world"].default_frame
+    table = bodies["table"].default_frame
+
+    assert get_translation_between_points(table.origin_uri, world.origin_uri, graph) == (
+        1.0,
+        2.0,
+        0.75,
+    )
+    assert np.allclose(
+        get_rotation_between_frames(table.uri, world.uri, graph).as_matrix(), np.eye(3)
+    )
+    assert np.allclose(
+        get_transform_between_frames(table.uri, world.uri, graph).as_matrix(),
+        np.array(
+            (
+                (1.0, 0.0, 0.0, 1.0),
+                (0.0, 1.0, 0.0, 2.0),
+                (0.0, 0.0, 1.0, 0.75),
+                (0.0, 0.0, 0.0, 1.0),
+            )
+        ),
+    )
+
+    for body_name in ("uniform_object", "normal_object"):
+        sampled = bodies[body_name].default_frame
+        sampled_pose = sampled.poses[0]
+
+        with pytest.raises(ValueError):
+            get_translation_between_points(sampled.origin_uri, world.origin_uri, graph)
+        with pytest.raises(ConstraintViolation, match="no orientation values"):
+            get_rotation_between_frames(sampled.uri, world.uri, graph)
+
+        seed = 42
+        expected_translation = sample_from_distrib(
+            distrib_from_sampled_quantity(sampled_pose.position_coord_uri, graph),
+            rng=np.random.default_rng(seed),
+        ) + np.array((1.0, 2.0, 0.75))
+        assert np.allclose(
+            get_translation_between_points(
+                sampled.origin_uri,
+                world.origin_uri,
+                graph,
+                rng=np.random.default_rng(seed),
+            ),
+            expected_translation,
+        )
+
+        expected_rotation = sample_from_distrib(
+            distrib_from_sampled_quantity(sampled_pose.orientation_coord_uri, graph),
+            rng=np.random.default_rng(seed),
+        )
+        assert np.allclose(
+            get_rotation_between_frames(
+                sampled.uri,
+                world.uri,
+                graph,
+                rng=np.random.default_rng(seed),
+            ).as_matrix(),
+            expected_rotation.as_matrix(),
+        )
+
+        expected_rng = np.random.default_rng(seed)
+        object_transform = np.eye(4)
+        object_transform[:3, 3] = sample_from_distrib(
+            distrib_from_sampled_quantity(sampled_pose.position_coord_uri, graph),
+            rng=expected_rng,
+        )
+        object_transform[:3, :3] = sample_from_distrib(
+            distrib_from_sampled_quantity(sampled_pose.orientation_coord_uri, graph),
+            rng=expected_rng,
+        ).as_matrix()
+        table_transform = get_transform_between_frames(table.uri, world.uri, graph)
+        assert np.allclose(
+            get_transform_between_frames(
+                sampled.uri, world.uri, graph, rng=np.random.default_rng(seed)
+            ).as_matrix(),
+            table_transform.as_matrix() @ object_transform,
+        )

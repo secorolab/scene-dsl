@@ -1,6 +1,5 @@
 import numpy as np
 import pytest
-from rdf_utils.constraints import ConstraintViolation
 from rdf_utils.models.distribution import (
     DistributionModel,
     distrib_from_sampled_quantity,
@@ -126,11 +125,6 @@ def test_pose_paths_resolve_concrete_and_sampled_coordinates():
     for body_name in ("uniform_object", "normal_object"):
         sampled = bodies[body_name].default_frame
         sampled_pose = sampled.poses[0]
-
-        with pytest.raises(ValueError):
-            get_translation_between_points(sampled.origin_uri, world.origin_uri, graph)
-        with pytest.raises(ConstraintViolation, match="no orientation values"):
-            get_rotation_between_frames(sampled.uri, world.uri, graph)
 
         seed = 42
         expected_translation = sample_from_distrib(

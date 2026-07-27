@@ -10,10 +10,8 @@ from rdflib import Literal, Namespace
 from scene_dsl.classes.common import IHasNamespace
 from scene_dsl.langs import scene_metamodel, scenex_metamodel
 from scene_dsl.rdf.scene import create_scene_model_graph
-from scene_dsl.rdf.scenex import (
-    URI_USD_STAGE,
-    create_scenex_model_graph,
-)
+from scene_dsl.rdf.scenex import create_scenex_model_graph
+from scene_dsl.rdf_parser.vocab import URI_USD_STAGE
 from scene_dsl.rdf_parser.scenex import SceneInstanceModel
 
 from .test_common import MODELS_DIR

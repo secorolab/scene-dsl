@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: MPL-2.0
 from typing import Any
 
-from bdd_dsl.models.namespace import NS_MM_ROS
 from bdd_dsl.models.urirefs import (
     URI_AGN_PRED_HAS_AGN_MODEL,
     URI_AGN_PRED_OF_AGN,
@@ -33,7 +32,7 @@ from rdf_utils.namespace import (
     NS_MM_QUDT_QTY,
     NS_MM_QUDT_UNIT,
 )
-from rdflib import RDF, Graph, Literal, Namespace, URIRef
+from rdflib import RDF, Graph, Literal, URIRef
 
 from scene_dsl.classes.scenex import (
     ElementModel,
@@ -49,16 +48,18 @@ from scene_dsl.rdf.distrib import add_distribution
 from scene_dsl.rdf.ktree import add_kinematic_graph, add_kinematic_tree
 from scene_dsl.rdf.scene import add_scene_model
 from scene_dsl.rdf.sensors import add_sensors
-
-NS_XML = Namespace("https://www.w3.org/TR/2006/REC-xml11-20060816#")
-NS_URDF = Namespace("https://wiki.ros.org/urdf/XML/")
-NS_MJCF = Namespace("https://mujoco.readthedocs.io/en/stable/XMLreference.html#")
-NS_USD = Namespace("https://openusd.org/release/spec.html#")
-
-URI_XML_DOCUMENT = NS_XML["document"]
-URI_URDF_ROBOT = NS_URDF["robot"]
-URI_MJCF_MUJOCO = NS_MJCF["mujoco"]
-URI_USD_STAGE = NS_USD["stage"]
+from scene_dsl.rdf_parser.vocab import (
+    NS_MJCF,
+    NS_URDF,
+    NS_USD,
+    NS_XML,
+    URI_MJCF_MUJOCO,
+    URI_ROS_PRED_PACKAGE_NAME,
+    URI_ROS_TYPE_PACKAGE,
+    URI_USD_STAGE,
+    URI_URDF_ROBOT,
+    URI_XML_DOCUMENT,
+)
 
 
 def _bind_model_kind_namespaces(graph: Graph) -> None:
@@ -84,8 +85,8 @@ def add_model_spec(graph: Graph, elem_model: ElementModel) -> None:
     elif "RosPath" in model_spec_type:
         graph.add((elem_model.uri, RDF.type, URI_EXEC_TYPE_RES_PATH))
         graph.add((elem_model.uri, RDF.type, URI_EXEC_TYPE_SYS_RES))
-        graph.add((elem_model.uri, RDF.type, NS_MM_ROS["Package"]))
-        graph.add((elem_model.uri, NS_MM_ROS["package-name"], Literal(elem_model.model_spec.pkg)))
+        graph.add((elem_model.uri, RDF.type, URI_ROS_TYPE_PACKAGE))
+        graph.add((elem_model.uri, URI_ROS_PRED_PACKAGE_NAME, Literal(elem_model.model_spec.pkg)))
         graph.add((elem_model.uri, URI_EXEC_PRED_PATH, Literal(elem_model.model_spec.path)))
     else:
         raise ValueError(f"Unhandled model specification type: {model_spec_type}")

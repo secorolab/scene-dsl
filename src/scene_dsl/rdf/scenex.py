@@ -2,17 +2,17 @@
 from typing import Any
 
 from bdd_dsl.models.urirefs import (
+    URI_BDD_PRED_OF_SCENE,
+)
+from rdf_utils.models.vocab import (
     URI_AGN_PRED_HAS_AGN_MODEL,
     URI_AGN_PRED_OF_AGN,
     URI_AGN_TYPE_AGN_MODEL,
     URI_AGN_TYPE_MOD_AGN,
-    URI_BDD_PRED_OF_SCENE,
     URI_ENV_PRED_HAS_OBJ_MODEL,
     URI_ENV_PRED_OF_OBJ,
     URI_ENV_TYPE_MOD_OBJ,
     URI_ENV_TYPE_OBJ_MODEL,
-)
-from rdf_utils.models.vocab import (
     URI_EXEC_PRED_HAS_MAPPING,
     URI_EXEC_PRED_HAS_MODELLED_AGN,
     URI_EXEC_PRED_HAS_MODELLED_OBJ,
@@ -56,8 +56,8 @@ from scene_dsl.rdf_parser.vocab import (
     URI_MJCF_MUJOCO,
     URI_ROS_PRED_PACKAGE_NAME,
     URI_ROS_TYPE_PACKAGE,
-    URI_USD_STAGE,
     URI_URDF_ROBOT,
+    URI_USD_STAGE,
     URI_XML_DOCUMENT,
 )
 

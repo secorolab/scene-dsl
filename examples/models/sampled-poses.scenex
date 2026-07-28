@@ -36,12 +36,12 @@ scene inst (ns=scene_lab_mjc) sampled_poses {
         }
         body uniform_object {
             frame center {
-                pose random { wrt: <table.surface> xyz: sample <uniform-xyz> m orientation: sample <rot> }
+                pose random { wrt: <table.surface> xyz: sample <uniform-xyz> m orientation: quat { sample <rot> } }
             }
         }
         body normal_object {
             frame center {
-                pose random { wrt: <table.surface> xyz: sample <normal-xyz> m orientation: sample <rot> }
+                pose random { wrt: <table.surface> xyz: sample <normal-xyz> m orientation: quat { sample <rot> } }
             }
         }
     }

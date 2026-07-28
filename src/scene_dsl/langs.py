@@ -22,8 +22,10 @@ from scene_dsl.classes.geom import (
     EulerOrientationSpec,
     Frame,
     FrameAxis,
+    OrientationCoord,
     OrientationSpec,
     PoseSpec,
+    QuaternionOrientationSpec,
 )
 from scene_dsl.classes.ktree import (
     Actuation,
@@ -381,6 +383,8 @@ def scenex_metamodel():
             SceneInstance,
             PoseSpec,
             OrientationSpec,
+            OrientationCoord,
+            QuaternionOrientationSpec,
             EulerOrientationSpec,
             DirectionCosineOrientationSpec,
             Frame,

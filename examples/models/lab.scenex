@@ -123,7 +123,7 @@ ktree (ns=scene_lab_mjc) world_tree {
             }
         }
         inertia {
-            frame: table_root
+            frame: <table_root>
             mass: 10.0 kg
             inertia-matrix: (
                 (1.0, 0.0, 0.0),
@@ -178,7 +178,7 @@ scene inst (ns=scene_lab_mjc) pickplace_scene_mjc {
                 }
             }
             inertia {
-                frame: box1_root
+                frame: <box1_root>
                 mass: 0.2 kg
                 inertia-matrix: (
                     (0.001, 0.0, 0.0),

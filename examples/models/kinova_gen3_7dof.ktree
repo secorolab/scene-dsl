@@ -26,7 +26,7 @@ ktree kinova_tree {
             }
         }
         inertia {
-            frame: base_link_com
+            frame: <base_link_com>
             mass: 1.697 kg
             inertia-matrix: (
                 (0.00462407, 0.0, 0.0),
@@ -52,7 +52,7 @@ ktree kinova_tree {
             }
         }
         inertia {
-            frame: shoulder_link_com
+            frame: <shoulder_link_com>
             mass: 1.3773 kg
             inertia-matrix: (
                 (0.00488868, 0.0, 0.0),
@@ -78,7 +78,7 @@ ktree kinova_tree {
             }
         }
         inertia {
-            frame: half_arm_1_link_com
+            frame: <half_arm_1_link_com>
             mass: 1.1636 kg
             inertia-matrix: (
                 (0.0113017, 0.0, 0.0),
@@ -104,7 +104,7 @@ ktree kinova_tree {
             }
         }
         inertia {
-            frame: half_arm_2_link_com
+            frame: <half_arm_2_link_com>
             mass: 1.1636 kg
             inertia-matrix: (
                 (0.0111633, 0.0, 0.0),
@@ -130,7 +130,7 @@ ktree kinova_tree {
             }
         }
         inertia {
-            frame: forearm_link_com
+            frame: <forearm_link_com>
             mass: 0.9302 kg
             inertia-matrix: (
                 (0.00834839, 0.0, 0.0),
@@ -156,7 +156,7 @@ ktree kinova_tree {
             }
         }
         inertia {
-            frame: spherical_wrist_1_link_com
+            frame: <spherical_wrist_1_link_com>
             mass: 0.6781 kg
             inertia-matrix: (
                 (0.00165901, 0.0, 0.0),
@@ -182,7 +182,7 @@ ktree kinova_tree {
             }
         }
         inertia {
-            frame: spherical_wrist_2_link_com
+            frame: <spherical_wrist_2_link_com>
             mass: 0.6781 kg
             inertia-matrix: (
                 (0.00170087, 0.0, 0.0),
@@ -215,7 +215,7 @@ ktree kinova_tree {
             }
         }
         inertia {
-            frame: bracelet_link_com
+            frame: <bracelet_link_com>
             mass: 0.5 kg
             inertia-matrix: (
                 (0.000657336, 0.0, 0.0),

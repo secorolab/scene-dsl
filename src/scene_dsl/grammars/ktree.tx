@@ -45,13 +45,15 @@ RigidBody:
 
 RigidBodyInertia:
 'inertia' '{'
-    'frame' ':' frame=[Frame|FQN]
-    'mass' ':' mass=FLOAT mass_unit=MassUnit
+    'frame' ':' '<' frame=[Frame|FQN] '>'
+    ('mass' ':' mass=FLOAT mass_unit=MassUnit)?
+    (
     'inertia-matrix' ':' '('
         row1=FloatVector ','
         row2=FloatVector ','
         row3=FloatVector
     ')' inertia_unit=InertiaUnit
+    )?
 '}'
 ;
 

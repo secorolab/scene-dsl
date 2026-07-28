@@ -185,19 +185,21 @@ class RigidBody(IHasNamespace, IDefaultFrame):
 
 class RigidBodyInertia:
     frame: Frame
-    mass: float
-    mass_unit: str
-    row1: FloatVector
-    row2: FloatVector
-    row3: FloatVector
-    inertia_unit: str
+    mass: float | None
+    mass_unit: str | None
+    row1: FloatVector | None
+    row2: FloatVector | None
+    row3: FloatVector | None
+    inertia_unit: str | None
 
-    matrix: np.ndarray
+    matrix: np.ndarray | None
 
     def __init__(self, parent, frame, mass, mass_unit, row1, row2, row3, inertia_unit) -> None:
         self.parent = parent
         self.frame = frame
-        if mass < 0:
+        if mass_unit is None:
+            mass = None
+        if mass is not None and mass < 0:
             raise ValueError(f"RigidBodyInertia.mass must be >= 0, got {mass}")
         self.mass = mass
         self.mass_unit = mass_unit
@@ -206,16 +208,21 @@ class RigidBodyInertia:
         self.row3 = row3
         self.inertia_unit = inertia_unit
 
-        self.matrix = np.array(
-            (
-                self.row1.as_xyz("RigidBodyInertia.row1"),
-                self.row2.as_xyz("RigidBodyInertia.row2"),
-                self.row3.as_xyz("RigidBodyInertia.row3"),
-            ),
-            dtype=float,
-        )
-        if not np.allclose(self.matrix, self.matrix.T):
-            raise ValueError("RigidBodyInertia.matrix must be symmetric")
+        rows = (self.row1, self.row2, self.row3)
+        if any(row is None for row in rows):
+            if not all(row is None for row in rows):
+                raise ValueError("RigidBodyInertia.matrix requires all three rows")
+            self.matrix = None
+        else:
+            self.matrix = np.array(
+                tuple(
+                    row.as_xyz(f"RigidBodyInertia.row{index}")
+                    for index, row in enumerate(rows, start=1)
+                ),
+                dtype=float,
+            )
+            if not np.allclose(self.matrix, self.matrix.T):
+                raise ValueError("RigidBodyInertia.matrix must be symmetric")
 
 
 class JointsSpec(IHasNamespace):

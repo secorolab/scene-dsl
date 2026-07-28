@@ -258,10 +258,10 @@ scene inst (ns=n) sx {{
     assert get_coord_vectorxyz(position_coord, graph) == tuple(pose.position_spec.values)
 
     axes, is_intrinsic, unit_uri, angles = get_euler_angles_abg(orient_coord, graph)
-    assert axes == pose.orientation.axes
-    assert is_intrinsic != pose.orientation.extrinsic
-    assert unit_uri == ANGLE_UNITS[pose.orientation.unit]
-    assert angles == tuple(pose.orientation.angles.values)
+    assert axes == pose.orientation.spec.axes
+    assert is_intrinsic != pose.orientation.spec.extrinsic
+    assert unit_uri == ANGLE_UNITS[pose.orientation.spec.unit]
+    assert angles == tuple(pose.orientation.spec.angles.values)
 
     assert (cup_body.inertia_coord_uri, URI_QUDT_PRED_UNIT, MASS_UNITS[mass_unit]) in graph
     assert (cup_body.inertia_coord_uri, URI_QUDT_PRED_UNIT, INERTIA_UNITS[inertia_unit]) in graph

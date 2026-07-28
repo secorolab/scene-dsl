@@ -42,7 +42,7 @@ def test_lab_scenex_agent_tree_link_and_sensors_emit_rdf():
 
     assert tree in scene_inst.kgraph.trees[0].trees
     orientation = tree.bodies[0].frames[0].poses[0].orientation
-    assert np.allclose(orientation.rotation_matrix, np.eye(3))
+    assert np.allclose(orientation.spec.rotation_matrix, np.eye(3))
 
     graph = create_scenex_model_graph(model)
 

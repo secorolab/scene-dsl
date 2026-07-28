@@ -18,7 +18,11 @@ from rdf_utils.models.vocab import (
     URI_GEOM_PRED_VECT_X,
     URI_GEOM_PRED_VECT_Y,
     URI_GEOM_PRED_VECT_Z,
+    URI_GEOM_PRED_W,
     URI_GEOM_PRED_WRT,
+    URI_GEOM_PRED_X,
+    URI_GEOM_PRED_Y,
+    URI_GEOM_PRED_Z,
     URI_GEOM_TYPE_ANGLES_ABG,
     URI_GEOM_TYPE_BOUND_VECTOR,
     URI_GEOM_TYPE_DIRECTION_COSINE_XYZ,
@@ -36,6 +40,7 @@ from rdf_utils.models.vocab import (
     URI_GEOM_TYPE_POSITION,
     URI_GEOM_TYPE_POSITION_COORD,
     URI_GEOM_TYPE_POSITION_REF,
+    URI_GEOM_TYPE_QUATERNION,
     URI_GEOM_TYPE_VECTOR,
     URI_GEOM_TYPE_VECTOR_XYZ,
     URI_QUDT_PRED_QUANTITY_KIND,
@@ -62,6 +67,7 @@ from scene_dsl.classes.geom import (
     EulerOrientationSpec,
     Frame,
     PoseSpec,
+    QuaternionOrientationSpec,
 )
 from scene_dsl.rdf.common import add_vector_xyz
 from scene_dsl.rdf.distrib import add_sampled_quantity
@@ -145,59 +151,74 @@ def add_orientation_coord(graph: Graph, pose: PoseSpec) -> None:
     graph.add(triple=(pose.orientation_coord_uri, URI_GEOM_PRED_OF_ORIENT, pose.orientation_uri))
     graph.add(triple=(pose.orientation_coord_uri, URI_GEOM_PRED_SEEN_BY, pose.wrt.uri))
 
-    if isinstance(pose.orientation, EulerOrientationSpec):
+    orientation = pose.orientation
+    spec = orientation.spec
+    if isinstance(spec, EulerOrientationSpec):
         graph.add((pose.orientation_coord_uri, RDF.type, URI_GEOM_TYPE_EULER_ANGLES))
-        graph.add(
-            (pose.orientation_coord_uri, URI_GEOM_PRED_AXES_SEQ, Literal(pose.orientation.axes))
-        )
+        graph.add((pose.orientation_coord_uri, URI_GEOM_PRED_AXES_SEQ, Literal(spec.axes)))
         graph.add(
             (
                 pose.orientation_coord_uri,
                 RDF.type,
-                URI_GEOM_TYPE_EXTRINSIC if pose.orientation.extrinsic else URI_GEOM_TYPE_INTRINSIC,
+                URI_GEOM_TYPE_EXTRINSIC if spec.extrinsic else URI_GEOM_TYPE_INTRINSIC,
             )
         )
         graph.add((pose.orientation_coord_uri, RDF.type, URI_GEOM_TYPE_ANGLES_ABG))
-        graph.add(
-            (pose.orientation_coord_uri, URI_GEOM_PRED_ALPHA, Literal(pose.orientation.alpha))
-        )
-        graph.add((pose.orientation_coord_uri, URI_GEOM_PRED_BETA, Literal(pose.orientation.beta)))
-        graph.add(
-            (pose.orientation_coord_uri, URI_GEOM_PRED_GAMMA, Literal(pose.orientation.gamma))
-        )
-        graph.add(
-            (pose.orientation_coord_uri, URI_QUDT_PRED_UNIT, ANGLE_UNITS[pose.orientation.unit])
-        )
-    elif isinstance(pose.orientation, DirectionCosineOrientationSpec):
+        graph.add((pose.orientation_coord_uri, URI_GEOM_PRED_ALPHA, Literal(spec.alpha)))
+        graph.add((pose.orientation_coord_uri, URI_GEOM_PRED_BETA, Literal(spec.beta)))
+        graph.add((pose.orientation_coord_uri, URI_GEOM_PRED_GAMMA, Literal(spec.gamma)))
+        graph.add((pose.orientation_coord_uri, URI_QUDT_PRED_UNIT, ANGLE_UNITS[spec.unit]))
+    elif isinstance(spec, DirectionCosineOrientationSpec):
         graph.add((pose.orientation_coord_uri, RDF.type, URI_GEOM_TYPE_DIRECTION_COSINE_XYZ))
         add_literal_list_pred(
             graph=graph,
             subject_uri=pose.orientation_coord_uri,
             pred_uri=URI_GEOM_PRED_DIRECTION_COSINE_X,
-            values=pose.orientation.x_axis,
+            values=spec.x_axis,
         )
         add_literal_list_pred(
             graph=graph,
             subject_uri=pose.orientation_coord_uri,
             pred_uri=URI_GEOM_PRED_DIRECTION_COSINE_Y,
-            values=pose.orientation.y_axis,
+            values=spec.y_axis,
         )
         add_literal_list_pred(
             graph=graph,
             subject_uri=pose.orientation_coord_uri,
             pred_uri=URI_GEOM_PRED_DIRECTION_COSINE_Z,
-            values=pose.orientation.z_axis,
+            values=spec.z_axis,
         )
-    elif isinstance(pose.orientation, DistributionRef):
-        if not isinstance(pose.orientation.distribution.spec, UniformRotationDistribution):
+    elif isinstance(spec, QuaternionOrientationSpec):
+        graph.add((pose.orientation_coord_uri, RDF.type, URI_GEOM_TYPE_QUATERNION))
+        for predicate, value in zip(
+            (URI_GEOM_PRED_X, URI_GEOM_PRED_Y, URI_GEOM_PRED_Z, URI_GEOM_PRED_W), spec.xyzw
+        ):
+            graph.add((pose.orientation_coord_uri, predicate, Literal(value)))
+    elif isinstance(spec, DistributionRef):
+        if not isinstance(spec.distribution.spec, UniformRotationDistribution):
             raise TypeError(
                 f"add_orientation_coord({pose.orientation_coord_uri}): sampling requires a UniformRotationDistribution specification"
             )
         add_sampled_quantity(
             graph=graph,
             quantity_uri=pose.orientation_coord_uri,
-            distrib_ref=pose.orientation,
+            distrib_ref=spec,
         )
+        if orientation.coord_type == "quat":
+            graph.add((pose.orientation_coord_uri, RDF.type, URI_GEOM_TYPE_QUATERNION))
+        elif orientation.coord_type == "euler":
+            # Default Euler convention is yaw-pitch-roll
+            graph.add((pose.orientation_coord_uri, RDF.type, URI_GEOM_TYPE_EULER_ANGLES))
+            graph.add((pose.orientation_coord_uri, URI_GEOM_PRED_AXES_SEQ, Literal("zyx")))
+            graph.add((pose.orientation_coord_uri, RDF.type, URI_GEOM_TYPE_INTRINSIC))
+            graph.add((pose.orientation_coord_uri, RDF.type, URI_GEOM_TYPE_ANGLES_ABG))
+            graph.add((pose.orientation_coord_uri, URI_QUDT_PRED_UNIT, URI_QUDT_UNIT_RAD))
+        elif orientation.coord_type == "direction-cosine":
+            graph.add((pose.orientation_coord_uri, RDF.type, URI_GEOM_TYPE_DIRECTION_COSINE_XYZ))
+        else:
+            raise TypeError(
+                f"unhandled sampled orientation coordinate type '{orientation.coord_type}' for '{pose.orientation_coord_uri}'"
+            )
     else:
         raise TypeError(
             f"add_orientation_coord({pose.orientation_coord_uri}): Unsupported orientation: {pose.orientation}"

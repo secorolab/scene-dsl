@@ -13,30 +13,37 @@ PoseSpec:
     ('wrt' ':' '<' wrt=[Frame|FQN] '>')?
     'xyz' ':' position_spec=PositionSpec
     length_unit=LengthUnit
-    'orientation' ':' orientation=OrientationSpec
+    'orientation' ':' orientation=OrientationCoord
 '}'
 ;
 
 PositionSpec: FloatVector | DistributionRef ;
 
-OrientationSpec: EulerOrientationSpec | DirectionCosineOrientationSpec | DistributionRef ;
+OrientationCoordType: 'quat' | 'euler' | 'direction-cosine' ;
+OrientationCoord:
+coord_type=OrientationCoordType '{'
+    spec=OrientationSpec
+'}'
+;
+
+OrientationSpec: QuaternionOrientationSpec | EulerOrientationSpec | DirectionCosineOrientationSpec | DistributionRef ;
+
+QuaternionOrientationSpec:
+    'xyzw' ':' xyzw=FloatVector
+;
 
 EulerAxes: 'xyz' | 'xzy' | 'yxz' | 'yzx' | 'zxy' | 'zyx' ;
 EulerOrientationSpec:
-'euler' '{'
     ('axes' ':' axes=EulerAxes)?
     extrinsic?='extrinsic'
     'angles' ':' angles=FloatVector
     ('unit' ':' unit=AngleUnit)?
-'}'
 ;
 
 DirectionCosineOrientationSpec:
-'direction-cosine' '{'
     'x' ':' x_axis=FloatVector
     'y' ':' y_axis=FloatVector
     'z' ':' z_axis=FloatVector
-'}'
 ;
 
 Frame:

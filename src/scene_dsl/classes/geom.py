@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: MPL-2.0
 from __future__ import annotations
 
+import math
+
 import numpy as np
 from rdflib import Namespace, URIRef
 
@@ -10,6 +12,41 @@ from scene_dsl.classes.distrib import DistributionRef
 
 class OrientationSpec:
     pass
+
+
+class QuaternionOrientationSpec(OrientationSpec):
+    xyzw: tuple[float, float, float, float]
+
+    def __init__(self, parent, xyzw) -> None:
+        self.parent = parent
+        values = tuple(xyzw.values)
+        if len(values) != 4 or not all(math.isfinite(value) for value in values):
+            raise ValueError("QuaternionOrientationSpec.xyzw requires four finite values")
+        if not math.isclose(math.hypot(*values), 1.0, rel_tol=1e-7, abs_tol=1e-7):
+            raise ValueError("QuaternionOrientationSpec.xyzw must have unit length")
+        self.xyzw = values
+
+
+class OrientationCoord:
+    spec: OrientationSpec
+    coord_type: str
+
+    def __init__(self, parent, coord_type, spec) -> None:
+        self.parent = parent
+        self.coord_type = coord_type
+        self.spec = spec
+        if coord_type == "quat" and not isinstance(
+            spec, (QuaternionOrientationSpec, DistributionRef)
+        ):
+            raise TypeError("quat orientation requires xyzw values or a sampled distribution")
+        if coord_type == "euler" and not isinstance(spec, (EulerOrientationSpec, DistributionRef)):
+            raise TypeError("euler orientation requires Euler values or a sampled distribution")
+        if coord_type == "direction-cosine" and not isinstance(
+            spec, (DirectionCosineOrientationSpec, DistributionRef)
+        ):
+            raise TypeError(
+                "direction-cosine orientation requires matrix values or a sampled distribution"
+            )
 
 
 class EulerOrientationSpec(OrientationSpec):
@@ -58,7 +95,7 @@ class PoseSpec(IHasNamespace):
     name: str
     position_spec: FloatVector | DistributionRef
     length_unit: str
-    orientation: OrientationSpec
+    orientation: OrientationCoord
 
     _wrt: Frame | None
     _uri: URIRef | None

@@ -2,8 +2,6 @@
 from typing import Any
 
 from bdd_dsl.models.urirefs import (
-    URI_AGN_PRED_HAS_AGN,
-    URI_AGN_TYPE_AGN,
     URI_BDD_PRED_ELEMS,
     URI_BDD_TYPE_CONST_SET,
     URI_BDD_TYPE_SCENE,
@@ -11,6 +9,10 @@ from bdd_dsl.models.urirefs import (
     URI_BDD_TYPE_SCENE_OBJ,
     URI_BDD_TYPE_SCENE_WS,
     URI_BDD_TYPE_SET,
+)
+from rdf_utils.models.vocab import (
+    URI_AGN_PRED_HAS_AGN,
+    URI_AGN_TYPE_AGN,
     URI_ENV_PRED_HAS_OBJ,
     URI_ENV_PRED_HAS_WS,
     URI_ENV_PRED_OF_WS,

@@ -11,8 +11,12 @@ from scene_dsl.classes.common import IHasNamespace
 from scene_dsl.langs import scene_metamodel, scenex_metamodel
 from scene_dsl.rdf.scene import create_scene_model_graph
 from scene_dsl.rdf.scenex import create_scenex_model_graph
-from scene_dsl.rdf_parser.vocab import URI_USD_STAGE
 from scene_dsl.rdf_parser.scenex import SceneInstanceModel
+from scene_dsl.rdf_parser.vocab import (
+    URI_ROS_PRED_PACKAGE_NAME,
+    URI_ROS_TYPE_PACKAGE,
+    URI_USD_STAGE,
+)
 
 from .test_common import MODELS_DIR
 
@@ -59,6 +63,78 @@ scene inst (ns=scene_lab_mjc) usd_scene {
     [resource] = parsed.models.values()
     assert URI_USD_STAGE in resource.types
     assert resource.get_attr(URI_EXEC_PRED_PATH) == "/tmp/scene.usda"
+
+
+def _parse_example_scene(index=0, loaders=None):
+    model = scenex_metamodel().model_from_file(MODELS_DIR / "lab.scenex")
+    scene_instance = model.scene_insts[index]
+    return SceneInstanceModel(
+        scene_instance.uri,
+        create_scenex_model_graph(model),
+        loaders=loaders,
+    )
+
+
+def test_scene_parser_loads_modelled_objects_and_agents():
+    parsed = _parse_example_scene()
+
+    assert parsed.models == {}
+    assert len(parsed.modelled_objects) == 2
+    assert len(parsed.modelled_agents) == 4
+
+    object_models = [
+        model for models in parsed.modelled_objects.values() for model in models.values()
+    ]
+    ros_model = next(model for model in object_models if URI_ROS_TYPE_PACKAGE in model.types)
+    assert ros_model.get_attr(URI_EXEC_PRED_PATH) == "assets/table.xml"
+    assert ros_model.get_attr(URI_ROS_PRED_PACKAGE_NAME) == "test_pkg"
+
+
+def test_modelled_resources_use_custom_loaders_in_order():
+    calls = []
+
+    def first(graph, model, **kwargs):
+        calls.append(("first", model.id))
+
+    def second(graph, model, **kwargs):
+        calls.append(("second", model.id))
+
+    parsed = _parse_example_scene(loaders=[first, second])
+    models = [
+        model
+        for modelled in (parsed.modelled_objects, parsed.modelled_agents)
+        for resources in modelled.values()
+        for model in resources.values()
+    ]
+
+    assert calls == [(name, model.id) for model in models for name in ("first", "second")]
+
+
+def test_object_set_wrappers_preserve_shared_model_references():
+    parsed = _parse_example_scene(index=1)
+
+    assert parsed.models == {}
+    assert parsed.modelled_agents == {}
+    assert len(parsed.modelled_objects) == 5
+    model_ids = [next(iter(models)) for models in parsed.modelled_objects.values()]
+    assert len(set(model_ids)) == 2
+
+
+def test_scene_parser_accepts_scene_without_models():
+    model = scenex_metamodel().model_from_str(
+        """import "lab.scene"
+scene inst (ns=scene_lab_mjc) empty_scene {
+    scene: <pickplace_scene>
+}
+""",
+        file_name=str(MODELS_DIR / "empty_scene.scenex"),
+    )
+
+    parsed = SceneInstanceModel(model.scene_insts[0].uri, create_scenex_model_graph(model))
+
+    assert parsed.models == {}
+    assert parsed.modelled_objects == {}
+    assert parsed.modelled_agents == {}
 
 
 def test_shared_workspace_composition_is_rejected(tmp_path):

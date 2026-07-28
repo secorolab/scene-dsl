@@ -8,6 +8,7 @@ from rdf_utils.models.vocab import (
     URI_EXEC_PRED_HAS_MODELLED_AGN,
     URI_EXEC_PRED_HAS_MODELLED_OBJ,
     URI_EXEC_PRED_MODEL,
+    URI_EXEC_PRED_PATH,
     URI_EXEC_TYPE_SCENE_INST,
 )
 from rdflib import Graph, Literal, URIRef
@@ -31,6 +32,18 @@ DEFAULT_MODEL_LOADERS: tuple[AttrLoaderProtocol, ...] = (
     load_py_module_attr,
     load_ros_path,
 )
+
+
+def get_ros_pkg_path(model: ModelBase) -> tuple[str, str] | None:
+    """Return ROS package and relative path metadata without resolving it."""
+    if URI_ROS_TYPE_PACKAGE not in model.types:
+        return None
+
+    package_name = model.get_attr(URI_ROS_PRED_PACKAGE_NAME)
+    path = model.get_attr(URI_EXEC_PRED_PATH)
+    if not isinstance(package_name, str) or not isinstance(path, str):
+        raise TypeError(f"ROS model '{model.id}' has invalid package or path metadata")
+    return package_name, path
 
 
 class SceneInstanceModel(ModelBase):

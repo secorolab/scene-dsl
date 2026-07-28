@@ -11,9 +11,8 @@ from scene_dsl.classes.common import IHasNamespace
 from scene_dsl.langs import scene_metamodel, scenex_metamodel
 from scene_dsl.rdf.scene import create_scene_model_graph
 from scene_dsl.rdf.scenex import create_scenex_model_graph
-from scene_dsl.rdf_parser.scenex import SceneInstanceModel
+from scene_dsl.rdf_parser.scenex import SceneInstanceModel, get_ros_pkg_path
 from scene_dsl.rdf_parser.vocab import (
-    URI_ROS_PRED_PACKAGE_NAME,
     URI_ROS_TYPE_PACKAGE,
     URI_USD_STAGE,
 )
@@ -86,8 +85,7 @@ def test_scene_parser_loads_modelled_objects_and_agents():
         model for models in parsed.modelled_objects.values() for model in models.values()
     ]
     ros_model = next(model for model in object_models if URI_ROS_TYPE_PACKAGE in model.types)
-    assert ros_model.get_attr(URI_EXEC_PRED_PATH) == "assets/table.xml"
-    assert ros_model.get_attr(URI_ROS_PRED_PACKAGE_NAME) == "test_pkg"
+    assert get_ros_pkg_path(ros_model) == ("test_pkg", "assets/table.xml")
 
 
 def test_modelled_resources_use_custom_loaders_in_order():

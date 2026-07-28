@@ -15,6 +15,7 @@ from rdf_utils.models.vocab import (
     URI_DISTRIB_TYPE_DISTRIB,
     URI_DISTRIB_TYPE_NORMAL,
     URI_DISTRIB_TYPE_SAMPLED_QUANTITY,
+    URI_DYN_PRED_ABOUT,
 )
 from rdflib import RDF
 
@@ -37,6 +38,9 @@ def test_shared_distributions_generate_sampled_quantity_links():
     assert (uniform_xyz.uri, RDF.type, URI_DISTRIB_TYPE_DISTRIB) in graph
     assert (normal_xyz.uri, RDF.type, URI_DISTRIB_TYPE_NORMAL) in graph
     bodies = {body.name: body for body in model.scene_insts[0].kgraph.bodies}
+    table = bodies["table"]
+    assert table.inertia.frame is table.default_frame
+    assert (table.inertia_uri, URI_DYN_PRED_ABOUT, table.default_frame.origin_uri) in graph
     uniform_pose = bodies["uniform_object"].frames[0].poses[0]
     normal_pose = bodies["normal_object"].frames[0].poses[0]
     assert isinstance(uniform_pose, PoseSpec)

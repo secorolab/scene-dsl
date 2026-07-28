@@ -32,6 +32,7 @@ scene inst (ns=scene_lab_mjc) sampled_poses {
             frame surface {
                 pose fixed { wrt: <world.root> xyz: (1.0, 2.0, 0.75) m orientation: euler { angles: (0.0, 0.0, 0.0) } }
             }
+            inertia { frame: <surface> }
         }
         body uniform_object {
             frame center {

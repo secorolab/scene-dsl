@@ -96,27 +96,37 @@ def add_body(graph: Graph, body) -> None:
         graph.add((body.uri, URI_GEOM_PRED_SIMPLICES, frame.uri))
         graph.add((body.uri, URI_GEOM_PRED_SIMPLICES, frame.origin_uri))
 
+    graph.add(triple=(body.uri, URI_KC_EXT_PRED_ROOT, body.default_frame.uri))
+
     if body.inertia is not None:
         inertia = body.inertia
         graph.add((body.inertia_uri, RDF.type, URI_DYN_TYPE_RIGID_BODY_INERTIA))
         graph.add((body.inertia_uri, URI_DYN_PRED_OF_BODY, body.uri))
         graph.add((body.inertia_uri, URI_DYN_PRED_ABOUT, inertia.frame.origin_uri))
-        graph.add((body.inertia_coord_uri, RDF.type, URI_DYN_TYPE_INERTIA_REFERENCE))
-        graph.add((body.inertia_coord_uri, RDF.type, URI_DYN_TYPE_RIGID_BODY_INERTIA_COORD))
-        graph.add((body.inertia_coord_uri, RDF.type, URI_DYN_TYPE_MASS_SCALAR))
-        graph.add((body.inertia_coord_uri, URI_DYN_PRED_OF_INERTIA, body.inertia_uri))
-        graph.add((body.inertia_coord_uri, URI_DYN_PRED_AS_SEEN_BY, inertia.frame.uri))
-        graph.add((body.inertia_coord_uri, URI_DYN_PRED_MASS, Literal(inertia.mass)))
-        graph.add((body.inertia_coord_uri, URI_QUDT_PRED_UNIT, MASS_UNITS[inertia.mass_unit]))
-        graph.add((body.inertia_coord_uri, URI_QUDT_PRED_UNIT, INERTIA_UNITS[inertia.inertia_unit]))
-        graph.add((body.inertia_coord_uri, RDF.type, URI_DYN_TYPE_MOMENT_OF_INERTIA_XYZ))
-        graph.add((body.inertia_coord_uri, RDF.type, URI_DYN_TYPE_PRODUCT_OF_INERTIA_XYZ))
-        graph.add((body.inertia_coord_uri, URI_DYN_PRED_IXX, Literal(inertia.matrix[0][0])))
-        graph.add((body.inertia_coord_uri, URI_DYN_PRED_IXY, Literal(inertia.matrix[0][1])))
-        graph.add((body.inertia_coord_uri, URI_DYN_PRED_IXZ, Literal(inertia.matrix[0][2])))
-        graph.add((body.inertia_coord_uri, URI_DYN_PRED_IYY, Literal(inertia.matrix[1][1])))
-        graph.add((body.inertia_coord_uri, URI_DYN_PRED_IYZ, Literal(inertia.matrix[1][2])))
-        graph.add((body.inertia_coord_uri, URI_DYN_PRED_IZZ, Literal(inertia.matrix[2][2])))
+
+        if inertia.mass is not None or inertia.matrix is not None:
+            graph.add((body.inertia_coord_uri, RDF.type, URI_DYN_TYPE_INERTIA_REFERENCE))
+            graph.add((body.inertia_coord_uri, RDF.type, URI_DYN_TYPE_RIGID_BODY_INERTIA_COORD))
+            graph.add((body.inertia_coord_uri, URI_DYN_PRED_OF_INERTIA, body.inertia_uri))
+            graph.add((body.inertia_coord_uri, URI_DYN_PRED_AS_SEEN_BY, inertia.frame.uri))
+
+        if inertia.mass is not None:
+            graph.add((body.inertia_coord_uri, RDF.type, URI_DYN_TYPE_MASS_SCALAR))
+            graph.add((body.inertia_coord_uri, URI_DYN_PRED_MASS, Literal(inertia.mass)))
+            graph.add((body.inertia_coord_uri, URI_QUDT_PRED_UNIT, MASS_UNITS[inertia.mass_unit]))
+
+        if inertia.matrix is not None:
+            graph.add(
+                (body.inertia_coord_uri, URI_QUDT_PRED_UNIT, INERTIA_UNITS[inertia.inertia_unit])
+            )
+            graph.add((body.inertia_coord_uri, RDF.type, URI_DYN_TYPE_MOMENT_OF_INERTIA_XYZ))
+            graph.add((body.inertia_coord_uri, RDF.type, URI_DYN_TYPE_PRODUCT_OF_INERTIA_XYZ))
+            graph.add((body.inertia_coord_uri, URI_DYN_PRED_IXX, Literal(inertia.matrix[0][0])))
+            graph.add((body.inertia_coord_uri, URI_DYN_PRED_IXY, Literal(inertia.matrix[0][1])))
+            graph.add((body.inertia_coord_uri, URI_DYN_PRED_IXZ, Literal(inertia.matrix[0][2])))
+            graph.add((body.inertia_coord_uri, URI_DYN_PRED_IYY, Literal(inertia.matrix[1][1])))
+            graph.add((body.inertia_coord_uri, URI_DYN_PRED_IYZ, Literal(inertia.matrix[1][2])))
+            graph.add((body.inertia_coord_uri, URI_DYN_PRED_IZZ, Literal(inertia.matrix[2][2])))
 
 
 def add_revolute_joint(graph: Graph, joint: RevoluteJoint) -> None:

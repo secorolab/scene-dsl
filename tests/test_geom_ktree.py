@@ -44,7 +44,7 @@ from rdf_utils.models.vocab import (
 )
 from rdf_utils.namespace import URL_MM_GEOM_SHACL_EXTS, URL_MM_GEOM_SHACL_REL, URL_SECORO_MM
 from rdf_utils.resolver import install_resolver
-from rdflib import RDF, Literal, URIRef
+from rdflib import RDF, Graph, Literal, URIRef
 from textx.exceptions import TextXSemanticError, TextXSyntaxError
 
 from scene_dsl.classes.common import FloatVector
@@ -56,6 +56,7 @@ from scene_dsl.rdf.ktree import (
     ACTUATION_INTERFACE_TYPES,
     INERTIA_UNITS,
     MASS_UNITS,
+    add_body,
 )
 from scene_dsl.rdf.scenex import create_scenex_model_graph
 
@@ -211,7 +212,7 @@ scene inst (ns=n) sx {{
             }}
         }}
         inertia {{
-            frame: cup_root
+            frame: <cup_root>
             mass: 10.0 {mass_unit}
             inertia-matrix: (
                 (1.0, 0.1, 0.2),
@@ -289,7 +290,7 @@ ktree (ns=n) world_tree {{
     body cup_body {{
         frame cup_root {{ {ZERO_POSE} }}
         inertia {{
-            frame: cup_root
+            frame: <cup_root>
             mass: 0.0 kg
             inertia-matrix: (
                 (1.0, 0.0, 0.0),
@@ -325,6 +326,29 @@ scene inst (ns=n) sx {{
             row3=FloatVector(None, [0.0, 0.0, 1.0]),
             inertia_unit="kg*m^2",
         )
+
+
+def test_frame_only_inertia_emits_reference_without_numeric_coordinates():
+    model = scenex_metamodel().model_from_str(
+        """ns n = "https://example.test/"
+ktree (ns=n) t {
+    body b {
+        frame root { }
+        frame com { }
+        inertia { frame: <com> }
+    }
+    joints { }
+}
+"""
+    )
+    body = model.ktrees[0].bodies[0]
+    graph = Graph()
+    add_body(graph, body)
+
+    assert body.inertia.mass is None
+    assert body.inertia.matrix is None
+    assert (body.inertia_uri, URI_DYN_PRED_ABOUT, body.inertia.frame.origin_uri) in graph
+    assert not list(graph.triples((body.inertia_coord_uri, None, None)))
 
 
 def test_rigid_body_inertia_rejects_non_symmetric_matrix():
@@ -761,7 +785,7 @@ ktree (ns=lab) world_tree {
     body table_body {
         frame table_root { }
         inertia {
-            frame: arm.arm_base.arm_root
+            frame: <arm.arm_base.arm_root>
             mass: 1.0 kg
             inertia-matrix: ((1.0,0.0,0.0),(0.0,1.0,0.0),(0.0,0.0,1.0)) kg*m^2
         }

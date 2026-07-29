@@ -59,6 +59,7 @@ from scene_dsl.rdf.ktree import (
     add_body,
 )
 from scene_dsl.rdf.scenex import create_scenex_model_graph
+from scene_dsl.rdf_parser.ktree import RigidBodyModel
 
 from .test_common import MODELS_DIR, write_example_scene
 
@@ -349,6 +350,9 @@ ktree (ns=n) t {
     assert body.inertia.matrix is None
     assert (body.inertia_uri, URI_DYN_PRED_ABOUT, body.inertia.frame.origin_uri) in graph
     assert not list(graph.triples((body.inertia_coord_uri, None, None)))
+    parsed_body = RigidBodyModel(body_id=body.uri, graph=graph)
+    assert parsed_body.root_frame.id == body.default_frame.uri
+    assert parsed_body.inertia.inertial_frame.id == body.inertia.frame.uri
 
 
 def test_rigid_body_inertia_rejects_non_symmetric_matrix():

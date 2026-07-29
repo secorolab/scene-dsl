@@ -1,17 +1,24 @@
 import pytest
+from rdf_utils.models.execution import load_attr_path
 from rdf_utils.models.vocab import (
     URI_EXEC_PRED_HAS_MAPPING,
     URI_EXEC_PRED_MAPS,
     URI_EXEC_PRED_MODEL_ENTITY,
     URI_EXEC_PRED_PATH,
+    URI_GEOM_TYPE_RIGID_BODY,
 )
-from rdflib import Literal, Namespace
+from rdflib import Literal, Namespace, URIRef
 
 from scene_dsl.classes.common import IHasNamespace
 from scene_dsl.langs import scene_metamodel, scenex_metamodel
 from scene_dsl.rdf.scene import create_scene_model_graph
 from scene_dsl.rdf.scenex import create_scenex_model_graph
-from scene_dsl.rdf_parser.scenex import SceneInstanceModel, get_ros_pkg_path
+from scene_dsl.rdf_parser.scenex import (
+    ElementResourceModel,
+    SceneInstanceModel,
+    get_ros_pkg_path,
+    load_ros_path,
+)
 from scene_dsl.rdf_parser.vocab import (
     URI_ROS_TYPE_PACKAGE,
     URI_USD_STAGE,
@@ -75,17 +82,76 @@ def _parse_example_scene(index=0, loaders=None):
 
 
 def test_scene_parser_loads_modelled_objects_and_agents():
-    parsed = _parse_example_scene()
+    model = scenex_metamodel().model_from_file(MODELS_DIR / "lab.scenex")
+    scene_instance = model.scene_insts[0]
+    graph = create_scenex_model_graph(model)
+    parsed = SceneInstanceModel(scene_instance.uri, graph)
 
     assert parsed.models == {}
-    assert len(parsed.modelled_objects) == 2
-    assert len(parsed.modelled_agents) == 4
+    box = next(
+        modelled.obj for modelled in scene_instance.modelled_objs if modelled.obj.name == "box1"
+    )
+    panda = next(
+        modelled.agn for modelled in scene_instance.modelled_agns if modelled.agn.name == "panda"
+    )
+    assert parsed.get_obj_body(box.uri, graph) is not None
+    assert parsed.get_agn_tree_root_frame(panda.uri, graph) is not None
 
-    object_models = [
-        model for models in parsed.modelled_objects.values() for model in models.values()
-    ]
-    ros_model = next(model for model in object_models if URI_ROS_TYPE_PACKAGE in model.types)
+    ros_model_id = next(graph.subjects(predicate=None, object=URI_ROS_TYPE_PACKAGE))
+    ros_model = ElementResourceModel(URIRef(ros_model_id), graph)
+    load_attr_path(graph=graph, model=ros_model)
+    load_ros_path(graph=graph, model=ros_model)
     assert get_ros_pkg_path(ros_model) == ("test_pkg", "assets/table.xml")
+
+
+def test_scene_parser_loads_mappings_and_resolves_element_roots():
+    model = scenex_metamodel().model_from_file(MODELS_DIR / "lab.scenex")
+    scene_instance = model.scene_insts[0]
+    graph = create_scenex_model_graph(model)
+    parsed = SceneInstanceModel(scene_instance.uri, graph)
+
+    resource_ids = set(graph.subjects(predicate=URI_EXEC_PRED_HAS_MAPPING))
+    resources = [ElementResourceModel(URIRef(resource_id), graph) for resource_id in resource_ids]
+    assert all(isinstance(resource, ElementResourceModel) for resource in resources)
+
+    box_resource = next(resource for resource in resources if "box1-mjc" in str(resource.id))
+    [box_mapping] = box_resource.get_mappings_by_target_type(URI_GEOM_TYPE_RIGID_BODY)
+    assert box_mapping.entity == "cube"
+    assert box_resource.get_mapping_by_target_uri(box_mapping.target_id) == box_mapping
+
+    box = next(
+        modelled.obj for modelled in scene_instance.modelled_objs if modelled.obj.name == "box1"
+    )
+    panda = next(
+        modelled.agn for modelled in scene_instance.modelled_agns if modelled.agn.name == "panda"
+    )
+    box_body = parsed.get_obj_body(box.uri, graph)
+    assert box_body is not None
+    assert str(box_body.root_frame.id).endswith("lab_graph/box1_body/box1_root")
+    panda_root = parsed.get_agn_tree_root_frame(panda.uri, graph)
+    assert panda_root is not None
+    assert str(panda_root.id).endswith("panda_tree/panda_base_body/base_link")
+    assert parsed.get_elem_root_frame(box.uri, graph).id == box_body.root_frame.id
+
+    arm_gripper = next(
+        modelled.agn
+        for modelled in scene_instance.modelled_agns
+        if modelled.agn.name == "arm1_gripper"
+    )
+    with pytest.raises(ValueError, match="zero or one KinematicTree"):
+        parsed.get_agn_tree_root_frame(arm_gripper.uri, graph)
+    assert parsed.get_elem_root_frame(URIRef("https://example.test/missing"), graph) is None
+
+
+def test_scene_parser_rejects_mapping_without_target():
+    model = scenex_metamodel().model_from_file(MODELS_DIR / "lab.scenex")
+    scene_instance = model.scene_insts[0]
+    graph = create_scenex_model_graph(model)
+    mapping_id = next(graph.objects(predicate=URI_EXEC_PRED_HAS_MAPPING))
+    graph.remove((mapping_id, URI_EXEC_PRED_MAPS, None))
+
+    with pytest.raises(ValueError, match="does not map to an URI"):
+        SceneInstanceModel(scene_instance.uri, graph)
 
 
 def test_modelled_resources_use_custom_loaders_in_order():
@@ -97,25 +163,23 @@ def test_modelled_resources_use_custom_loaders_in_order():
     def second(graph, model, **kwargs):
         calls.append(("second", model.id))
 
-    parsed = _parse_example_scene(loaders=[first, second])
-    models = [
-        model
-        for modelled in (parsed.modelled_objects, parsed.modelled_agents)
-        for resources in modelled.values()
-        for model in resources.values()
-    ]
+    _parse_example_scene(loaders=[first, second])
 
-    assert calls == [(name, model.id) for model in models for name in ("first", "second")]
+    assert calls[::2] == [("first", model_id) for _, model_id in calls[1::2]]
+    assert all(name == "second" for name, _ in calls[1::2])
 
 
-def test_object_set_wrappers_preserve_shared_model_references():
-    parsed = _parse_example_scene(index=1)
+def test_object_set_without_body_mappings_returns_none():
+    model = scenex_metamodel().model_from_file(MODELS_DIR / "lab.scenex")
+    scene_instance = model.scene_insts[1]
+    graph = create_scenex_model_graph(model)
+    parsed = SceneInstanceModel(scene_instance.uri, graph)
 
     assert parsed.models == {}
-    assert parsed.modelled_agents == {}
-    assert len(parsed.modelled_objects) == 5
-    model_ids = [next(iter(models)) for models in parsed.modelled_objects.values()]
-    assert len(set(model_ids)) == 2
+    assert all(
+        parsed.get_obj_body(modelled.obj.uri, graph) is None
+        for modelled in scene_instance.modelled_objs
+    )
 
 
 def test_scene_parser_accepts_scene_without_models():
@@ -128,11 +192,13 @@ scene inst (ns=scene_lab_mjc) empty_scene {
         file_name=str(MODELS_DIR / "empty_scene.scenex"),
     )
 
-    parsed = SceneInstanceModel(model.scene_insts[0].uri, create_scenex_model_graph(model))
+    graph = create_scenex_model_graph(model)
+    parsed = SceneInstanceModel(model.scene_insts[0].uri, graph)
 
     assert parsed.models == {}
-    assert parsed.modelled_objects == {}
-    assert parsed.modelled_agents == {}
+    missing = URIRef("https://example.test/missing")
+    assert parsed.get_obj_body(missing, graph) is None
+    assert parsed.get_agn_tree_root_frame(missing, graph) is None
 
 
 def test_shared_workspace_composition_is_rejected(tmp_path):

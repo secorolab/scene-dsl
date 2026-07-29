@@ -60,6 +60,7 @@ from rdf_utils.models.vocab import (
     URI_QUDT_UNIT_KG_M2,
     URI_QUDT_UNIT_RAD,
 )
+from rdf_utils.namespace import NS_MM_ACT, NS_MM_KC_EXT
 from rdflib import RDF, XSD, Graph, Literal, URIRef
 
 from scene_dsl.classes.ktree import (
@@ -73,6 +74,7 @@ from scene_dsl.classes.ktree import (
     SerialJoints,
 )
 from scene_dsl.rdf.geom import (
+    ANGLE_UNITS,
     add_frame,
     add_position_coord,
 )
@@ -82,6 +84,7 @@ ACTUATION_INTERFACE_TYPES = {
     "velocity": URI_KC_STAT_JNT_VEL,
     "torque": URI_KC_STAT_JNT_FORCE,
     "current": URI_ACT_TYPE_JOINT_CURRENT,
+    "status": NS_MM_ACT["JointStatus"],
 }
 
 MASS_UNITS = {"kg": URI_QUDT_UNIT_KG, "g": URI_QUDT_UNIT_G}
@@ -164,7 +167,24 @@ def add_revolute_joint(graph: Graph, joint: RevoluteJoint) -> None:
             offset_uri=joint.mimic_offset_uri,
             mimic=joint.mimic,
         )
-    # TODO(minhnh): add_joint_limits() with polarity
+    if joint.limits is not None and joint.limits.position is not None:
+        add_joint_position_limits(graph, joint)
+
+
+def add_joint_position_limits(graph: Graph, joint: RevoluteJoint) -> None:
+    """Emit authored revolute-joint position bounds as unit-bearing quantities."""
+    unit = ANGLE_UNITS[joint.limits.position_unit]
+    limit = URIRef(f"{joint.uri}/position-limit")
+    graph.add((limit, RDF.type, NS_MM_KC_EXT["JointLimit"]))
+    graph.add((limit, RDF.type, URI_KC_STAT_JNT_POSITION))
+    graph.add((limit, NS_MM_KC_EXT["of-joint"], joint.uri))
+    for name, value in zip(("lower", "upper"), joint.limits.position, strict=True):
+        quantity = URIRef(f"{limit}/{name}")
+        graph.add((limit, NS_MM_KC_EXT[name], quantity))
+        graph.add((quantity, RDF.type, URI_QUDT_TYPE_QUANTITY))
+        graph.add((quantity, URI_QUDT_PRED_QUANTITY_KIND, URI_QUDT_QK_ANGLE))
+        graph.add((quantity, URI_QUDT_PRED_UNIT, unit))
+        graph.add((quantity, URI_QUDT_PRED_VALUE, Literal(value, datatype=XSD.double)))
 
 
 def add_actuation(

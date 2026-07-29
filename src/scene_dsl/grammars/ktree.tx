@@ -107,7 +107,7 @@ Actuation:
     'state-interface' ':' state_interfaces+=Interface
 '}'
 ;
-Interface: 'position' | 'velocity' | 'torque' | 'current' ;
+Interface: 'position' | 'velocity' | 'torque' | 'current' | 'status' ;
 
 JointComposition: SerialJoints | ParallelJoints;
 ParallelJoints:

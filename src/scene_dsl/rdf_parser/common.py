@@ -1,5 +1,17 @@
 # SPDX-License-Identifier: MPL-2.0
+import json
+
+from rdf_utils.models.common import ModelBase
+from rdf_utils.models.vocab import URI_EXEC_PRED_HAS_CONFIG
 from rdflib import RDF, Graph, Literal, Node, URIRef
+
+
+def load_attr_has_config(graph: Graph, model: ModelBase) -> None:
+    serialized = graph.value(model.id, URI_EXEC_PRED_HAS_CONFIG, any=False)
+    model.set_attr(
+        URI_EXEC_PRED_HAS_CONFIG,
+        {} if serialized is None else json.loads(str(serialized)),
+    )
 
 
 def _ensure_one_typed_obj_node(

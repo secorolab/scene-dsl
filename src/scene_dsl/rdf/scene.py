@@ -1,15 +1,6 @@
 # SPDX-License-Identifier: MPL-2.0
 from typing import Any
 
-from bdd_dsl.models.urirefs import (
-    URI_BDD_PRED_ELEMS,
-    URI_BDD_TYPE_CONST_SET,
-    URI_BDD_TYPE_SCENE,
-    URI_BDD_TYPE_SCENE_AGN,
-    URI_BDD_TYPE_SCENE_OBJ,
-    URI_BDD_TYPE_SCENE_WS,
-    URI_BDD_TYPE_SET,
-)
 from rdf_utils.models.vocab import (
     URI_AGN_PRED_HAS_AGN,
     URI_AGN_TYPE_AGN,
@@ -32,6 +23,16 @@ from scene_dsl.classes.scene import (
     SimilarObjectSet,
     WorkspaceComposition,
     WorkspaceSet,
+)
+from scene_dsl.rdf_parser.vocab import (
+    URI_BDD_PRED_ELEMS,
+    URI_BDD_PRED_OF_SCENE,
+    URI_BDD_TYPE_CONST_SET,
+    URI_BDD_TYPE_SCENE,
+    URI_BDD_TYPE_SCENE_AGN,
+    URI_BDD_TYPE_SCENE_OBJ,
+    URI_BDD_TYPE_SCENE_WS,
+    URI_BDD_TYPE_SET,
 )
 
 
@@ -152,7 +153,10 @@ def add_ws_comp(
 
 
 def add_scene_model(
-    graph: Graph, scene: SceneModel, set_uris: set[URIRef]
+    graph: Graph,
+    scene: SceneModel,
+    set_uris: set[URIRef],
+    of_scene_id: URIRef | None = None,
 ) -> tuple[bool, bool, bool]:
     graph.bind(prefix=scene.ns_prefix, namespace=scene.namespace)
     graph.add(triple=(scene.uri, RDF.type, URI_BDD_TYPE_SCENE))
@@ -199,12 +203,16 @@ def add_scene_model(
     scene_has_agn = (
         graph.value(subject=scene.scene_agn_uri, predicate=URI_AGN_PRED_HAS_AGN) is not None
     )
+    linked_scene_id = scene.uri if of_scene_id is None else of_scene_id
     if scene_has_obj:
         graph.add(triple=(scene.scene_obj_uri, RDF.type, URI_BDD_TYPE_SCENE_OBJ))
+        graph.add(triple=(scene.scene_obj_uri, URI_BDD_PRED_OF_SCENE, linked_scene_id))
     if scene_has_ws:
         graph.add(triple=(scene.scene_ws_uri, RDF.type, URI_BDD_TYPE_SCENE_WS))
+        graph.add(triple=(scene.scene_ws_uri, URI_BDD_PRED_OF_SCENE, linked_scene_id))
     if scene_has_agn:
         graph.add(triple=(scene.scene_agn_uri, RDF.type, URI_BDD_TYPE_SCENE_AGN))
+        graph.add(triple=(scene.scene_agn_uri, URI_BDD_PRED_OF_SCENE, linked_scene_id))
     return scene_has_obj, scene_has_ws, scene_has_agn
 
 

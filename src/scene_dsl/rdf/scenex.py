@@ -1,9 +1,6 @@
 # SPDX-License-Identifier: MPL-2.0
 from typing import Any
 
-from bdd_dsl.models.urirefs import (
-    URI_BDD_PRED_OF_SCENE,
-)
 from rdf_utils.models.vocab import (
     URI_AGN_PRED_HAS_AGN_MODEL,
     URI_AGN_PRED_OF_AGN,
@@ -53,6 +50,7 @@ from scene_dsl.rdf_parser.vocab import (
     NS_URDF,
     NS_USD,
     NS_XML,
+    URI_BDD_PRED_OF_SCENE,
     URI_MJCF_MUJOCO,
     URI_ROS_PRED_PACKAGE_NAME,
     URI_ROS_TYPE_PACKAGE,
@@ -210,12 +208,22 @@ def add_modelled_obj_set(
             graph.add((modelled_uri, URI_ENV_PRED_HAS_OBJ_MODEL, model.uri))
 
 
-def add_modelled_scene(graph: Graph, scene_inst: SceneInstance) -> None:
+def add_modelled_scene(
+    graph: Graph,
+    scene_inst: SceneInstance,
+    of_scene_id: URIRef | None = None,
+) -> None:
     graph.bind(prefix=scene_inst.ns_prefix, namespace=scene_inst.namespace)
     graph.add((scene_inst.uri, RDF.type, URI_EXEC_TYPE_SCENE_INST))
-    graph.add((scene_inst.uri, URI_BDD_PRED_OF_SCENE, scene_inst.scene.uri))
+    linked_scene_id = scene_inst.scene.uri if of_scene_id is None else of_scene_id
+    graph.add((scene_inst.uri, URI_BDD_PRED_OF_SCENE, linked_scene_id))
 
-    add_scene_model(graph=graph, scene=scene_inst.scene, set_uris=set())
+    add_scene_model(
+        graph=graph,
+        scene=scene_inst.scene,
+        set_uris=set(),
+        of_scene_id=linked_scene_id,
+    )
 
     seen_model_uris = set()
     seen_ktrees = set()

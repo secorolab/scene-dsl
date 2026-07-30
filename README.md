@@ -23,14 +23,13 @@ agent carrying it.
 ## Installation
 
 `scene-dsl` is a Python package installable with `pip`. It depends on
-[`rdf-utils`](https://github.com/minhnh/rdf-utils),
-[`bdd-dsl`](https://github.com/minhnh/bdd-dsl), `textx`, and `rdflib`.
+[`rdf-utils`](https://github.com/minhnh/rdf-utils), `textx`, `rdflib`, and
+`numpy`.
 
 For local development with sibling checkouts:
 
 ```bash
 pip install "../rdf-utils[all]"
-pip install ../bdd-dsl
 pip install -e .
 ```
 

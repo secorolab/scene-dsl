@@ -1,15 +1,11 @@
 # SPDX-License-Identifier: MPL-2.0
-from collections.abc import Generator
 from dataclasses import dataclass
 
 from rdf_utils.models.common import AttrLoaderProtocol, ModelBase, ModelLoader, get_node_types
 from rdf_utils.models.execution import load_attr_path
-from rdf_utils.models.geom_rel import FrameModel
 from rdf_utils.models.python import load_py_module_attr
 from rdf_utils.models.vocab import (
-    URI_AGN_PRED_HAS_AGN_MODEL,
     URI_AGN_PRED_OF_AGN,
-    URI_ENV_PRED_HAS_OBJ_MODEL,
     URI_ENV_PRED_OF_OBJ,
     URI_EXEC_PRED_HAS_MAPPING,
     URI_EXEC_PRED_HAS_MODELLED_AGN,
@@ -24,9 +20,16 @@ from rdf_utils.models.vocab import (
 )
 from rdflib import Graph, Literal, URIRef
 
+from scene_dsl.rdf_parser.agent import AgentModel
 from scene_dsl.rdf_parser.common import ensure_one_obj_literal, ensure_one_obj_uri
-from scene_dsl.rdf_parser.ktree import RigidBodyModel, get_root_frame
-from scene_dsl.rdf_parser.vocab import URI_ROS_PRED_PACKAGE_NAME, URI_ROS_TYPE_PACKAGE
+from scene_dsl.rdf_parser.environment import ObjectModel, WorkspaceModel
+from scene_dsl.rdf_parser.ktree import RigidBodyModel
+from scene_dsl.rdf_parser.scene import SceneElementLoader, SceneModel
+from scene_dsl.rdf_parser.vocab import (
+    URI_BDD_PRED_OF_SCENE,
+    URI_ROS_PRED_PACKAGE_NAME,
+    URI_ROS_TYPE_PACKAGE,
+)
 
 __ALLOWED_MAPPINGS = {URI_GEOM_TYPE_RIGID_BODY, URI_GEOM_TYPE_KTREE}
 
@@ -61,44 +64,59 @@ def get_model_mapping(mapping_id: URIRef, graph: Graph) -> ModelMapping:
     return ModelMapping(target_uri, target_types.pop(), entity=entity)
 
 
-class ElementResourceModel(ModelBase):
-    _mappings: dict[URIRef, ModelMapping]
-    _mapped_targets: dict[URIRef, URIRef]  # target URI -> mapping URI
-    _mapped_types: dict[URIRef, set[URIRef]]  # map type URI -> mapping URI
+def load_attr_mappings(graph: Graph, model: ModelBase, **kwargs: object) -> None:
+    mappings = []
+    targets = set()
+    for mapping_id in graph.objects(model.id, URI_EXEC_PRED_HAS_MAPPING):
+        if not isinstance(mapping_id, URIRef):
+            raise TypeError(f"model '{model}' has non-URI mapping: {mapping_id}")
+        mapping = get_model_mapping(mapping_id, graph)
+        if mapping.target_id in targets:
+            raise ValueError(f"multiple mappings found for target {mapping.target_id}")
+        targets.add(mapping.target_id)
+        mappings.append(mapping)
+    model.set_attr(URI_EXEC_PRED_HAS_MAPPING, tuple(mappings))
 
-    def __init__(self, node_id: URIRef, graph: Graph) -> None:
-        super().__init__(node_id=node_id, graph=graph)
-        self._mappings = {}
-        self._mapped_targets = {}
-        self._mapped_types = {}
 
-        for mapping_id in graph.objects(self.id, URI_EXEC_PRED_HAS_MAPPING):
-            if not isinstance(mapping_id, URIRef):
-                raise TypeError(f"ElementResource '{self}' has non-URI mapping: {mapping_id}")
+class MappingLoader:
+    def __init__(self, cache: bool = True) -> None:
+        self._cache = cache
+        self._by_target: dict[URIRef, list[tuple[ModelBase, ModelMapping]]] = {}
+        self._by_type: dict[URIRef, list[tuple[ModelBase, ModelMapping]]] = {}
+        self._by_entity: dict[str, list[tuple[ModelBase, ModelMapping]]] = {}
 
-            mapping = get_model_mapping(mapping_id, graph)
-            self._mappings[mapping_id] = mapping
+    def __call__(self, graph: Graph, model: ModelBase, **kwargs: object) -> None:
+        load_attr_mappings(graph, model)
+        if not self._cache:
+            return
+        for mapping in get_model_mappings(model):
+            entry = (model, mapping)
+            self._by_target.setdefault(mapping.target_id, []).append(entry)
+            self._by_type.setdefault(mapping.target_type, []).append(entry)
+            if mapping.entity is not None:
+                self._by_entity.setdefault(mapping.entity, []).append(entry)
 
-            if mapping.target_id in self._mapped_targets:
-                raise ValueError(f"multiple mappings found for target {mapping.target_id}")
-            self._mapped_targets[mapping.target_id] = mapping_id
+    def by_target(self, target_id: URIRef) -> tuple[tuple[ModelBase, ModelMapping], ...]:
+        return tuple(self._by_target.get(target_id, ()))
 
-            if mapping.target_type not in self._mapped_types:
-                self._mapped_types[mapping.target_type] = set()
-            self._mapped_types[mapping.target_type].add(mapping_id)
+    def by_type(self, target_type: URIRef) -> tuple[tuple[ModelBase, ModelMapping], ...]:
+        return tuple(self._by_type.get(target_type, ()))
 
-    def get_mapping_by_target_uri(self, target_uri: URIRef) -> ModelMapping | None:
-        if target_uri not in self._mapped_targets:
-            return None
+    def by_entity(self, entity: str) -> tuple[tuple[ModelBase, ModelMapping], ...]:
+        return tuple(self._by_entity.get(entity, ()))
 
-        return self._mappings[self._mapped_targets[target_uri]]
 
-    def get_mappings_by_target_type(
-        self, target_type: URIRef
-    ) -> Generator[ModelMapping, None, None]:
-        if target_type in self._mapped_types:
-            for map_id in self._mapped_types[target_type]:
-                yield self._mappings[map_id]
+def get_model_mappings(
+    model: ModelBase, target_type: URIRef | None = None
+) -> tuple[ModelMapping, ...]:
+    mappings = model.get_attr(URI_EXEC_PRED_HAS_MAPPING)
+    if not isinstance(mappings, tuple) or not all(
+        isinstance(mapping, ModelMapping) for mapping in mappings
+    ):
+        raise TypeError(f"model '{model}' has no loaded mappings")
+    if target_type is None:
+        return mappings
+    return tuple(mapping for mapping in mappings if mapping.target_type == target_type)
 
 
 def load_ros_path(graph: Graph, model: ModelBase, **kwargs: object) -> None:
@@ -132,12 +150,11 @@ def get_ros_pkg_path(model: ModelBase) -> tuple[str, str] | None:
 
 
 class SceneInstanceModel(ModelBase):
-    models: dict[URIRef, ElementResourceModel]
-
-    _modelled_objects: dict[URIRef, dict[URIRef, ElementResourceModel]]
-    _obj_modelled_maps: dict[URIRef, set[URIRef]]  # Object URI -> set of ModelledObject URIs
-    _modelled_agents: dict[URIRef, dict[URIRef, ElementResourceModel]]
-    _agn_modelled_maps: dict[URIRef, set[URIRef]]  # Agent URI -> set of ModelledAgent URIs
+    models: dict[URIRef, ModelBase]
+    scene_model: SceneModel
+    object_models: dict[URIRef, ObjectModel]
+    agent_models: dict[URIRef, AgentModel]
+    workspace_models: dict[URIRef, WorkspaceModel]
     _model_loader: ModelLoader
 
     def __init__(
@@ -145,80 +162,97 @@ class SceneInstanceModel(ModelBase):
         scn_inst_id: URIRef,
         graph: Graph,
         loaders: list[AttrLoaderProtocol] | None = None,
+        scene_model: SceneModel | None = None,
     ) -> None:
         super().__init__(node_id=scn_inst_id, graph=graph)
 
         if URI_EXEC_TYPE_SCENE_INST not in self.types:
             raise TypeError(f"node '{scn_inst_id.n3(self._ns_manager)}' is not a SceneInstance")
 
-        self._model_loader = ModelLoader()
+        scene_id = ensure_one_obj_uri(
+            graph=graph,
+            subject=self.id,
+            predicate=URI_BDD_PRED_OF_SCENE,
+        )
+        if scene_id is None:
+            raise ValueError(f"SceneInstance '{self.id}' does not link to a scene")
+        if scene_model is not None and scene_model.id != scene_id:
+            raise ValueError(
+                f"SceneInstance '{self.id}' links to scene '{scene_id}', "
+                f"not supplied scene '{scene_model.id}'"
+            )
+        self.scene_model = (
+            SceneModel(graph=graph, scene_id=scene_id) if scene_model is None else scene_model
+        )
+
+        self.element_loader = SceneElementLoader()
         for loader in DEFAULT_MODEL_LOADERS if loaders is None else loaders:
-            self._model_loader.register(loader)
+            self.element_loader.register(loader)
+        self.mapping_loader = MappingLoader()
+        self.element_loader.register(self.mapping_loader)
 
         self.models = self._load_models(
             graph=graph, owner_id=self.id, predicate=URI_EXEC_PRED_MODEL
         )
 
-        self._load_modelled_objects(graph=graph)
-        self._load_modelled_agents(graph=graph)
+        object_wrappers = self._modelled_elements(
+            graph, URI_EXEC_PRED_HAS_MODELLED_OBJ, URI_ENV_PRED_OF_OBJ, "Object"
+        )
+        agent_wrappers = self._modelled_elements(
+            graph, URI_EXEC_PRED_HAS_MODELLED_AGN, URI_AGN_PRED_OF_AGN, "Agent"
+        )
+        for obj_id, wrappers in object_wrappers.items():
+            self.element_loader.load_object_model(graph, obj_id, modelled_ids=wrappers)
+        for ws_id in self.scene_model.workspaces:
+            self.element_loader.load_ws_model(graph, ws_id, modelled_objects=object_wrappers)
+        for agn_id, wrappers in agent_wrappers.items():
+            self.element_loader.load_agent_model(graph, agn_id, modelled_ids=wrappers)
 
-    def get_obj_body(self, obj_id: URIRef, graph: Graph) -> RigidBodyModel | None:
-        if obj_id not in self._obj_modelled_maps:
+        self.object_models = self.element_loader.object_models
+        self.workspace_models = self.element_loader.workspace_models
+        self.agent_models = self.element_loader.agent_models
+
+    def get_scene_entity_body_by_name(self, name: str, graph: Graph) -> RigidBodyModel | None:
+        matched_ids = [
+            mapping.target_id
+            for _, mapping in self.mapping_loader.by_entity(name)
+            if mapping.target_type == URI_GEOM_TYPE_RIGID_BODY
+        ]
+
+        if not matched_ids:
             return None
 
-        body_uris = []
-        for modelled_obj_id in self._obj_modelled_maps[obj_id]:
-            modelled_obj = self._modelled_objects[modelled_obj_id]
-            for resource_model in modelled_obj.values():
-                for mapping in resource_model.get_mappings_by_target_type(
-                    target_type=URI_GEOM_TYPE_RIGID_BODY
-                ):
-                    body_uris.append(mapping.target_id)
+        if len(matched_ids) > 1:
+            raise ValueError(f"entity name '{name}' matched multiple bodies: {matched_ids}")
 
-        if not body_uris:
-            return None
+        return RigidBodyModel(body_id=matched_ids[0], graph=graph)
 
-        if len(body_uris) > 1:
-            raise ValueError(
-                f"Object {obj_id} is not mapped to zero or one RigidBody, found: {body_uris}"
-            )
+    def get_resources_by_types(self, type_ids: set[URIRef]) -> tuple[ModelBase, ...]:
+        return tuple(model for model in self.models.values() if model.types & type_ids)
 
-        return RigidBodyModel(body_id=body_uris[0], graph=graph)
+    def get_obj_resources_by_types(
+        self, obj_id: URIRef, type_ids: set[URIRef]
+    ) -> tuple[ModelBase, ...]:
+        model = self.object_models.get(obj_id)
+        return (
+            ()
+            if model is None
+            else tuple(resource for resource in model.models.values() if resource.types & type_ids)
+        )
 
-    def get_agn_tree_root_frame(self, agn_id: URIRef, graph: Graph) -> FrameModel | None:
-        if agn_id not in self._agn_modelled_maps:
-            return None
-
-        tree_uris = []
-        for modelled_agn_id in self._agn_modelled_maps[agn_id]:
-            modelled_agn = self._modelled_agents[modelled_agn_id]
-            for resource_model in modelled_agn.values():
-                for mapping in resource_model.get_mappings_by_target_type(
-                    target_type=URI_GEOM_TYPE_KTREE
-                ):
-                    tree_uris.append(mapping.target_id)
-
-        if not tree_uris:
-            return None
-
-        if len(tree_uris) > 1:
-            raise ValueError(
-                f"Agent {agn_id} is not mapped to zero or one KinematicTree, found: {tree_uris}"
-            )
-
-        return get_root_frame(target_id=tree_uris[0], graph=graph)
-
-    def get_elem_root_frame(self, elem_id: URIRef, graph: Graph) -> FrameModel | None:
-        """Return the root frame when the element kind is not known."""
-        obj_body = self.get_obj_body(obj_id=elem_id, graph=graph)
-        if obj_body is not None:
-            return obj_body.root_frame
-
-        return self.get_agn_tree_root_frame(agn_id=elem_id, graph=graph)
+    def get_agn_resources_by_types(
+        self, agn_id: URIRef, type_ids: set[URIRef]
+    ) -> tuple[ModelBase, ...]:
+        model = self.agent_models.get(agn_id)
+        return (
+            ()
+            if model is None
+            else tuple(resource for resource in model.models.values() if resource.types & type_ids)
+        )
 
     def _load_models(
         self, graph: Graph, owner_id: URIRef, predicate: URIRef
-    ) -> dict[URIRef, ElementResourceModel]:
+    ) -> dict[URIRef, ModelBase]:
         models = {}
 
         for model_id in graph.objects(subject=owner_id, predicate=predicate):
@@ -227,62 +261,25 @@ class SceneInstanceModel(ModelBase):
                     f"Model owner ({owner_id.n3(self._ns_manager)})'s model ID is not a URIRef: {model_id}"
                 )
 
-            model = ElementResourceModel(node_id=model_id, graph=graph)
-            self._model_loader.load_attributes(graph=graph, model=model)
+            model = ModelBase(node_id=model_id, graph=graph)
+            self.element_loader.load_attributes(graph=graph, model=model)
             models[model_id] = model
 
         return models
 
-    def _load_modelled_objects(self, graph: Graph) -> None:
-        self._modelled_objects = {}
-        self._obj_modelled_maps = {}
-        for modelled_obj_id in graph.objects(
-            subject=self.id, predicate=URI_EXEC_PRED_HAS_MODELLED_OBJ
-        ):
-            if not isinstance(modelled_obj_id, URIRef):
-                raise TypeError(
-                    f"SceneInstance ({self.id.n3(self._ns_manager)})'s modelled obj ID is not a URIRef: {modelled_obj_id}"
-                )
-
-            modelled_obj = self._load_models(
-                graph=graph, owner_id=modelled_obj_id, predicate=URI_ENV_PRED_HAS_OBJ_MODEL
-            )
-            self._modelled_objects[modelled_obj_id] = modelled_obj
-
-            obj_id = ensure_one_obj_uri(
-                graph=graph, subject=modelled_obj_id, predicate=URI_ENV_PRED_OF_OBJ
-            )
-            if obj_id is None:
-                raise ValueError(f"ModelledObject {modelled_obj} does not link to an Object")
-
-            if obj_id not in self._obj_modelled_maps:
-                self._obj_modelled_maps[obj_id] = set()
-
-            self._obj_modelled_maps[obj_id].add(modelled_obj_id)
-
-    def _load_modelled_agents(self, graph: Graph) -> None:
-        self._modelled_agents = {}
-        self._agn_modelled_maps = {}
-        for modelled_agn_id in graph.objects(
-            subject=self.id, predicate=URI_EXEC_PRED_HAS_MODELLED_AGN
-        ):
-            if not isinstance(modelled_agn_id, URIRef):
-                raise TypeError(
-                    f"SceneInstance ({self.id.n3(self._ns_manager)})'s modelled agn ID is not a URIRef: {modelled_agn_id}"
-                )
-
-            modelled_agn = self._load_models(
-                graph=graph, owner_id=modelled_agn_id, predicate=URI_AGN_PRED_HAS_AGN_MODEL
-            )
-            self._modelled_agents[modelled_agn_id] = modelled_agn
-
-            agn_id = ensure_one_obj_uri(
-                graph=graph, subject=modelled_agn_id, predicate=URI_AGN_PRED_OF_AGN
-            )
-            if agn_id is None:
-                raise ValueError(f"ModelledAgent {modelled_agn} does not link to an Agent")
-
-            if agn_id not in self._agn_modelled_maps:
-                self._agn_modelled_maps[agn_id] = set()
-
-            self._agn_modelled_maps[agn_id].add(modelled_agn_id)
+    def _modelled_elements(
+        self,
+        graph: Graph,
+        has_modelled: URIRef,
+        of_element: URIRef,
+        label: str,
+    ) -> dict[URIRef, list[URIRef]]:
+        elements: dict[URIRef, list[URIRef]] = {}
+        for modelled_id in graph.objects(self.id, has_modelled):
+            if not isinstance(modelled_id, URIRef):
+                raise TypeError(f"SceneInstance '{self.id}' has non-URI modelled {label}")
+            element_id = ensure_one_obj_uri(graph, modelled_id, of_element)
+            if element_id is None:
+                raise ValueError(f"Modelled{label} '{modelled_id}' has no {label}")
+            elements.setdefault(element_id, []).append(modelled_id)
+        return elements

@@ -53,6 +53,21 @@ def test_scene_parses_and_generates_rdf():
     assert parsed.workspaces
 
 
+def test_scene_parser_resolves_nested_workspace_compositions():
+    model = scene_metamodel().model_from_file(MODELS_DIR / "lab.scene")
+    scene = next(scene for scene in model.scene_models if scene.name == "sorting_scene")
+    root_comp = scene.ws_comps[0]
+    parsed = SceneModel(create_scene_model_graph(model), scene.uri)
+
+    root_ws = parsed.workspaces[root_comp.ws.uri]
+    assert root_ws.ws_comps == {comp.uri for comp in root_comp.ws_comps}
+    for child_comp in root_comp.ws_comps:
+        assert parsed._ws_comps[child_comp.uri] == child_comp.ws.uri
+        assert parsed.workspaces[child_comp.ws.uri].objects == {
+            obj.uri for obj in child_comp.objects
+        }
+
+
 def test_scenex_references_scene_and_generates_rdf():
     model = scenex_metamodel().model_from_file(MODELS_DIR / "lab.scenex")
     assert len(model.scene_insts) > 0
@@ -155,7 +170,8 @@ def test_scene_parser_loads_modelled_objects_and_agents():
     )
     assert parsed.object_models[box.uri].models
     assert parsed.agent_models[panda.uri].models
-    assert ObjectModel(graph, box.uri).models
+    standalone_box = ObjectModel(graph, box.uri)
+    assert standalone_box.load_models(graph, parsed.element_loader)
 
     ros_model_id = next(graph.subjects(predicate=None, object=URI_ROS_TYPE_PACKAGE))
     ros_model = ModelBase(URIRef(ros_model_id), graph)

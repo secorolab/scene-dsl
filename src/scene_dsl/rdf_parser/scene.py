@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MPL-2.0
-from collections.abc import Generator, Iterable, Mapping
+from collections.abc import Generator, Iterable
 from typing import Any
 
 from rdf_utils.models.common import ModelBase, ModelLoader, get_node_types
@@ -7,16 +7,13 @@ from rdf_utils.models.vocab import (
     URI_AGN_PRED_HAS_AGN,
     URI_ENV_PRED_HAS_OBJ,
     URI_ENV_PRED_HAS_WS,
+    URI_ENV_PRED_OF_WS,
+    URI_ENV_TYPE_WS,
 )
-from rdflib import Graph, URIRef
+from rdflib import RDF, Graph, URIRef
 
 from scene_dsl.rdf_parser.agent import AgentModel
-from scene_dsl.rdf_parser.environment import (
-    ObjectModel,
-    WorkspaceModel,
-    _get_ws_objects_re,
-    _load_ws_re,
-)
+from scene_dsl.rdf_parser.environment import ObjectModel, WorkspaceModel
 from scene_dsl.rdf_parser.vocab import (
     URI_BDD_PRED_OF_SCENE,
     URI_BDD_TYPE_SCENE_AGN,
@@ -38,12 +35,23 @@ class SceneElementLoader(ModelLoader):
         obj_id: URIRef,
         override: bool = False,
         modelled_ids: Iterable[URIRef] | None = None,
+        model: ObjectModel | None = None,
         **kwargs: Any,
     ) -> ObjectModel:
         if obj_id in self.object_models and not override:
             return self.object_models[obj_id]
-        model = ObjectModel(graph=graph, obj_id=obj_id, modelled_ids=modelled_ids)
-        model.load_model_attrs(graph=graph, model_loader=self, **kwargs)
+        if model is None:
+            model = ObjectModel(graph=graph, obj_id=obj_id)
+        elif model.id != obj_id:
+            raise ValueError(
+                f"object model '{model.id}' does not match requested object '{obj_id}'"
+            )
+        model.load_models(
+            graph=graph,
+            model_loader=self,
+            modelled_ids=None if modelled_ids is None else set(modelled_ids),
+            **kwargs,
+        )
         self.object_models[obj_id] = model
         return model
 
@@ -67,34 +75,20 @@ class SceneElementLoader(ModelLoader):
         graph: Graph,
         ws_id: URIRef,
         override: bool = False,
-        modelled_objects: Mapping[URIRef, Iterable[URIRef]] | None = None,
+        model: WorkspaceModel | None = None,
         **kwargs: Any,
     ) -> WorkspaceModel:
         if ws_id in self.workspace_models and not override:
             return self.workspace_models[ws_id]
-        loaded_ws_ids = set(self.workspace_models)
-        _load_ws_re(ws_id, graph, self.workspace_models)
-        for loaded_ws_id in self.workspace_models.keys() - loaded_ws_ids:
-            self.load_attributes(graph=graph, model=self.workspace_models[loaded_ws_id], **kwargs)
-        for obj_id in _get_ws_objects_re(ws_id, self.workspace_models):
-            if modelled_objects is not None and obj_id not in modelled_objects:
-                continue
-            self.load_object_model(
-                graph,
-                obj_id,
-                override=override,
-                modelled_ids=None if modelled_objects is None else modelled_objects[obj_id],
-                **kwargs,
+        if model is None:
+            model = WorkspaceModel(graph=graph, ws_id=ws_id)
+        elif model.id != ws_id:
+            raise ValueError(
+                f"workspace model '{model.id}' does not match requested workspace '{ws_id}'"
             )
-        return self.workspace_models[ws_id]
-
-    def load_ws_objects(
-        self, graph: Graph, ws_id: URIRef, override: bool = False, **kwargs: Any
-    ) -> Generator[ObjectModel, None, None]:
-        if ws_id not in self.workspace_models:
-            self.load_ws_model(graph, ws_id, override=override, **kwargs)
-        for obj_id in _get_ws_objects_re(ws_id, self.workspace_models):
-            yield self.object_models[obj_id]
+        self.load_attributes(graph=graph, model=model, **kwargs)
+        self.workspace_models[ws_id] = model
+        return model
 
 
 class SceneModel(ModelBase):
@@ -102,15 +96,17 @@ class SceneModel(ModelBase):
 
     def __init__(self, graph: Graph, scene_id: URIRef) -> None:
         super().__init__(graph=graph, node_id=scene_id)
-        self.objects: set[URIRef] = set()
-        self.workspaces: set[URIRef] = set()
+        self.objects: dict[URIRef, ObjectModel] = {}
+        self.workspaces: dict[URIRef, WorkspaceModel] = {}
+        # Map each selected composition to its underlying workspace.
+        self._ws_comps: dict[URIRef, URIRef] = {}
         self.agents: set[URIRef] = set()
-        self.element_loader = SceneElementLoader()
+        self.element_loader: SceneElementLoader = SceneElementLoader()
 
         categories = {
-            URI_BDD_TYPE_SCENE_OBJ: (URI_ENV_PRED_HAS_OBJ, self.objects),
-            URI_BDD_TYPE_SCENE_WS: (URI_ENV_PRED_HAS_WS, self.workspaces),
-            URI_BDD_TYPE_SCENE_AGN: (URI_AGN_PRED_HAS_AGN, self.agents),
+            URI_BDD_TYPE_SCENE_OBJ: URI_ENV_PRED_HAS_OBJ,
+            URI_BDD_TYPE_SCENE_WS: URI_ENV_PRED_HAS_WS,
+            URI_BDD_TYPE_SCENE_AGN: URI_AGN_PRED_HAS_AGN,
         }
         for component_id in graph.subjects(URI_BDD_PRED_OF_SCENE, scene_id, unique=True):
             if not isinstance(component_id, URIRef):
@@ -121,27 +117,96 @@ class SceneModel(ModelBase):
                 raise ValueError(f"scene component '{component_id}' has multiple categories")
             if not matched:
                 continue
-            predicate, elements = categories[matched.pop()]
+
+            predicate = categories[matched.pop()]
             for element_id in graph.objects(component_id, predicate):
                 if not isinstance(element_id, URIRef):
                     raise TypeError(
                         f"scene component '{component_id}' has a non-URI element: {element_id}"
                     )
-                elements.add(element_id)
+
+                if predicate == URI_ENV_PRED_HAS_OBJ:
+                    self.objects[element_id] = ObjectModel(graph=graph, obj_id=element_id)
+                elif predicate == URI_ENV_PRED_HAS_WS:
+                    if (element_id, RDF.type, URI_ENV_TYPE_WS) in graph:
+                        self.workspaces[element_id] = WorkspaceModel(ws_id=element_id, graph=graph)
+                    else:
+                        # assume this is a workspace compositions
+                        self._load_ws_comp_re(ws_comp_id=element_id, graph=graph)
+                elif predicate == URI_AGN_PRED_HAS_AGN:
+                    self.agents.add(element_id)
+
+    def _load_ws_comp_re(
+        self, ws_comp_id: URIRef, graph: Graph, ws_path: set[URIRef] | None = None
+    ):
+        ws_ids = list(graph.objects(subject=ws_comp_id, predicate=URI_ENV_PRED_OF_WS, unique=True))
+        if len(ws_ids) != 1 or not isinstance(ws_ids[0], URIRef):
+            raise ValueError(
+                f"WorkspaceComposition '{ws_comp_id.n3(self._ns_manager)}' for '{self}' doesn't link to 1 WS, found: {ws_ids}"
+            )
+
+        ws_id: URIRef = ws_ids[0]
+
+        path = set() if ws_path is None else set(ws_path)
+        if ws_id in path:
+            raise RuntimeError(f"workspace loop detected at '{ws_id}'")
+        path.add(ws_id)
+
+        if ws_comp_id in self._ws_comps:
+            return
+
+        self._ws_comps[ws_comp_id] = ws_id
+
+        if ws_id not in self.workspaces:
+            self.workspaces[ws_id] = WorkspaceModel(ws_id=ws_id, graph=graph)
+
+        ws_model = self.workspaces[ws_id]
+        ws_model.load_ws_comp(ws_comp_id=ws_comp_id, graph=graph)
+
+        for obj_id in ws_model.objects:
+            if obj_id not in self.objects:
+                self.objects[obj_id] = ObjectModel(obj_id=obj_id, graph=graph)
+
+        for sub_ws_id in ws_model.workspaces:
+            if sub_ws_id not in self.workspaces:
+                self.workspaces[sub_ws_id] = WorkspaceModel(ws_id=sub_ws_id, graph=graph)
+
+        for sub_comp_id in ws_model.ws_comps:
+            self._load_ws_comp_re(ws_comp_id=sub_comp_id, graph=graph, ws_path=path)
 
     def load_obj_model(
         self, graph: Graph, obj_id: URIRef, override: bool = False, **kwargs: Any
     ) -> ObjectModel:
         if obj_id not in self.objects:
             raise ValueError(f"object '{obj_id}' is not in scene '{self.id}'")
-        return self.element_loader.load_object_model(graph, obj_id, override, **kwargs)
+        return self.element_loader.load_object_model(
+            graph, obj_id, override, model=self.objects[obj_id], **kwargs
+        )
 
     def load_ws_model(
         self, graph: Graph, ws_id: URIRef, override: bool = False, **kwargs: Any
     ) -> WorkspaceModel:
         if ws_id not in self.workspaces:
             raise ValueError(f"workspace '{ws_id}' is not in scene '{self.id}'")
-        return self.element_loader.load_ws_model(graph, ws_id, override, **kwargs)
+        return self.element_loader.load_ws_model(
+            graph, ws_id, override, model=self.workspaces[ws_id], **kwargs
+        )
+
+    def load_ws_objects(
+        self, graph: Graph, ws_id: URIRef, override: bool = False, **kwargs: Any
+    ) -> Generator[ObjectModel, None, None]:
+        if ws_id not in self.workspaces:
+            raise ValueError(f"workspace '{ws_id}' is not in scene '{self.id}'")
+
+        ws_model = self.workspaces[ws_id]
+        for obj_id in ws_model.objects:
+            yield self.load_obj_model(graph, obj_id, override=override, **kwargs)
+        for child_ws_id in ws_model.workspaces:
+            yield from self.load_ws_objects(graph, child_ws_id, override=override, **kwargs)
+        for sub_comp_id in ws_model.ws_comps:
+            yield from self.load_ws_objects(
+                graph, self._ws_comps[sub_comp_id], override=override, **kwargs
+            )
 
     def load_agn_model(
         self, graph: Graph, agent_id: URIRef, override: bool = False, **kwargs: Any

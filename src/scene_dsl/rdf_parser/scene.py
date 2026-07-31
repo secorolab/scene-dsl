@@ -61,12 +61,23 @@ class SceneElementLoader(ModelLoader):
         agent_id: URIRef,
         override: bool = False,
         modelled_ids: Iterable[URIRef] | None = None,
+        model: AgentModel | None = None,
         **kwargs: Any,
     ) -> AgentModel:
         if agent_id in self.agent_models and not override:
             return self.agent_models[agent_id]
-        model = AgentModel(graph=graph, agent_id=agent_id, modelled_ids=modelled_ids)
-        model.load_model_attrs(graph=graph, model_loader=self, **kwargs)
+        if model is None:
+            model = AgentModel(graph=graph, agent_id=agent_id)
+        elif model.id != agent_id:
+            raise ValueError(
+                f"agent model '{model.id}' does not match requested agent '{agent_id}'"
+            )
+        model.load_models(
+            graph=graph,
+            model_loader=self,
+            modelled_ids=None if modelled_ids is None else set(modelled_ids),
+            **kwargs,
+        )
         self.agent_models[agent_id] = model
         return model
 
@@ -100,7 +111,7 @@ class SceneModel(ModelBase):
         self.workspaces: dict[URIRef, WorkspaceModel] = {}
         # Map each selected composition to its underlying workspace.
         self._ws_comps: dict[URIRef, URIRef] = {}
-        self.agents: set[URIRef] = set()
+        self.agents: dict[URIRef, AgentModel] = {}
         self.element_loader: SceneElementLoader = SceneElementLoader()
 
         categories = {
@@ -134,7 +145,7 @@ class SceneModel(ModelBase):
                         # assume this is a workspace compositions
                         self._load_ws_comp_re(ws_comp_id=element_id, graph=graph)
                 elif predicate == URI_AGN_PRED_HAS_AGN:
-                    self.agents.add(element_id)
+                    self.agents[element_id] = AgentModel(graph=graph, agent_id=element_id)
 
     def _load_ws_comp_re(
         self, ws_comp_id: URIRef, graph: Graph, ws_path: set[URIRef] | None = None
@@ -213,7 +224,9 @@ class SceneModel(ModelBase):
     ) -> AgentModel:
         if agent_id not in self.agents:
             raise ValueError(f"agent '{agent_id}' is not in scene '{self.id}'")
-        return self.element_loader.load_agent_model(graph, agent_id, override, **kwargs)
+        return self.element_loader.load_agent_model(
+            graph, agent_id, override, model=self.agents[agent_id], **kwargs
+        )
 
     def has_invariant_elem(self, elem_id: URIRef) -> bool:
         return elem_id in self.objects or elem_id in self.workspaces or elem_id in self.agents

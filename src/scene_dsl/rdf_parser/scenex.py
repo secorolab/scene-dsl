@@ -213,7 +213,12 @@ class SceneInstanceModel(ModelBase):
                 graph, ws_id, model=self.scene_model.workspaces[ws_id]
             )
         for agn_id, wrappers in agent_wrappers.items():
-            self.element_loader.load_agent_model(graph, agn_id, modelled_ids=wrappers)
+            self.element_loader.load_agent_model(
+                graph,
+                agn_id,
+                modelled_ids=wrappers,
+                model=self.scene_model.agents.get(agn_id),
+            )
 
         self.object_models = self.element_loader.object_models
         self.workspace_models = self.element_loader.workspace_models

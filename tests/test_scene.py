@@ -15,6 +15,7 @@ from scene_dsl.classes.common import IHasNamespace
 from scene_dsl.langs import scene_metamodel, scenex_metamodel
 from scene_dsl.rdf.scene import create_scene_model_graph
 from scene_dsl.rdf.scenex import create_scenex_model_graph
+from scene_dsl.rdf_parser.agent import AgentModel
 from scene_dsl.rdf_parser.environment import ObjectModel
 from scene_dsl.rdf_parser.ktree import RigidBodyModel, get_root_frame
 from scene_dsl.rdf_parser.scene import SceneModel
@@ -51,6 +52,18 @@ def test_scene_parses_and_generates_rdf():
 
     assert parsed.objects
     assert parsed.workspaces
+
+
+def test_scene_parser_constructs_agent_models():
+    model = scene_metamodel().model_from_str(
+        'ns n="https://example.test/" agn set (ns=n) agents { agent robot } '
+        "scene (ns=n) s { agn set <agents> }"
+    )
+    scene = model.scene_models[0]
+    parsed = SceneModel(create_scene_model_graph(model), scene.uri)
+
+    assert parsed.agents.keys() == {scene.agn_sets[0].agents[0].uri}
+    assert all(isinstance(agent, AgentModel) for agent in parsed.agents.values())
 
 
 def test_scene_parser_resolves_nested_workspace_compositions():
@@ -172,6 +185,8 @@ def test_scene_parser_loads_modelled_objects_and_agents():
     assert parsed.agent_models[panda.uri].models
     standalone_box = ObjectModel(graph, box.uri)
     assert standalone_box.load_models(graph, parsed.element_loader)
+    standalone_agent = AgentModel(graph, panda.uri)
+    assert standalone_agent.load_models(graph, parsed.element_loader)
 
     ros_model_id = next(graph.subjects(predicate=None, object=URI_ROS_TYPE_PACKAGE))
     ros_model = ModelBase(URIRef(ros_model_id), graph)

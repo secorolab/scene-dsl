@@ -30,12 +30,18 @@ class ObjectModel(ModelBase):
         self,
         graph: Graph,
         model_loader: ModelLoader,
+        override: bool = False,
         modelled_ids: set[URIRef] | None = None,
         **kwargs,
     ) -> dict[URIRef, ModelBase]:
-        if self._models is not None:
+        if self._models is not None and not override:
             return self._models
 
+        if override:
+            self._model_types.clear()
+            self._model_type_to_id.clear()
+            self._config = None
+            self._attributes.clear()
         self._models = {}
 
         modelled_objects = (
@@ -86,6 +92,10 @@ class ObjectModel(ModelBase):
             for model_type in model.types:
                 self._model_types.add(model_type)
                 self._model_type_to_id.setdefault(model_type, set()).add(model.id)
+
+    @property
+    def models_loaded(self) -> bool:
+        return self._models is not None
 
     @property
     def config(self) -> ModelBase | None:

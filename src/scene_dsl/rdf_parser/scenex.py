@@ -24,7 +24,7 @@ from scene_dsl.rdf_parser.agent import AgentModel
 from scene_dsl.rdf_parser.common import ensure_one_obj_literal, ensure_one_obj_uri
 from scene_dsl.rdf_parser.environment import ObjectModel, WorkspaceModel
 from scene_dsl.rdf_parser.ktree import RigidBodyModel
-from scene_dsl.rdf_parser.scene import SceneElementLoader, SceneModel
+from scene_dsl.rdf_parser.scene import SceneModel
 from scene_dsl.rdf_parser.vocab import (
     URI_BDD_PRED_OF_SCENE,
     URI_ROS_PRED_PACKAGE_NAME,
@@ -185,7 +185,7 @@ class SceneInstanceModel(ModelBase):
             SceneModel(graph=graph, scene_id=scene_id) if scene_model is None else scene_model
         )
 
-        self.element_loader = SceneElementLoader()
+        self.element_loader = ModelLoader()
         for loader in DEFAULT_MODEL_LOADERS if loaders is None else loaders:
             self.element_loader.register(loader)
         self.mapping_loader = MappingLoader()
@@ -201,28 +201,23 @@ class SceneInstanceModel(ModelBase):
         agent_wrappers = self._modelled_elements(
             graph, URI_EXEC_PRED_HAS_MODELLED_AGN, URI_AGN_PRED_OF_AGN, "Agent"
         )
+        self.object_models = {}
         for obj_id, wrappers in object_wrappers.items():
-            self.element_loader.load_object_model(
-                graph,
-                obj_id,
-                modelled_ids=wrappers,
-                model=self.scene_model.objects[obj_id],
+            model = self.scene_model.objects[obj_id]
+            model.load_models(
+                graph=graph, model_loader=self.element_loader, modelled_ids=set(wrappers)
             )
-        for ws_id in self.scene_model.workspaces:
-            self.element_loader.load_ws_model(
-                graph, ws_id, model=self.scene_model.workspaces[ws_id]
-            )
-        for agn_id, wrappers in agent_wrappers.items():
-            self.element_loader.load_agent_model(
-                graph,
-                agn_id,
-                modelled_ids=wrappers,
-                model=self.scene_model.agents.get(agn_id),
-            )
+            self.object_models[obj_id] = model
 
-        self.object_models = self.element_loader.object_models
-        self.workspace_models = self.element_loader.workspace_models
-        self.agent_models = self.element_loader.agent_models
+        self.workspace_models = dict(self.scene_model.workspaces)
+
+        self.agent_models = {}
+        for agn_id, wrappers in agent_wrappers.items():
+            model = self.scene_model.agents.get(agn_id) or AgentModel(graph=graph, agent_id=agn_id)
+            model.load_models(
+                graph=graph, model_loader=self.element_loader, modelled_ids=set(wrappers)
+            )
+            self.agent_models[agn_id] = model
 
     def get_scene_entity_body_by_name(self, name: str, graph: Graph) -> RigidBodyModel | None:
         matched_ids = [

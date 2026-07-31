@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MPL-2.0
-from collections.abc import Generator, Iterable
+from collections.abc import Generator
 from typing import Any
 
 from rdf_utils.models.common import ModelBase, ModelLoader, get_node_types
@@ -22,86 +22,6 @@ from scene_dsl.rdf_parser.vocab import (
 )
 
 
-class SceneElementLoader(ModelLoader):
-    def __init__(self) -> None:
-        super().__init__()
-        self.object_models: dict[URIRef, ObjectModel] = {}
-        self.agent_models: dict[URIRef, AgentModel] = {}
-        self.workspace_models: dict[URIRef, WorkspaceModel] = {}
-
-    def load_object_model(
-        self,
-        graph: Graph,
-        obj_id: URIRef,
-        override: bool = False,
-        modelled_ids: Iterable[URIRef] | None = None,
-        model: ObjectModel | None = None,
-        **kwargs: Any,
-    ) -> ObjectModel:
-        if obj_id in self.object_models and not override:
-            return self.object_models[obj_id]
-        if model is None:
-            model = ObjectModel(graph=graph, obj_id=obj_id)
-        elif model.id != obj_id:
-            raise ValueError(
-                f"object model '{model.id}' does not match requested object '{obj_id}'"
-            )
-        model.load_models(
-            graph=graph,
-            model_loader=self,
-            modelled_ids=None if modelled_ids is None else set(modelled_ids),
-            **kwargs,
-        )
-        self.object_models[obj_id] = model
-        return model
-
-    def load_agent_model(
-        self,
-        graph: Graph,
-        agent_id: URIRef,
-        override: bool = False,
-        modelled_ids: Iterable[URIRef] | None = None,
-        model: AgentModel | None = None,
-        **kwargs: Any,
-    ) -> AgentModel:
-        if agent_id in self.agent_models and not override:
-            return self.agent_models[agent_id]
-        if model is None:
-            model = AgentModel(graph=graph, agent_id=agent_id)
-        elif model.id != agent_id:
-            raise ValueError(
-                f"agent model '{model.id}' does not match requested agent '{agent_id}'"
-            )
-        model.load_models(
-            graph=graph,
-            model_loader=self,
-            modelled_ids=None if modelled_ids is None else set(modelled_ids),
-            **kwargs,
-        )
-        self.agent_models[agent_id] = model
-        return model
-
-    def load_ws_model(
-        self,
-        graph: Graph,
-        ws_id: URIRef,
-        override: bool = False,
-        model: WorkspaceModel | None = None,
-        **kwargs: Any,
-    ) -> WorkspaceModel:
-        if ws_id in self.workspace_models and not override:
-            return self.workspace_models[ws_id]
-        if model is None:
-            model = WorkspaceModel(graph=graph, ws_id=ws_id)
-        elif model.id != ws_id:
-            raise ValueError(
-                f"workspace model '{model.id}' does not match requested workspace '{ws_id}'"
-            )
-        self.load_attributes(graph=graph, model=model, **kwargs)
-        self.workspace_models[ws_id] = model
-        return model
-
-
 class SceneModel(ModelBase):
     """RDF view of the objects, workspaces, and agents in a scene."""
 
@@ -112,7 +32,7 @@ class SceneModel(ModelBase):
         # Map each selected composition to its underlying workspace.
         self._ws_comps: dict[URIRef, URIRef] = {}
         self.agents: dict[URIRef, AgentModel] = {}
-        self.element_loader: SceneElementLoader = SceneElementLoader()
+        self.element_loader = ModelLoader()
 
         categories = {
             URI_BDD_TYPE_SCENE_OBJ: URI_ENV_PRED_HAS_OBJ,
@@ -190,18 +110,20 @@ class SceneModel(ModelBase):
     ) -> ObjectModel:
         if obj_id not in self.objects:
             raise ValueError(f"object '{obj_id}' is not in scene '{self.id}'")
-        return self.element_loader.load_object_model(
-            graph, obj_id, override, model=self.objects[obj_id], **kwargs
-        )
+        model = self.objects[obj_id]
+        if not model.models_loaded or override:
+            model.load_models(
+                graph=graph,
+                model_loader=self.element_loader,
+                override=override,
+                **kwargs,
+            )
+        return model
 
-    def load_ws_model(
-        self, graph: Graph, ws_id: URIRef, override: bool = False, **kwargs: Any
-    ) -> WorkspaceModel:
+    def load_ws_model(self, ws_id: URIRef) -> WorkspaceModel:
         if ws_id not in self.workspaces:
             raise ValueError(f"workspace '{ws_id}' is not in scene '{self.id}'")
-        return self.element_loader.load_ws_model(
-            graph, ws_id, override, model=self.workspaces[ws_id], **kwargs
-        )
+        return self.workspaces[ws_id]
 
     def load_ws_objects(
         self, graph: Graph, ws_id: URIRef, override: bool = False, **kwargs: Any
@@ -224,9 +146,15 @@ class SceneModel(ModelBase):
     ) -> AgentModel:
         if agent_id not in self.agents:
             raise ValueError(f"agent '{agent_id}' is not in scene '{self.id}'")
-        return self.element_loader.load_agent_model(
-            graph, agent_id, override, model=self.agents[agent_id], **kwargs
-        )
+        model = self.agents[agent_id]
+        if not model.models_loaded or override:
+            model.load_models(
+                graph=graph,
+                model_loader=self.element_loader,
+                override=override,
+                **kwargs,
+            )
+        return model
 
     def has_invariant_elem(self, elem_id: URIRef) -> bool:
         return elem_id in self.objects or elem_id in self.workspaces or elem_id in self.agents

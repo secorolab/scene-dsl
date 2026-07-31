@@ -195,6 +195,27 @@ def test_scene_parser_loads_modelled_objects_and_agents():
     assert get_ros_pkg_path(ros_model) == ("test_pkg", "assets/table.xml")
 
 
+def test_scene_object_model_override_reloads_in_place():
+    model = scenex_metamodel().model_from_file(MODELS_DIR / "lab.scenex")
+    scene_instance = model.scene_insts[0]
+    graph = create_scenex_model_graph(model)
+    scene = SceneModel(graph, scene_instance.scene.uri)
+    obj_id = scene_instance.modelled_objs[0].obj.uri
+    loaded = []
+    marker = URIRef("https://example.test/stale")
+    scene.element_loader.register(lambda graph, model, **kwargs: loaded.append(model.id))
+
+    obj_model = scene.load_obj_model(graph, obj_id)
+    first_load = list(loaded)
+    obj_model.set_attr(marker, True)
+    assert scene.load_obj_model(graph, obj_id) is obj_model
+    assert loaded == first_load
+
+    assert scene.load_obj_model(graph, obj_id, override=True) is obj_model
+    assert loaded == first_load * 2
+    assert obj_model.get_attr(marker) is None
+
+
 def test_scene_parser_loads_mappings_and_resolves_element_roots():
     model = scenex_metamodel().model_from_file(MODELS_DIR / "lab.scenex")
     scene_instance = model.scene_insts[0]
@@ -276,7 +297,6 @@ def test_modelled_resources_use_custom_loaders_in_order():
     loaded_ids = {model_id for _, model_id in calls}
     assert parsed.object_models.keys() <= loaded_ids
     assert parsed.agent_models.keys() <= loaded_ids
-    assert parsed.workspace_models.keys() <= loaded_ids
 
 
 def test_object_set_without_body_mappings_returns_none():

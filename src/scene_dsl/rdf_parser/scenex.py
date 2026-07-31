@@ -202,9 +202,16 @@ class SceneInstanceModel(ModelBase):
             graph, URI_EXEC_PRED_HAS_MODELLED_AGN, URI_AGN_PRED_OF_AGN, "Agent"
         )
         for obj_id, wrappers in object_wrappers.items():
-            self.element_loader.load_object_model(graph, obj_id, modelled_ids=wrappers)
+            self.element_loader.load_object_model(
+                graph,
+                obj_id,
+                modelled_ids=wrappers,
+                model=self.scene_model.objects[obj_id],
+            )
         for ws_id in self.scene_model.workspaces:
-            self.element_loader.load_ws_model(graph, ws_id, modelled_objects=object_wrappers)
+            self.element_loader.load_ws_model(
+                graph, ws_id, model=self.scene_model.workspaces[ws_id]
+            )
         for agn_id, wrappers in agent_wrappers.items():
             self.element_loader.load_agent_model(graph, agn_id, modelled_ids=wrappers)
 

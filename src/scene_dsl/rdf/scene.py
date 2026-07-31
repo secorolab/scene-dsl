@@ -116,7 +116,6 @@ def add_ws_comp(
         )
     seen_ws_comp_uris.add(ws_comp.uri)
 
-    graph.add(triple=(scene.scene_ws_uri, URI_ENV_PRED_HAS_WS, ws_comp.ws.uri))
     graph.add(triple=(ws_comp.ws.uri, RDF.type, URI_ENV_TYPE_WS))
 
     graph.add(triple=(ws_comp.uri, URI_ENV_PRED_OF_WS, ws_comp.ws.uri))
@@ -142,7 +141,7 @@ def add_ws_comp(
         graph.add(triple=(ws_comp.uri, URI_ENV_PRED_HAS_WS, ws.uri))
 
     for child_comp in ws_comp.ws_comps:
-        graph.add(triple=(ws_comp.uri, URI_ENV_PRED_HAS_WS, child_comp.ws.uri))
+        graph.add(triple=(ws_comp.uri, URI_ENV_PRED_HAS_WS, child_comp.uri))
         add_ws_comp(
             graph=graph,
             scene=scene,
@@ -186,6 +185,8 @@ def add_scene_model(
         )
 
     for ws_comp in scene.ws_comps:
+        # This add the link from scene to only the top level workspace compositions
+        graph.add(triple=(scene.scene_ws_uri, URI_ENV_PRED_HAS_WS, ws_comp.uri))
         add_ws_comp(
             graph=graph,
             scene=scene,

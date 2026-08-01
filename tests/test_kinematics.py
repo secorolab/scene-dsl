@@ -123,7 +123,8 @@ def test_a_chain_is_a_slice_of_its_tree(tmp_path):
 
     assert (chain.root, chain.tip) == ("rig/base", "rig/link1/tcp")
     tip = tree.segments[-1]
-    assert (tip.name, tip.hook, tip.joint.kind) == ("rig/link1/tcp", "rig/link1", "fixed")
+    assert (tip.name, tip.hook) == ("rig/link1/tcp", "rig/link1")
+    assert tip.joint is None  # a frame is no body and no joint moves to it
     assert np.allclose(tip.pos, (0.0, 0.0, 0.4))
 
 

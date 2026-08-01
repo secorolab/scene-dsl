@@ -7,7 +7,9 @@ KDL::Vector({{ values[0] }}, {{ values[1] }}, {{ values[2] }})
 {%- endmacro -%}
 
 {%- macro joint(joint) -%}
-{%- if joint.kind == 'fixed' -%}
+{%- if joint is none -%}
+KDL::Joint(KDL::Joint::None)
+{%- elif joint.kind == 'fixed' -%}
 KDL::Joint({% if joint.name %}"{{ joint.name }}", {% endif %}KDL::Joint::None)
 {%- elif joint.kind == 'revolute' -%}
 KDL::Joint("{{ joint.name }}", {{ vector(joint.origin) }}, {{ vector(joint.axis) }}, KDL::Joint::RotAxis)

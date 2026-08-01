@@ -20,8 +20,8 @@ from rdf_utils.models.geom_coord import (
     get_transform_between_frames,
     get_translation_between_points,
 )
+from rdf_utils.models.geom_rel import FrameModel
 from rdf_utils.models.vocab import (
-    URI_DYN_PRED_AS_SEEN_BY,
     URI_DYN_PRED_IXX,
     URI_DYN_PRED_IXY,
     URI_DYN_PRED_IXZ,
@@ -32,7 +32,6 @@ from rdf_utils.models.vocab import (
     URI_DYN_PRED_OF_BODY,
     URI_DYN_PRED_OF_INERTIA,
     URI_GEOM_PRED_LINES,
-    URI_GEOM_PRED_ORIGIN,
     URI_GEOM_PRED_SIMPLICES,
     URI_GEOM_PRED_VECT_X,
     URI_GEOM_PRED_VECT_Y,
@@ -57,7 +56,7 @@ from rdflib import RDF, Graph, URIRef
 from scipy.spatial.transform import RigidTransform
 
 from scene_dsl.rdf_parser.common import ensure_one_obj_uri
-from scene_dsl.rdf_parser.ktree import get_root_frame
+from scene_dsl.rdf_parser.ktree import InertiaModel, get_root_frame
 from scene_dsl.rdf_parser.model_inertia import read_body_inertia
 
 MASS_SCALE = {URI_QUDT_UNIT_KG: 1.0, URI_QUDT_UNIT_G: 1e-3}
@@ -84,22 +83,30 @@ class Inertia:
 
 
 class JointModel(ModelBase):
-    """A joint, with the line it moves about resolved in its parent body's frame."""
+    """A joint: the two frames it attaches, and what it does between them.
 
-    def __init__(
-        self,
-        joint_id: URIRef,
-        graph: Graph,
-        name: str,
-        kind: JointKind,
-        origin: tuple[float, float, float],
-        axis: tuple[float, float, float],
-    ) -> None:
+    `origin` and `axis` are the line it moves about, resolved in the parent body's
+    frame; they are set once the joint is oriented, since which frame is the parent
+    is a property of the tree and not of the joint.
+    """
+
+    def __init__(self, joint_id: URIRef, graph: Graph) -> None:
         super().__init__(node_id=joint_id, graph=graph)
-        self.name = name
-        self.kind = kind
-        self.origin = origin
-        self.axis = axis
+        frames = tuple(graph.objects(joint_id, URI_KC_PRED_BETWEEN_ATTACHMENTS))
+        if len(frames) != 2:
+            raise ConstraintViolation(
+                "kinematics", f"joint '{joint_id}' must join two attachments, found {len(frames)}"
+            )
+        self.frames = frames
+        self.bodies = tuple(body_of_frame(frame, graph) for frame in frames)
+        self.kind = (
+            JointKind.REVOLUTE
+            if URI_KC_TYPE_REVOLUTE_JOINT in self.types
+            else JointKind.FIXED
+        )
+        self.name = ""
+        self.origin: tuple[float, float, float] = (0.0, 0.0, 0.0)
+        self.axis: tuple[float, float, float] = (0.0, 0.0, 0.0)
 
 
 class SegmentModel(ModelBase):
@@ -114,7 +121,7 @@ class SegmentModel(ModelBase):
         graph: Graph,
         name: str,
         hook: str,
-        joint: JointModel,
+        joint: JointModel | None,
         transform: RigidTransform,
         inertia: Inertia | None,
     ) -> None:
@@ -177,14 +184,6 @@ def as_moments(matrix) -> tuple[float, ...]:
     )
 
 
-def get_frame_origin(frame: URIRef, graph: Graph) -> URIRef:
-    """The point a frame is pinned at, which is what a Position relates."""
-    origin = ensure_one_obj_uri(graph=graph, subject=frame, predicate=URI_GEOM_PRED_ORIGIN)
-    if origin is None:
-        raise ConstraintViolation("kinematics", f"frame '{frame}' has no origin point")
-    return origin
-
-
 def frame_in_body(frame: URIRef, body: URIRef, graph: Graph) -> RigidTransform:
     """Where a frame sits on its body. Declaring no pose puts it at the body's root frame."""
     transform = get_transform_between_frames(frame, get_root_frame(body, graph).id, graph)
@@ -220,29 +219,12 @@ def body_of_frame(frame: URIRef, graph: Graph) -> URIRef:
     return bodies[0]
 
 
-@dataclass
-class JointFacts:
-    uri: URIRef
-    frames: tuple[URIRef, URIRef]
-    bodies: tuple[URIRef, URIRef]
-    revolute: bool
-
-
-def joints_in_graph(graph: Graph) -> dict[URIRef, JointFacts]:
-    joints = {}
-    for uri in graph.subjects(RDF.type, URI_KC_TYPE_JOINT):
-        frames = tuple(graph.objects(uri, URI_KC_PRED_BETWEEN_ATTACHMENTS))
-        if len(frames) != 2:
-            raise ConstraintViolation(
-                "kinematics", f"joint '{uri}' must join two attachments, found {len(frames)}"
-            )
-        joints[uri] = JointFacts(
-            uri=uri,
-            frames=frames,
-            bodies=tuple(body_of_frame(frame, graph) for frame in frames),
-            revolute=(uri, RDF.type, URI_KC_TYPE_REVOLUTE_JOINT) in graph,
-        )
-    return joints
+def joints_in_graph(graph: Graph) -> dict[URIRef, JointModel]:
+    """Every joint the graph declares, by IRI."""
+    return {
+        uri: JointModel(joint_id=uri, graph=graph)
+        for uri in graph.subjects(RDF.type, URI_KC_TYPE_JOINT)
+    }
 
 
 def axis_of_vector(vector: URIRef, graph: Graph) -> tuple[URIRef, str]:
@@ -253,43 +235,45 @@ def axis_of_vector(vector: URIRef, graph: Graph) -> tuple[URIRef, str]:
     raise ConstraintViolation("kinematics", f"axis vector '{vector}' is no frame's axis")
 
 
-def revolute_axis(joint: JointFacts, parent_frame: URIRef, graph: Graph) -> str:
+def revolute_axis(joint: JointModel, parent_frame: URIRef, graph: Graph) -> str:
     """The axis letter the joint turns about, rejecting an under-determined pairing."""
-    common = ensure_one_obj_uri(graph=graph, subject=joint.uri, predicate=URI_KC_PRED_COMMON_AXIS)
+    common = ensure_one_obj_uri(graph=graph, subject=joint.id, predicate=URI_KC_PRED_COMMON_AXIS)
     if common is None:
         raise ConstraintViolation(
-            "kinematics", f"revolute joint '{joint.uri}' declares no common axis"
+            "kinematics", f"revolute joint '{joint.id}' declares no common axis"
         )
     axes = dict(axis_of_vector(vector, graph) for vector in graph.objects(common, URI_GEOM_PRED_LINES))
     if len(axes) != 2:
         raise ConstraintViolation(
-            "kinematics", f"common axis of '{joint.uri}' must relate two frame axes: {axes}"
+            "kinematics", f"common axis of '{joint.id}' must relate two frame axes: {axes}"
         )
     if len(set(axes.values())) != 1:
         raise ConstraintViolation(
             "kinematics",
-            f"revolute joint '{joint.uri}' makes '{''.join(sorted(set(axes.values())))}' axes "
+            f"revolute joint '{joint.id}' makes '{''.join(sorted(set(axes.values())))}' axes "
             f"collinear: which way the child frame then faces about them is undetermined",
         )
     if parent_frame not in axes:
         raise ConstraintViolation(
             "kinematics",
-            f"common axis of '{joint.uri}' does not mention its parent attachment "
+            f"common axis of '{joint.id}' does not mention its parent attachment "
             f"'{parent_frame}': it relates {sorted(str(frame) for frame in axes)}",
         )
     return axes[parent_frame]
 
 
-def joint_offset(joint: JointFacts, parent_frame: URIRef, child_frame: URIRef, graph: Graph) -> np.ndarray:
+def joint_offset(joint: JointModel, parent_frame: URIRef, child_frame: URIRef, graph: Graph) -> np.ndarray:
     """The child frame's displacement from the anchor, seen by the anchor."""
     position = ensure_one_obj_uri(
-        graph=graph, subject=joint.uri, predicate=URI_KC_PRED_ORIGIN_OFFSET
+        graph=graph, subject=joint.id, predicate=URI_KC_PRED_ORIGIN_OFFSET
     )
     if position is None:
         return np.zeros(3)
 
     values = get_translation_between_points(
-        get_frame_origin(child_frame, graph), get_frame_origin(parent_frame, graph), graph
+        FrameModel(frame_id=child_frame, graph=graph).origin,
+        FrameModel(frame_id=parent_frame, graph=graph).origin,
+        graph,
     )
     if values is None:
         raise ConstraintViolation("kinematics", f"offset '{position}' relates no two points")
@@ -343,12 +327,7 @@ def declared_inertia(body: URIRef, graph: Graph, base_dir: Path | None) -> Inert
         )
     mass = float(mass_literal.toPython()) * MASS_SCALE[units.pop()]
 
-    inertial_frame = ensure_one_obj_uri(
-        graph=graph, subject=coord, predicate=URI_DYN_PRED_AS_SEEN_BY
-    )
-    if inertial_frame is None:
-        raise ConstraintViolation("kinematics", f"inertia coordinate '{coord}' is seen by no frame")
-    in_body = frame_in_body(inertial_frame, body, graph)
+    in_body = frame_in_body(InertiaModel(inertias[0], graph).inertial_frame.id, body, graph)
 
     ixx, iyy, izz, ixy, ixz, iyz = (float(moment.toPython()) for moment in moments)
     matrix = np.array([[ixx, ixy, ixz], [ixy, iyy, iyz], [ixz, iyz, izz]])
@@ -366,7 +345,7 @@ def joint_owners(graph: Graph) -> dict[URIRef, set[URIRef]]:
     return owners
 
 
-def tree_roots(joints: dict[URIRef, JointFacts], graph: Graph) -> dict[URIRef, URIRef | None]:
+def tree_roots(joints: dict[URIRef, JointModel], graph: Graph) -> dict[URIRef, URIRef | None]:
     """The body each tree hangs from, and the tree that names it.
 
     A tree declares its own root, but a composed tree's root is attached by the tree
@@ -376,7 +355,7 @@ def tree_roots(joints: dict[URIRef, JointFacts], graph: Graph) -> dict[URIRef, U
     attached: dict[URIRef, set[URIRef]] = {}
     for joint in joints.values():
         for body in joint.bodies:
-            attached.setdefault(body, set()).update(owners.get(joint.uri, set()))
+            attached.setdefault(body, set()).update(owners.get(joint.id, set()))
 
     roots: dict[URIRef, URIRef | None] = {}
     for tree in naming_scopes(graph):
@@ -393,7 +372,7 @@ def tree_roots(joints: dict[URIRef, JointFacts], graph: Graph) -> dict[URIRef, U
 
 
 def segment_for(
-    joint: JointFacts,
+    joint: JointModel,
     parent: URIRef,
     scopes: list[URIRef],
     graph: Graph,
@@ -411,28 +390,25 @@ def segment_for(
     if attach is None:
         attach = RigidTransform.identity()
 
-    if joint.revolute:
+    direction = np.zeros(3)
+    if joint.kind is JointKind.REVOLUTE:
         axis = revolute_axis(joint, parent_frame, graph)
-        attach = RigidTransform.from_translation(joint_offset(joint, parent_frame, child_frame, graph)) * attach
-        kind, direction = JointKind.REVOLUTE, in_parent.rotation.as_matrix()[:, "xyz".index(axis)]
-    else:
-        kind, direction = JointKind.FIXED, np.zeros(3)
+        offset = joint_offset(joint, parent_frame, child_frame, graph)
+        attach = RigidTransform.from_translation(offset) * attach
+        direction = in_parent.rotation.as_matrix()[:, "xyz".index(axis)]
+
+    joint.name = element_name(joint.id, scopes)
+    joint.origin = as_floats(in_parent.translation)
+    joint.axis = as_floats(direction)
 
     return SegmentModel(
         body_id=child,
         graph=graph,
         name=element_name(child, scopes),
         hook=element_name(parent, scopes),
-        joint=JointModel(
-            joint_id=joint.uri,
-            graph=graph,
-            name=element_name(joint.uri, scopes),
-            kind=kind,
-            origin=as_floats(in_parent.translation),
-            axis=as_floats(direction),
-        ),
+        joint=joint,
         transform=in_parent * attach * in_child.inv(),
-        inertia=segment_inertia(child, graph, base_dir, moves=joint.revolute),
+        inertia=segment_inertia(child, graph, base_dir, moves=joint.kind is JointKind.REVOLUTE),
     )
 
 
@@ -461,14 +437,7 @@ def tip_frame_segment(tip_frame: URIRef, tip: URIRef, scopes: list[URIRef], grap
         graph=graph,
         name=f"{element_name(tip, scopes)}/{str(tip_frame).rsplit('/', 1)[-1]}",
         hook=element_name(tip, scopes),
-        joint=JointModel(
-            joint_id=tip_frame,
-            graph=graph,
-            name="",
-            kind=JointKind.FIXED,
-            origin=(0.0, 0.0, 0.0),
-            axis=(0.0, 0.0, 0.0),
-        ),
+        joint=None,
         transform=frame_in_body(tip_frame, tip, graph),
         inertia=None,
     )
@@ -559,7 +528,8 @@ def build_kinematic_model(graph: Graph, base_dir: Path | None = None) -> list[Tr
         missing = [
             segment.name
             for segment in ordered
-            if segment.inertia is None and segment.joint.kind is not JointKind.FIXED
+            if segment.inertia is None and segment.joint is not None
+            and segment.joint.kind is JointKind.REVOLUTE
         ]
         if missing:
             raise ConstraintViolation(

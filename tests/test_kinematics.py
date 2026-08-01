@@ -7,7 +7,7 @@ from rdf_utils.constraints import ConstraintViolation
 
 from scene_dsl.langs import scenex_metamodel
 from scene_dsl.rdf.scenex import create_scenex_model_graph
-from scene_dsl.rdf_parser.kdl import build_kdl_model
+from scene_dsl.rdf_parser.kinematics import build_kinematic_model
 
 SCENE = """ns t = "https://example.test/"
 agn set (ns=t) agents { agent arm }
@@ -98,7 +98,7 @@ def _tree(tmp_path: Path, inertia: str = STATED_INERTIA, kind: str = "mjcf", bod
     (tmp_path / "rig.model").write_text(body)
     (tmp_path / "rig.scenex").write_text(TREE.format(inertia=inertia, kind=kind))
     model = scenex_metamodel().model_from_file(str(tmp_path / "rig.scenex"))
-    [tree] = build_kdl_model(create_scenex_model_graph(model=model), tmp_path)
+    [tree] = build_kinematic_model(create_scenex_model_graph(model=model), tmp_path)
     return tree
 
 
@@ -113,7 +113,7 @@ def test_a_joint_places_its_child_where_its_anchor_is(tmp_path):
     # the anchor is turned 180 degrees about x, so its z points down in the parent body
     assert np.allclose(segment.joint.axis, (0.0, 0.0, -1.0), atol=1e-12)
     assert np.allclose(segment.pos, (0.0, 0.0, 0.15643))
-    assert np.allclose(segment.inertia.rot, (0.004, 0.005, 0.0006, 0.0, 0.0, 0.0))
+    assert np.allclose(segment.inertia.moments, (0.004, 0.005, 0.0006, 0.0, 0.0, 0.0))
 
 
 def test_a_chain_is_a_slice_of_its_tree(tmp_path):
@@ -123,7 +123,7 @@ def test_a_chain_is_a_slice_of_its_tree(tmp_path):
 
     assert (chain.root, chain.tip) == ("rig/base", "rig/link1/tcp")
     tip = tree.segments[-1]
-    assert (tip.name, tip.hook, tip.joint.kind) == ("rig/link1/tcp", "rig/link1", "None")
+    assert (tip.name, tip.hook, tip.joint.kind) == ("rig/link1/tcp", "rig/link1", "fixed")
     assert np.allclose(tip.pos, (0.0, 0.0, 0.4))
 
 
@@ -135,7 +135,7 @@ def test_inertia_absent_from_the_scene_is_read_from_the_model_file(tmp_path, kin
     assert inertia.mass == pytest.approx(0.75)
     assert np.allclose(inertia.cog, (0.0, 0.0, 0.2))
     # a quarter turn about z swaps which axis carries which moment
-    assert np.allclose(inertia.rot[:3], (0.005, 0.004, 0.0006))
+    assert np.allclose(inertia.moments[:3], (0.005, 0.004, 0.0006))
 
 
 def test_a_model_file_stating_no_inertial_is_an_error(tmp_path):

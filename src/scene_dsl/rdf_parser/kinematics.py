@@ -1,14 +1,21 @@
 # SPDX-License-Identifier: MPL-2.0
-"""Lower a scene graph's kinematics into segments a KDL backend can emit."""
+"""Lower a scene graph into a kinematic model: bodies, the joints between them, chains.
+
+The model is representation-neutral -- it names joints `fixed` and `revolute`, carries
+transforms as `scipy` `RigidTransform`, and knows nothing of any solver library. A
+backend template turns it into whatever that library spells these things.
+"""
 
 from __future__ import annotations
 
 from collections import deque
 from dataclasses import dataclass
+from enum import Enum
 from pathlib import Path
 
 import numpy as np
 from rdf_utils.constraints import ConstraintViolation
+from rdf_utils.models.common import ModelBase
 from rdf_utils.models.geom_coord import (
     get_transform_between_frames,
     get_translation_between_points,
@@ -56,57 +63,119 @@ from scene_dsl.rdf_parser.model_inertia import read_body_inertia
 MASS_SCALE = {URI_QUDT_UNIT_KG: 1.0, URI_QUDT_UNIT_G: 1e-3}
 AXIS_PREDS = {"x": URI_GEOM_PRED_VECT_X, "y": URI_GEOM_PRED_VECT_Y, "z": URI_GEOM_PRED_VECT_Z}
 
+class JointKind(str, Enum):
+    """What a joint is, not what any one library calls it.
 
-@dataclass(frozen=True)
-class JointIR:
-    name: str
-    kind: str  # "None" | "RotAxis"
-    origin: tuple[float, float, float]
-    axis: tuple[float, float, float]
+    A `str` mixin rather than `StrEnum` because the package still supports 3.10.
+    """
+
+    FIXED = "fixed"
+    REVOLUTE = "revolute"
 
 
-@dataclass(frozen=True)
-class InertiaIR:
+@dataclass
+class Inertia:
+    """A body's mass and how it is distributed, in the body's own frame.
+
+    Not a graph model: a body whose inertia is read from its model file has no inertia
+    node to be one of.
+    """
+
     mass: float
     cog: tuple[float, float, float]
-    rot: tuple[float, float, float, float, float, float]  # Ixx, Iyy, Izz, Ixy, Ixz, Iyz
+    moments: tuple[float, float, float, float, float, float]  # Ixx, Iyy, Izz, Ixy, Ixz, Iyz
 
 
-@dataclass(frozen=True)
-class SegmentIR:
-    name: str
-    hook: str
-    joint: JointIR
-    quat: tuple[float, float, float, float]  # f_tip rotation, xyzw
-    pos: tuple[float, float, float]  # f_tip translation, metres
-    inertia: InertiaIR | None
+class JointModel(ModelBase):
+    """A joint, with the line it moves about resolved in its parent body's frame."""
+
+    def __init__(
+        self,
+        joint_id: URIRef,
+        graph: Graph,
+        name: str,
+        kind: JointKind,
+        origin: tuple[float, float, float],
+        axis: tuple[float, float, float],
+    ) -> None:
+        super().__init__(node_id=joint_id, graph=graph)
+        self.name = name
+        self.kind = kind
+        self.origin = origin
+        self.axis = axis
 
 
-@dataclass(frozen=True)
-class ChainIR:
-    """A slice of its tree: the segments between two of them."""
+class SegmentModel(ModelBase):
+    """A body, and how it hangs off the one before it.
 
-    name: str
-    root: str
-    tip: str
+    `transform` places this body's frame in its parent's when every joint is at zero.
+    """
+
+    def __init__(
+        self,
+        body_id: URIRef,
+        graph: Graph,
+        name: str,
+        hook: str,
+        joint: JointModel,
+        transform: RigidTransform,
+        inertia: Inertia | None,
+    ) -> None:
+        super().__init__(node_id=body_id, graph=graph)
+        self.name = name
+        self.hook = hook
+        self.joint = joint
+        self.transform = transform
+        self.inertia = inertia
+
+    @property
+    def quat(self) -> tuple[float, float, float, float]:
+        """The placement's rotation, xyzw."""
+        return as_floats(self.transform.rotation.as_quat())
+
+    @property
+    def pos(self) -> tuple[float, float, float]:
+        """The placement's translation, metres."""
+        return as_floats(self.transform.translation)
 
 
-@dataclass(frozen=True)
-class TreeIR:
-    name: str
-    root: str
-    segments: tuple[SegmentIR, ...]
-    chains: tuple[ChainIR, ...]
+class ChainModel(ModelBase):
+    """A serial composition: the segments of its tree between two of them."""
+
+    def __init__(self, chain_id: URIRef, graph: Graph, name: str, root: str, tip: str) -> None:
+        super().__init__(node_id=chain_id, graph=graph)
+        self.name = name
+        self.root = root
+        self.tip = tip
 
 
-def _floats(values) -> tuple[float, ...]:
-    """The IR is printed by a template, so it holds plain floats, not numpy scalars."""
+class TreeModel(ModelBase):
+    """A kinematic tree: what hangs from its root, and the chains declared over it."""
+
+    def __init__(
+        self,
+        tree_id: URIRef,
+        graph: Graph,
+        name: str,
+        root: str,
+        segments: tuple[SegmentModel, ...],
+        chains: tuple[ChainModel, ...],
+    ) -> None:
+        super().__init__(node_id=tree_id, graph=graph)
+        self.name = name
+        self.root = root
+        self.segments = segments
+        self.chains = chains
+
+
+def as_floats(values) -> tuple[float, ...]:
+    """A template prints these, so they are plain floats, not numpy scalars."""
     return tuple(float(value) for value in values)
 
 
-def _moments(matrix) -> tuple[float, ...]:
-    """A symmetric tensor in the order KDL's RotationalInertia takes it."""
-    return _floats(
+def as_moments(matrix) -> tuple[float, ...]:
+    """A symmetric tensor as Ixx, Iyy, Izz, Ixy, Ixz, Iyz."""
+    return as_floats(
         (matrix[0][0], matrix[1][1], matrix[2][2], matrix[0][1], matrix[0][2], matrix[1][2])
     )
 
@@ -119,20 +188,20 @@ def get_frame_origin(frame: URIRef, graph: Graph) -> URIRef:
     return origin
 
 
-def _in_body(frame: URIRef, body: URIRef, graph: Graph) -> RigidTransform:
+def frame_in_body(frame: URIRef, body: URIRef, graph: Graph) -> RigidTransform:
     """Where a frame sits on its body. Declaring no pose puts it at the body's root frame."""
     transform = get_transform_between_frames(frame, get_root_frame(body, graph).id, graph)
     return RigidTransform.identity() if transform is None else transform
 
 
-def _scopes(graph: Graph) -> list[URIRef]:
+def naming_scopes(graph: Graph) -> list[URIRef]:
     """Tree and graph IRIs, longest first: an element's IRI nests under the one scoping it."""
     scopes = set(graph.subjects(RDF.type, URI_GEOM_TYPE_KTREE))
     scopes |= set(graph.subjects(RDF.type, URI_GEOM_TYPE_KGRAPH))
     return sorted((s for s in scopes if isinstance(s, URIRef)), key=lambda s: -len(str(s)))
 
 
-def _name(uri: URIRef, scopes: list[URIRef]) -> str:
+def element_name(uri: URIRef, scopes: list[URIRef]) -> str:
     """The element's path below the tree that scopes it, e.g. 'arm1/base_link'."""
     for scope in scopes:
         prefix = f"{scope}/"
@@ -141,7 +210,7 @@ def _name(uri: URIRef, scopes: list[URIRef]) -> str:
     return str(uri).rsplit("/", 1)[-1]
 
 
-def _body_of(frame: URIRef, graph: Graph) -> URIRef:
+def body_of_frame(frame: URIRef, graph: Graph) -> URIRef:
     bodies = [
         body
         for body in graph.subjects(URI_GEOM_PRED_SIMPLICES, frame)
@@ -155,14 +224,14 @@ def _body_of(frame: URIRef, graph: Graph) -> URIRef:
 
 
 @dataclass
-class _Joint:
+class JointFacts:
     uri: URIRef
     frames: tuple[URIRef, URIRef]
     bodies: tuple[URIRef, URIRef]
     revolute: bool
 
 
-def _joints(graph: Graph) -> dict[URIRef, _Joint]:
+def joints_in_graph(graph: Graph) -> dict[URIRef, JointFacts]:
     joints = {}
     for uri in graph.subjects(RDF.type, URI_KC_TYPE_JOINT):
         frames = tuple(graph.objects(uri, URI_KC_PRED_BETWEEN_ATTACHMENTS))
@@ -170,16 +239,16 @@ def _joints(graph: Graph) -> dict[URIRef, _Joint]:
             raise ConstraintViolation(
                 "kinematics", f"joint '{uri}' must join two attachments, found {len(frames)}"
             )
-        joints[uri] = _Joint(
+        joints[uri] = JointFacts(
             uri=uri,
             frames=frames,
-            bodies=tuple(_body_of(frame, graph) for frame in frames),
+            bodies=tuple(body_of_frame(frame, graph) for frame in frames),
             revolute=(uri, RDF.type, URI_KC_TYPE_REVOLUTE_JOINT) in graph,
         )
     return joints
 
 
-def _axis_of(vector: URIRef, graph: Graph) -> tuple[URIRef, str]:
+def axis_of_vector(vector: URIRef, graph: Graph) -> tuple[URIRef, str]:
     """The frame a bound axis vector belongs to, and which of its axes it is."""
     for axis, predicate in AXIS_PREDS.items():
         for frame in graph.subjects(predicate, vector):
@@ -187,14 +256,14 @@ def _axis_of(vector: URIRef, graph: Graph) -> tuple[URIRef, str]:
     raise ConstraintViolation("kinematics", f"axis vector '{vector}' is no frame's axis")
 
 
-def _revolute_axis(joint: _Joint, parent_frame: URIRef, graph: Graph) -> str:
+def revolute_axis(joint: JointFacts, parent_frame: URIRef, graph: Graph) -> str:
     """The axis letter the joint turns about, rejecting an under-determined pairing."""
     common = ensure_one_obj_uri(graph=graph, subject=joint.uri, predicate=URI_KC_PRED_COMMON_AXIS)
     if common is None:
         raise ConstraintViolation(
             "kinematics", f"revolute joint '{joint.uri}' declares no common axis"
         )
-    axes = dict(_axis_of(vector, graph) for vector in graph.objects(common, URI_GEOM_PRED_LINES))
+    axes = dict(axis_of_vector(vector, graph) for vector in graph.objects(common, URI_GEOM_PRED_LINES))
     if len(axes) != 2:
         raise ConstraintViolation(
             "kinematics", f"common axis of '{joint.uri}' must relate two frame axes: {axes}"
@@ -214,7 +283,7 @@ def _revolute_axis(joint: _Joint, parent_frame: URIRef, graph: Graph) -> str:
     return axes[parent_frame]
 
 
-def _offset(joint: _Joint, parent_frame: URIRef, child_frame: URIRef, graph: Graph) -> np.ndarray:
+def joint_offset(joint: JointFacts, parent_frame: URIRef, child_frame: URIRef, graph: Graph) -> np.ndarray:
     """The child frame's displacement from the anchor, seen by the anchor."""
     position = ensure_one_obj_uri(
         graph=graph, subject=joint.uri, predicate=URI_KC_PRED_ORIGIN_OFFSET
@@ -230,24 +299,20 @@ def _offset(joint: _Joint, parent_frame: URIRef, child_frame: URIRef, graph: Gra
     return np.asarray(values)
 
 
-def _from_model_file(body: URIRef, graph: Graph, base_dir: Path | None) -> InertiaIR | None:
+def inertia_from_model_file(body: URIRef, graph: Graph, base_dir: Path | None) -> Inertia | None:
     """What the mapped model file states, when the scene itself states no inertia."""
     read = read_body_inertia(body, graph, base_dir)
     if read is None:
         return None
     mass, cog, matrix = read
-    return InertiaIR(
-        mass=mass,
-        cog=_floats(cog),
-        rot=_moments(matrix),
-    )
+    return Inertia(mass=mass, cog=as_floats(cog), moments=as_moments(matrix))
 
 
-def _inertia(body: URIRef, graph: Graph, base_dir: Path | None) -> InertiaIR | None:
+def declared_inertia(body: URIRef, graph: Graph, base_dir: Path | None) -> Inertia | None:
     """The body's inertia in its own frame: about the centre of mass, in body orientation."""
     inertias = list(graph.subjects(URI_DYN_PRED_OF_BODY, body))
     if not inertias:
-        return _from_model_file(body, graph, base_dir)
+        return inertia_from_model_file(body, graph, base_dir)
     if len(inertias) > 1:
         raise ConstraintViolation("kinematics", f"body '{body}' has {len(inertias)} inertias")
 
@@ -272,7 +337,7 @@ def _inertia(body: URIRef, graph: Graph, base_dir: Path | None) -> InertiaIR | N
     ]
     if mass_literal is None or any(moment is None for moment in moments):
         # A frame-only inertia claims where the mass is, not how much: the file states that.
-        return _from_model_file(body, graph, base_dir)
+        return inertia_from_model_file(body, graph, base_dir)
 
     units = set(graph.objects(coord, URI_QUDT_PRED_UNIT)) & set(MASS_SCALE)
     if len(units) != 1:
@@ -286,133 +351,138 @@ def _inertia(body: URIRef, graph: Graph, base_dir: Path | None) -> InertiaIR | N
     )
     if inertial_frame is None:
         raise ConstraintViolation("kinematics", f"inertia coordinate '{coord}' is seen by no frame")
-    in_body = _in_body(inertial_frame, body, graph)
+    in_body = frame_in_body(inertial_frame, body, graph)
 
     ixx, iyy, izz, ixy, ixz, iyz = (float(moment.toPython()) for moment in moments)
     matrix = np.array([[ixx, ixy, ixz], [ixy, iyy, iyz], [ixz, iyz, izz]])
     rotation = in_body.rotation.as_matrix()
     rotated = rotation @ matrix @ rotation.T
-    return InertiaIR(
-        mass=mass,
-        cog=_floats(in_body.translation),
-        rot=_moments(rotated),
-    )
+    return Inertia(mass=mass, cog=as_floats(in_body.translation), moments=as_moments(rotated))
 
 
-def _joint_owners(graph: Graph) -> dict[URIRef, set[URIRef]]:
+def joint_owners(graph: Graph) -> dict[URIRef, set[URIRef]]:
     """The tree each joint belongs to. A serial chain also lists joints, and owns none."""
     owners: dict[URIRef, set[URIRef]] = {}
-    for scope in _scopes(graph):
+    for scope in naming_scopes(graph):
         for joint in graph.objects(scope, URI_KC_PRED_JOINTS):
             owners.setdefault(joint, set()).add(scope)
     return owners
 
 
-def _roots(joints: dict[URIRef, _Joint], graph: Graph) -> dict[URIRef, URIRef | None]:
+def tree_roots(joints: dict[URIRef, JointFacts], graph: Graph) -> dict[URIRef, URIRef | None]:
     """The body each tree hangs from, and the tree that names it.
 
     A tree declares its own root, but a composed tree's root is attached by the tree
     composing it -- so the roots left are those no other tree's joint touches.
     """
-    owners = _joint_owners(graph)
+    owners = joint_owners(graph)
     attached: dict[URIRef, set[URIRef]] = {}
     for joint in joints.values():
         for body in joint.bodies:
             attached.setdefault(body, set()).update(owners.get(joint.uri, set()))
 
     roots: dict[URIRef, URIRef | None] = {}
-    for tree in _scopes(graph):
+    for tree in naming_scopes(graph):
         frame = ensure_one_obj_uri(graph=graph, subject=tree, predicate=URI_KC_EXT_PRED_ROOT)
         if frame is None:
             continue
-        body = _body_of(frame, graph)
+        body = body_of_frame(frame, graph)
         if attached.get(body, set()) - {tree}:
             continue
         roots[body] = tree
 
-    # A body no joint attaches floats: it is placed, not articulated, so KDL holds nothing.
+    # A body no joint attaches floats: it is placed, not articulated, so the model holds nothing.
     return roots
 
 
-def _segment(
-    joint: _Joint,
+def segment_for(
+    joint: JointFacts,
     parent: URIRef,
     scopes: list[URIRef],
     graph: Graph,
     base_dir: Path | None,
-) -> SegmentIR:
-    """The child body as a KDL segment: its joint, and where it sits at zero position."""
+) -> SegmentModel:
+    """The child body as a segment: its joint, and where it sits at zero position."""
     child_index = 1 if joint.bodies[0] == parent else 0
     child = joint.bodies[child_index]
     parent_frame, child_frame = joint.frames[1 - child_index], joint.frames[child_index]
 
-    in_parent = _in_body(parent_frame, parent, graph)
-    in_child = _in_body(child_frame, child, graph)
+    in_parent = frame_in_body(parent_frame, parent, graph)
+    in_child = frame_in_body(child_frame, child, graph)
     # An attachment makes two frames coincide unless a pose says how they differ.
     attach = get_transform_between_frames(child_frame, parent_frame, graph)
     if attach is None:
         attach = RigidTransform.identity()
 
     if joint.revolute:
-        axis = _revolute_axis(joint, parent_frame, graph)
-        attach = RigidTransform.from_translation(_offset(joint, parent_frame, child_frame, graph)) * attach
-        kind, direction = "RotAxis", in_parent.rotation.as_matrix()[:, "xyz".index(axis)]
+        axis = revolute_axis(joint, parent_frame, graph)
+        attach = RigidTransform.from_translation(joint_offset(joint, parent_frame, child_frame, graph)) * attach
+        kind, direction = JointKind.REVOLUTE, in_parent.rotation.as_matrix()[:, "xyz".index(axis)]
     else:
-        kind, direction = "None", np.zeros(3)
+        kind, direction = JointKind.FIXED, np.zeros(3)
 
-    f_tip = in_parent * attach * in_child.inv()
-    return SegmentIR(
-        name=_name(child, scopes),
-        hook=_name(parent, scopes),
-        joint=JointIR(
-            name=_name(joint.uri, scopes),
+    return SegmentModel(
+        body_id=child,
+        graph=graph,
+        name=element_name(child, scopes),
+        hook=element_name(parent, scopes),
+        joint=JointModel(
+            joint_id=joint.uri,
+            graph=graph,
+            name=element_name(joint.uri, scopes),
             kind=kind,
-            origin=_floats(in_parent.translation),
-            axis=_floats(direction),
+            origin=as_floats(in_parent.translation),
+            axis=as_floats(direction),
         ),
-        quat=_floats(f_tip.rotation.as_quat()),
-        pos=_floats(f_tip.translation),
-        inertia=_body_inertia(child, graph, base_dir, moves=joint.revolute),
+        transform=in_parent * attach * in_child.inv(),
+        inertia=segment_inertia(child, graph, base_dir, moves=joint.revolute),
     )
 
 
-def _body_inertia(
+def segment_inertia(
     body: URIRef, graph: Graph, base_dir: Path | None, moves: bool
-) -> InertiaIR | None:
+) -> Inertia | None:
     """What a body weighs, if anything has to know.
 
     A body a fixed joint holds carries the tree without moving in it -- a sensor's frame,
     a table, a mounting plate -- so having no mass is a thing it may legitimately be, and
-    KDL carries that as a zero inertia. A body a joint moves is another matter: a missing
+    A backend carries that as a zero inertia. A body a joint moves is another matter: a missing
     mass there is a hole in the dynamics, and is reported rather than assumed away.
     """
     try:
-        return _inertia(body, graph, base_dir)
+        return declared_inertia(body, graph, base_dir)
     except ConstraintViolation:
         if moves:
             raise
         return None
 
 
-def _tip_segment(tip_frame: URIRef, tip: URIRef, scopes: list[URIRef], graph: Graph) -> SegmentIR:
+def tip_frame_segment(tip_frame: URIRef, tip: URIRef, scopes: list[URIRef], graph: Graph) -> SegmentModel:
     """A frame a chain ends at, but its body is not rooted at, is a fixed segment of its own."""
-    in_body = _in_body(tip_frame, tip, graph)
-    return SegmentIR(
-        name=f"{_name(tip, scopes)}/{str(tip_frame).rsplit('/', 1)[-1]}",
-        hook=_name(tip, scopes),
-        joint=JointIR(name="", kind="None", origin=(0.0, 0.0, 0.0), axis=(0.0, 0.0, 0.0)),
-        quat=_floats(in_body.rotation.as_quat()),
-        pos=_floats(in_body.translation),
+    return SegmentModel(
+        body_id=tip_frame,
+        graph=graph,
+        name=f"{element_name(tip, scopes)}/{str(tip_frame).rsplit('/', 1)[-1]}",
+        hook=element_name(tip, scopes),
+        joint=JointModel(
+            joint_id=tip_frame,
+            graph=graph,
+            name="",
+            kind=JointKind.FIXED,
+            origin=(0.0, 0.0, 0.0),
+            axis=(0.0, 0.0, 0.0),
+        ),
+        transform=frame_in_body(tip_frame, tip, graph),
         inertia=None,
     )
 
 
-def _chains(
+def chains_over(
     root: URIRef,
     parents: dict[URIRef, URIRef],
     scopes: list[URIRef],
     graph: Graph,
-) -> tuple[tuple[ChainIR, ...], list[SegmentIR]]:
+) -> tuple[tuple[ChainModel, ...], list[SegmentModel]]:
     """Every declared serial composition whose bodies are this tree's, and the segments
     its endpoints add.
 
@@ -429,14 +499,14 @@ def _chains(
                 "kinematics", f"serial chain '{serial}' declares no root or no tip"
             )
 
-        chain_root, tip = _body_of(root_frame, graph), _body_of(tip_frame, graph)
+        chain_root, tip = body_of_frame(root_frame, graph), body_of_frame(tip_frame, graph)
         if tip not in parents and tip != root:
             continue
         if root_frame != get_root_frame(chain_root, graph).id:
             raise ConstraintViolation(
                 "kinematics",
                 f"serial chain '{serial}' starts at '{root_frame}', which is not the root frame "
-                f"of body '{chain_root}': a KDL chain carries no offset before its first segment",
+                f"of body '{chain_root}': a chain carries no offset before its first segment",
             )
 
         body = tip
@@ -448,29 +518,31 @@ def _chains(
                 )
             body = parent
 
-        tip_name = _name(tip, scopes)
+        tip_name = element_name(tip, scopes)
         if tip_frame != get_root_frame(tip, graph).id:
-            segment = _tip_segment(tip_frame, tip, scopes, graph)
+            segment = tip_frame_segment(tip_frame, tip, scopes, graph)
             # Two chains may end at one frame, and the tree holds it once.
             tips.setdefault(segment.name, segment)
             tip_name = segment.name
         chains.append(
-            ChainIR(
-                name=_name(serial, scopes).removesuffix("/chain"),
-                root=_name(chain_root, scopes),
+            ChainModel(
+                chain_id=serial,
+                graph=graph,
+                name=element_name(serial, scopes).removesuffix("/chain"),
+                root=element_name(chain_root, scopes),
                 tip=tip_name,
             )
         )
     return tuple(chains), list(tips.values())
 
 
-def build_kdl_model(graph: Graph, base_dir: Path | None = None) -> list[TreeIR]:
+def build_kinematic_model(graph: Graph, base_dir: Path | None = None) -> list[TreeModel]:
     """Every tree the graph's kinematics hang from, with the chains declared over them."""
-    scopes = _scopes(graph)
-    joints = _joints(graph)
+    scopes = naming_scopes(graph)
+    joints = joints_in_graph(graph)
     trees = []
 
-    for root, owner in sorted(_roots(joints, graph).items(), key=lambda item: str(item[0])):
+    for root, owner in sorted(tree_roots(joints, graph).items(), key=lambda item: str(item[0])):
         pending, seen, ordered = deque([root]), {root}, []
         parents: dict[URIRef, URIRef] = {}
         while pending:
@@ -483,14 +555,14 @@ def build_kdl_model(graph: Graph, base_dir: Path | None = None) -> list[TreeIR]:
                     continue
                 seen.add(child)
                 parents[child] = body
-                ordered.append(_segment(joint, body, scopes, graph, base_dir))
+                ordered.append(segment_for(joint, body, scopes, graph, base_dir))
                 pending.append(child)
 
-        # A fixed segment may weigh nothing; one a joint moves may not (see _body_inertia).
+        # A fixed segment may weigh nothing; one a joint moves may not (see segment_inertia).
         missing = [
             segment.name
             for segment in ordered
-            if segment.inertia is None and segment.joint.kind != "None"
+            if segment.inertia is None and segment.joint.kind is not JointKind.FIXED
         ]
         if missing:
             raise ConstraintViolation(
@@ -500,11 +572,13 @@ def build_kdl_model(graph: Graph, base_dir: Path | None = None) -> list[TreeIR]:
             )
 
         # Appended last, so each tip frame follows the body it hangs from.
-        chains, tips = _chains(root, parents, scopes, graph)
+        chains, tips = chains_over(root, parents, scopes, graph)
         trees.append(
-            TreeIR(
-                name=_name(owner, scopes) if owner is not None else _name(root, scopes),
-                root=_name(root, scopes),
+            TreeModel(
+                tree_id=owner,
+                graph=graph,
+                name=element_name(owner, scopes),
+                root=element_name(root, scopes),
                 segments=tuple(ordered + tips),
                 chains=chains,
             )

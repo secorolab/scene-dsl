@@ -7,10 +7,12 @@ KDL::Vector({{ values[0] }}, {{ values[1] }}, {{ values[2] }})
 {%- endmacro -%}
 
 {%- macro joint(joint) -%}
-{%- if joint.kind == 'None' -%}
+{%- if joint.kind == 'fixed' -%}
 KDL::Joint({% if joint.name %}"{{ joint.name }}", {% endif %}KDL::Joint::None)
-{%- else -%}
+{%- elif joint.kind == 'revolute' -%}
 KDL::Joint("{{ joint.name }}", {{ vector(joint.origin) }}, {{ vector(joint.axis) }}, KDL::Joint::RotAxis)
+{%- else -%}
+#error "no KDL joint for a {{ joint.kind.value }} joint"
 {%- endif -%}
 {%- endmacro -%}
 
@@ -19,7 +21,7 @@ KDL::Joint("{{ joint.name }}", {{ vector(joint.origin) }}, {{ vector(joint.axis)
 KDL::RigidBodyInertia::Zero()
 {%- else -%}
 KDL::RigidBodyInertia({{ inertia.mass }}, {{ vector(inertia.cog) }},
-            KDL::RotationalInertia({{ inertia.rot[0] }}, {{ inertia.rot[1] }}, {{ inertia.rot[2] }}, {{ inertia.rot[3] }}, {{ inertia.rot[4] }}, {{ inertia.rot[5] }}))
+            KDL::RotationalInertia({{ inertia.moments[0] }}, {{ inertia.moments[1] }}, {{ inertia.moments[2] }}, {{ inertia.moments[3] }}, {{ inertia.moments[4] }}, {{ inertia.moments[5] }}))
 {%- endif -%}
 {%- endmacro -%}
 

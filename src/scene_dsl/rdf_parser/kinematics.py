@@ -192,20 +192,86 @@ def frame_in_body(frame: URIRef, body: URIRef, graph: Graph) -> RigidTransform:
     return transform
 
 
-def naming_scopes(graph: Graph) -> list[URIRef]:
-    """Tree and graph IRIs, longest first: an element's IRI nests under the one scoping it."""
-    scopes = set(graph.subjects(RDF.type, URI_GEOM_TYPE_KTREE))
-    scopes |= set(graph.subjects(RDF.type, URI_GEOM_TYPE_KGRAPH))
-    return sorted((s for s in scopes if isinstance(s, URIRef)), key=lambda s: -len(str(s)))
-
-
-def element_name(uri: URIRef, scopes: list[URIRef]) -> str:
-    """The element's path below the tree that scopes it, e.g. 'arm1/base_link'."""
-    for scope in scopes:
-        prefix = f"{scope}/"
-        if str(uri).startswith(prefix):
-            return f"{str(scope).rsplit('/', 1)[-1]}/{str(uri).removeprefix(prefix)}"
+def local_name(uri: URIRef) -> str:
+    """The last step of an IRI, which is what the scene called the thing."""
     return str(uri).rsplit("/", 1)[-1]
+
+
+def trees_in_graph(graph: Graph) -> set[URIRef]:
+    """Every kinematic tree and graph the model declares."""
+    return {
+        tree
+        for tree in set(graph.subjects(RDF.type, URI_GEOM_TYPE_KTREE))
+        | set(graph.subjects(RDF.type, URI_GEOM_TYPE_KGRAPH))
+        if isinstance(tree, URIRef)
+    }
+
+
+def body_owners(graph: Graph) -> dict[URIRef, URIRef]:
+    """The tree each body belongs to, from the edges that say so.
+
+    A tree declares the body it is rooted at and owns the joints reaching the rest. The
+    body a tree is rooted at is its own, and so is every body its own joints reach from
+    there -- a composing tree owns only the joints attaching the trees below it, so it
+    reaches none of their bodies from its root and claims none of them. Two trees may
+    declare one root, since a composing tree inherits the root of the tree it composes;
+    the one whose own joints touch it is the one describing it.
+    """
+    declared: dict[URIRef, set[URIRef]] = {}
+    reaches: dict[URIRef, set[URIRef]] = {}
+    touches: dict[URIRef, set[URIRef]] = {}
+
+    for tree in trees_in_graph(graph):
+        attached: dict[URIRef, list[URIRef]] = {}
+        for joint in graph.objects(tree, URI_KC_PRED_JOINTS):
+            if (joint, RDF.type, URI_KC_TYPE_JOINT) not in graph:
+                continue
+            bodies = [
+                body_of_frame(frame, graph)
+                for frame in graph.objects(joint, URI_KC_PRED_BETWEEN_ATTACHMENTS)
+                if isinstance(frame, URIRef)
+            ]
+            for body in bodies:
+                touches.setdefault(body, set()).add(tree)
+                attached.setdefault(body, []).extend(other for other in bodies if other != body)
+
+        roots = [
+            body_of_frame(frame, graph)
+            for frame in graph.objects(tree, URI_KC_EXT_PRED_ROOT)
+            if isinstance(frame, URIRef)
+        ]
+        for root in roots:
+            declared.setdefault(root, set()).add(tree)
+
+        pending, seen = deque(roots), set(roots)
+        while pending:
+            body = pending.popleft()
+            reaches.setdefault(body, set()).add(tree)
+            for other in attached.get(body, []):
+                if other not in seen:
+                    seen.add(other)
+                    pending.append(other)
+
+    owners: dict[URIRef, URIRef] = {}
+    for body in set(declared) | set(reaches):
+        for candidates in (
+            declared.get(body, set()) & touches.get(body, set()),
+            declared.get(body, set()),
+            reaches.get(body, set()),
+        ):
+            if len(candidates) == 1:
+                owners[body] = next(iter(candidates))
+                break
+    return owners
+
+
+def scoped_name(uri: URIRef, owner: URIRef | None) -> str:
+    """What a backend calls an element: its own name under the tree that owns it.
+
+    Two instances of one device share every local name, so the tree that owns the
+    element is what tells them apart.
+    """
+    return local_name(uri) if owner is None else f"{local_name(owner)}/{local_name(uri)}"
 
 
 def body_of_frame(frame: URIRef, graph: Graph) -> URIRef:
@@ -327,10 +393,16 @@ def declared_inertia(body: URIRef, graph: Graph, base_dir: Path | None) -> Inert
     )
 
 
+def declaring_tree(joint: URIRef, graph: Graph) -> URIRef | None:
+    """The tree that declares a joint. A chain lists joints too, and declares none."""
+    trees = [tree for tree in trees_in_graph(graph) if (tree, URI_KC_PRED_JOINTS, joint) in graph]
+    return trees[0] if len(trees) == 1 else None
+
+
 def joint_owners(graph: Graph) -> dict[URIRef, set[URIRef]]:
     """The tree each joint belongs to. A serial chain also lists joints, and owns none."""
     owners: dict[URIRef, set[URIRef]] = {}
-    for scope in naming_scopes(graph):
+    for scope in trees_in_graph(graph):
         for joint in graph.objects(scope, URI_KC_PRED_JOINTS):
             if isinstance(joint, URIRef):
                 owners.setdefault(joint, set()).add(scope)
@@ -350,7 +422,7 @@ def tree_roots(joints: dict[URIRef, JointModel], graph: Graph) -> dict[URIRef, U
             attached.setdefault(body, set()).update(owners.get(joint.id, set()))
 
     roots: dict[URIRef, URIRef] = {}
-    for tree in naming_scopes(graph):
+    for tree in trees_in_graph(graph):
         frame = ensure_one_obj_uri(graph=graph, subject=tree, predicate=URI_KC_EXT_PRED_ROOT)
         if frame is None:
             continue
@@ -366,7 +438,7 @@ def tree_roots(joints: dict[URIRef, JointModel], graph: Graph) -> dict[URIRef, U
 def segment_for(
     joint: JointModel,
     parent: URIRef,
-    scopes: list[URIRef],
+    owners: dict[URIRef, URIRef],
     graph: Graph,
     base_dir: Path | None,
 ) -> SegmentModel:
@@ -389,15 +461,15 @@ def segment_for(
         attach = RigidTransform.from_translation(offset) * attach
         direction = in_parent.rotation.as_matrix()[:, "xyz".index(axis)]
 
-    joint.name = element_name(joint.id, scopes)
+    joint.name = scoped_name(joint.id, declaring_tree(joint.id, graph))
     joint.origin = in_parent.translation
     joint.axis = direction
 
     return SegmentModel(
         body_id=child,
         graph=graph,
-        name=element_name(child, scopes),
-        hook=element_name(parent, scopes),
+        name=scoped_name(child, owners.get(child)),
+        hook=scoped_name(parent, owners.get(parent)),
         joint=joint,
         transform=in_parent * attach * in_child.inv(),
         inertia=segment_inertia(child, graph, base_dir, moves=joint.kind is JointKind.REVOLUTE),
@@ -422,13 +494,13 @@ def segment_inertia(
         return None
 
 
-def tip_frame_segment(tip_frame: URIRef, tip: URIRef, scopes: list[URIRef], graph: Graph) -> SegmentModel:
+def tip_frame_segment(tip_frame: URIRef, tip: URIRef, owners: dict[URIRef, URIRef], graph: Graph) -> SegmentModel:
     """A frame a chain ends at, but its body is not rooted at, is a fixed segment of its own."""
     return SegmentModel(
         body_id=tip_frame,
         graph=graph,
-        name=f"{element_name(tip, scopes)}/{str(tip_frame).rsplit('/', 1)[-1]}",
-        hook=element_name(tip, scopes),
+        name=f"{scoped_name(tip, owners.get(tip))}/{local_name(tip_frame)}",
+        hook=scoped_name(tip, owners.get(tip)),
         joint=None,
         transform=frame_in_body(tip_frame, tip, graph),
         inertia=None,
@@ -438,7 +510,7 @@ def tip_frame_segment(tip_frame: URIRef, tip: URIRef, scopes: list[URIRef], grap
 def chains_over(
     root: URIRef,
     parents: dict[URIRef, URIRef],
-    scopes: list[URIRef],
+    owners: dict[URIRef, URIRef],
     graph: Graph,
 ) -> tuple[tuple[ChainModel, ...], list[SegmentModel]]:
     """Every declared serial composition whose bodies are this tree's, and the segments
@@ -478,9 +550,9 @@ def chains_over(
                 )
             body = parent
 
-        tip_name = element_name(tip, scopes)
+        tip_name = scoped_name(tip, owners.get(tip))
         if tip_frame != get_root_frame(tip, graph).id:
-            segment = tip_frame_segment(tip_frame, tip, scopes, graph)
+            segment = tip_frame_segment(tip_frame, tip, owners, graph)
             # Two chains may end at one frame, and the tree holds it once.
             tips.setdefault(segment.name, segment)
             tip_name = segment.name
@@ -488,8 +560,11 @@ def chains_over(
             ChainModel(
                 chain_id=serial,
                 graph=graph,
-                name=element_name(serial, scopes).removesuffix("/chain"),
-                root=element_name(chain_root, scopes),
+                name="__".join(
+                    part.replace("/", "_")
+                    for part in (scoped_name(chain_root, owners.get(chain_root)), tip_name)
+                ),
+                root=scoped_name(chain_root, owners.get(chain_root)),
                 tip=tip_name,
             )
         )
@@ -498,7 +573,7 @@ def chains_over(
 
 def build_kinematic_model(graph: Graph, base_dir: Path | None = None) -> list[TreeModel]:
     """Every tree the graph's kinematics hang from, with the chains declared over them."""
-    scopes = naming_scopes(graph)
+    owners = body_owners(graph)
     joints = joints_in_graph(graph)
     trees = []
 
@@ -515,7 +590,7 @@ def build_kinematic_model(graph: Graph, base_dir: Path | None = None) -> list[Tr
                     continue
                 seen.add(child)
                 parents[child] = body
-                ordered.append(segment_for(joint, body, scopes, graph, base_dir))
+                ordered.append(segment_for(joint, body, owners, graph, base_dir))
                 pending.append(child)
 
         # A fixed segment may weigh nothing; one a joint moves may not (see segment_inertia).
@@ -533,13 +608,13 @@ def build_kinematic_model(graph: Graph, base_dir: Path | None = None) -> list[Tr
             )
 
         # Appended last, so each tip frame follows the body it hangs from.
-        chains, tips = chains_over(root, parents, scopes, graph)
+        chains, tips = chains_over(root, parents, owners, graph)
         trees.append(
             TreeModel(
                 tree_id=owner,
                 graph=graph,
-                name=element_name(owner, scopes),
-                root=element_name(root, scopes),
+                name=local_name(owner),
+                root=scoped_name(root, owners.get(root)),
                 segments=tuple(ordered + tips),
                 chains=chains,
             )

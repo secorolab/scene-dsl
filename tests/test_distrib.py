@@ -12,15 +12,20 @@ from rdf_utils.models.geom_coord import (
 )
 from rdf_utils.models.vocab import (
     URI_DISTRIB_PRED_FROM_DISTRIB,
+    URI_DISTRIB_PRED_LOWER,
+    URI_DISTRIB_PRED_UPPER,
     URI_DISTRIB_TYPE_DISTRIB,
     URI_DISTRIB_TYPE_NORMAL,
     URI_DISTRIB_TYPE_SAMPLED_QUANTITY,
+    URI_DISTRIB_TYPE_UNIFORM_ROT,
     URI_DYN_PRED_ABOUT,
 )
-from rdflib import RDF
+from rdflib import RDF, Graph
 
+from scene_dsl.classes.distrib import DistributionRef
 from scene_dsl.classes.geom import PoseSpec
 from scene_dsl.langs import scenex_metamodel
+from scene_dsl.rdf.geom import add_pose
 from scene_dsl.rdf.scenex import create_scenex_model_graph
 
 from .test_common import MODELS_DIR
@@ -88,6 +93,30 @@ def test_shared_distributions_generate_sampled_quantity_links():
         distrib_from_sampled_quantity(uniform_pose.orientation_coord_uri, graph)
     )
     assert rotation_sample.as_matrix().shape == (3, 3)
+
+
+def test_sampled_pose_adds_each_referenced_distribution_once():
+    model = scenex_metamodel().model_from_file(MODELS_DIR / "sampled-poses.scenex")
+    pose = next(
+        pose
+        for body in model.scene_insts[0].kgraph.bodies
+        for frame in body.frames
+        for pose in frame.poses
+        if isinstance(pose.position_spec, DistributionRef)
+    )
+    assert isinstance(pose.position_spec, DistributionRef)
+    assert isinstance(pose.orientation.spec, DistributionRef)
+    position_distribution = pose.position_spec.distribution
+    orientation_distribution = pose.orientation.spec.distribution
+    graph = Graph()
+
+    add_pose(graph, pose)
+    add_pose(graph, pose)
+
+    assert (position_distribution.uri, RDF.type, URI_DISTRIB_TYPE_DISTRIB) in graph
+    assert (orientation_distribution.uri, RDF.type, URI_DISTRIB_TYPE_UNIFORM_ROT) in graph
+    assert len(list(graph.objects(position_distribution.uri, URI_DISTRIB_PRED_LOWER))) == 1
+    assert len(list(graph.objects(position_distribution.uri, URI_DISTRIB_PRED_UPPER))) == 1
 
 
 def test_non_three_dimensional_normal_is_rejected_for_xyz_sampling():

@@ -10,7 +10,12 @@ from pathlib import Path
 import numpy as np
 from rdf_utils.constraints import ConstraintViolation
 from rdf_utils.models.common import ModelBase
-from rdf_utils.models.geom_coord import get_coord_vectorxyz, get_transform_between_frames
+from rdf_utils.models.geom_coord import (
+    get_coord_vectorxyz,
+    get_pose_coords,
+    get_transform_between_frames,
+)
+from rdf_utils.models.geom_rel import find_pose_path
 from rdf_utils.models.vocab import (
     URI_DYN_PRED_AS_SEEN_BY,
     URI_DYN_PRED_IXX,
@@ -113,29 +118,41 @@ def _moments(matrix) -> tuple[float, ...]:
     )
 
 
-def check_lengths_in_metres(graph: Graph) -> None:
-    """Reject a graph whose positions are not in metres.
+def length_scale(unit: URIRef | None) -> float:
+    """What a length in this unit is in metres."""
+    if unit not in LENGTH_SCALE:
+        raise ConstraintViolation("kinematics", f"unhandled length unit '{unit}'")
+    return LENGTH_SCALE[unit]
 
-    `get_transform_between_frames` composes a pose path without converting lengths, so a
-    graph authored in mm would compose into a transform that reads as metres. Resolving
-    units belongs in `rdf_utils` beside the composition; until it lives there, refuse the
-    graphs the composition would silently mis-scale rather than convert them here.
+
+def transform_in_metres(
+    of_frame: URIRef, wrt_frame: URIRef, graph: Graph
+) -> RigidTransform | None:
+    """The pose of one frame in another, as metres.
+
+    `rdf_utils` composes the path and requires its positions to share one unit, but leaves
+    the result in that unit; converting is the caller's job, so do it here rather than let
+    a model authored in mm read as metres.
     """
-    units = set(graph.objects(None, URI_QUDT_PRED_UNIT)) & {
-        URI_QUDT_UNIT_M,
-        URI_QUDT_UNIT_CM,
-        URI_QUDT_UNIT_MM,
-    }
-    if units - {URI_QUDT_UNIT_M}:
-        raise ConstraintViolation(
-            "kinematics",
-            f"positions must be in metres to compose: found {sorted(str(u) for u in units)}",
-        )
+    path = find_pose_path(of_frame, wrt_frame, graph)
+    if path is None:
+        return None
+    transform = get_transform_between_frames(of_frame, wrt_frame, graph)
+    if transform is None or not path:
+        return transform
+
+    _pose, coords = next(iter(get_pose_coords(graph=graph, poses=path[:1])))
+    scale = length_scale(coords[0].position_coord.unit)
+    if scale == 1.0:
+        return transform
+    return RigidTransform.from_components(
+        np.asarray(transform.translation) * scale, transform.rotation
+    )
 
 
 def _in_body(frame: URIRef, body: URIRef, graph: Graph) -> RigidTransform:
     """Where a frame sits on its body. Declaring no pose puts it at the body's root frame."""
-    transform = get_transform_between_frames(frame, get_root_frame(body, graph).id, graph)
+    transform = transform_in_metres(frame, get_root_frame(body, graph).id, graph)
     return RigidTransform.identity() if transform is None else transform
 
 
@@ -244,12 +261,7 @@ def _offset(joint: _Joint, graph: Graph) -> np.ndarray:
     values = get_coord_vectorxyz(ModelBase(node_id=coords[0], graph=graph), graph)
     if values is None:
         raise ConstraintViolation("kinematics", f"offset '{position}' has no coordinate values")
-    unit = graph.value(coords[0], URI_QUDT_PRED_UNIT)
-    if unit not in LENGTH_SCALE:
-        raise ConstraintViolation(
-            "kinematics", f"offset '{position}' has unhandled length unit '{unit}'"
-        )
-    return np.asarray(values) * LENGTH_SCALE[unit]
+    return np.asarray(values) * length_scale(graph.value(coords[0], URI_QUDT_PRED_UNIT))
 
 
 def _from_model_file(body: URIRef, graph: Graph, base_dir: Path | None) -> InertiaIR | None:
@@ -371,7 +383,7 @@ def _segment(
     in_parent = _in_body(parent_frame, parent, graph)
     in_child = _in_body(child_frame, child, graph)
     # An attachment makes two frames coincide unless a pose says how they differ.
-    attach = get_transform_between_frames(child_frame, parent_frame, graph)
+    attach = transform_in_metres(child_frame, parent_frame, graph)
     if attach is None:
         attach = RigidTransform.identity()
 
@@ -488,7 +500,6 @@ def _chains(
 
 def build_kdl_model(graph: Graph, base_dir: Path | None = None) -> list[TreeIR]:
     """Every tree the graph's kinematics hang from, with the chains declared over them."""
-    check_lengths_in_metres(graph)
     scopes = _scopes(graph)
     joints = _joints(graph)
     trees = []

@@ -3,6 +3,7 @@ from dataclasses import dataclass
 
 from rdf_utils.models.common import AttrLoaderProtocol, ModelBase, ModelLoader, get_node_types
 from rdf_utils.models.execution import load_attr_path
+from rdf_utils.models.geom_rel import FrameModel
 from rdf_utils.models.python import load_py_module_attr
 from rdf_utils.models.vocab import (
     URI_AGN_PRED_HAS_AGN_MODEL,
@@ -30,7 +31,7 @@ from scene_dsl.rdf_parser.common import (
     ensure_one_obj_uri,
     load_attr_has_config,
 )
-from scene_dsl.rdf_parser.ktree import RigidBodyModel
+from scene_dsl.rdf_parser.ktree import RigidBodyModel, get_root_frame
 from scene_dsl.rdf_parser.scene import SceneModel
 from scene_dsl.rdf_parser.vocab import (
     URI_BDD_PRED_OF_SCENE,
@@ -38,7 +39,7 @@ from scene_dsl.rdf_parser.vocab import (
     URI_ROS_TYPE_PACKAGE,
 )
 
-__ALLOWED_MAPPINGS = {URI_GEOM_TYPE_RIGID_BODY, URI_GEOM_TYPE_KTREE}
+_ALLOWED_MAPPINGS = {URI_GEOM_TYPE_RIGID_BODY, URI_GEOM_TYPE_KTREE}
 
 
 @dataclass
@@ -53,7 +54,7 @@ def get_kinematic_mapping(mapping_id: URIRef, graph: Graph) -> KinematicMapping:
     if target_uri is None:
         raise ValueError(f"mapping '{mapping_id}' does not map to an URI target")
 
-    target_types = get_node_types(graph=graph, node_id=target_uri) & __ALLOWED_MAPPINGS
+    target_types = get_node_types(graph=graph, node_id=target_uri) & _ALLOWED_MAPPINGS
     if len(target_types) != 1:
         raise ValueError(f"mapping '{mapping_id}' target '{target_uri}' must be one body or tree")
 
@@ -207,6 +208,39 @@ class SceneInstanceModel(ModelBase):
             raise ValueError(f"entity name '{name}' matched multiple bodies: {matched_ids}")
 
         return RigidBodyModel(body_id=matched_ids[0], graph=graph)
+
+    def resolve_element_root_frame(
+        self,
+        element_id: URIRef,
+        resource_types: set[URIRef],
+        graph: Graph,
+    ) -> tuple[ModelBase, KinematicMapping, FrameModel] | None:
+        """Resolve one compatible resource, mapping, and root frame for an element."""
+        models = self.object_models.get(element_id)
+        if models is None:
+            models = self.agent_models.get(element_id)
+        if models is None:
+            return None
+
+        resources = [model for model in models.values() if model.types & resource_types]
+        if not resources:
+            return None
+        if len(resources) != 1:
+            raise ValueError(f"element '{element_id}' has ambiguous compatible resources")
+
+        resource = resources[0]
+        mappings = [
+            mapping
+            for mapping in get_kinematic_mappings(resource)
+            if mapping.target_type in _ALLOWED_MAPPINGS
+        ]
+        if not mappings:
+            return None
+        if len(mappings) != 1:
+            raise ValueError(f"resource '{resource.id}' has ambiguous kinematic mappings")
+
+        mapping = mappings[0]
+        return resource, mapping, get_root_frame(mapping.target_id, graph)
 
     def _load_models(
         self,

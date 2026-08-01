@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from collections import deque
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 from pathlib import Path
 
 import numpy as np
@@ -63,11 +63,8 @@ from scene_dsl.rdf_parser.model_inertia import read_body_inertia
 MASS_SCALE = {URI_QUDT_UNIT_KG: 1.0, URI_QUDT_UNIT_G: 1e-3}
 AXIS_PREDS = {"x": URI_GEOM_PRED_VECT_X, "y": URI_GEOM_PRED_VECT_Y, "z": URI_GEOM_PRED_VECT_Z}
 
-class JointKind(str, Enum):
-    """What a joint is, not what any one library calls it.
-
-    A `str` mixin rather than `StrEnum` because the package still supports 3.10.
-    """
+class JointKind(StrEnum):
+    """What a joint is, not what any one library calls it."""
 
     FIXED = "fixed"
     REVOLUTE = "revolute"

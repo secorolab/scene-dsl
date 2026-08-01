@@ -10,7 +10,7 @@ authors = [
 ]
 description = "A textX language for robotic scene models."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
   "textx", "rdflib", "rdf-utils", "numpy", "scipy>=1.16", "jinja2"
 ]

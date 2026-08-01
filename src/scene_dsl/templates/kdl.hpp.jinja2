@@ -12,7 +12,7 @@ KDL::Joint({% if joint.name %}"{{ joint.name }}", {% endif %}KDL::Joint::None)
 {%- elif joint.kind == 'revolute' -%}
 KDL::Joint("{{ joint.name }}", {{ vector(joint.origin) }}, {{ vector(joint.axis) }}, KDL::Joint::RotAxis)
 {%- else -%}
-#error "no KDL joint for a {{ joint.kind.value }} joint"
+#error "no KDL joint for a {{ joint.kind }} joint"
 {%- endif -%}
 {%- endmacro -%}
 

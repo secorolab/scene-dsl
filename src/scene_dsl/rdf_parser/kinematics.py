@@ -52,7 +52,7 @@ from rdf_utils.models.vocab import (
     URI_QUDT_UNIT_G,
     URI_QUDT_UNIT_KG,
 )
-from rdflib import RDF, Graph, URIRef
+from rdflib import RDF, Graph, Literal, URIRef
 from scipy.spatial.transform import RigidTransform
 
 from scene_dsl.rdf_parser.common import ensure_one_obj_uri
@@ -139,12 +139,12 @@ class SegmentModel(ModelBase):
     @property
     def quat(self) -> tuple[float, float, float, float]:
         """The placement's rotation, xyzw."""
-        return as_floats(self.transform.rotation.as_quat())
+        return as_quaternion(self.transform.rotation.as_quat())
 
     @property
     def pos(self) -> tuple[float, float, float]:
         """The placement's translation, metres."""
-        return as_floats(self.transform.translation)
+        return as_vector(self.transform.translation)
 
 
 class ChainModel(ModelBase):
@@ -176,15 +176,27 @@ class TreeModel(ModelBase):
         self.chains = chains
 
 
-def as_floats(values) -> tuple[float, ...]:
+def as_vector(values) -> tuple[float, float, float]:
     """A template prints these, so they are plain floats, not numpy scalars."""
-    return tuple(float(value) for value in values)
+    x, y, z = values
+    return float(x), float(y), float(z)
 
 
-def as_moments(matrix) -> tuple[float, ...]:
+def as_quaternion(values) -> tuple[float, float, float, float]:
+    """An xyzw quaternion as plain floats."""
+    x, y, z, w = values
+    return float(x), float(y), float(z), float(w)
+
+
+def as_moments(matrix) -> tuple[float, float, float, float, float, float]:
     """A symmetric tensor as Ixx, Iyy, Izz, Ixy, Ixz, Iyz."""
-    return as_floats(
-        (matrix[0][0], matrix[1][1], matrix[2][2], matrix[0][1], matrix[0][2], matrix[1][2])
+    return (
+        float(matrix[0][0]),
+        float(matrix[1][1]),
+        float(matrix[2][2]),
+        float(matrix[0][1]),
+        float(matrix[0][2]),
+        float(matrix[1][2]),
     )
 
 
@@ -248,7 +260,11 @@ def revolute_axis(joint: JointModel, parent_frame: URIRef, graph: Graph) -> str:
         raise ConstraintViolation(
             "kinematics", f"revolute joint '{joint.id}' declares no common axis"
         )
-    axes = dict(axis_of_vector(vector, graph) for vector in graph.objects(common, URI_GEOM_PRED_LINES))
+    axes = dict(
+        axis_of_vector(vector, graph)
+        for vector in graph.objects(common, URI_GEOM_PRED_LINES)
+        if isinstance(vector, URIRef)
+    )
     if len(axes) != 2:
         raise ConstraintViolation(
             "kinematics", f"common axis of '{joint.id}' must relate two frame axes: {axes}"
@@ -292,18 +308,24 @@ def inertia_from_model_file(body: URIRef, graph: Graph, base_dir: Path | None) -
     if read is None:
         return None
     mass, cog, matrix = read
-    return Inertia(mass=mass, cog=as_floats(cog), moments=as_moments(matrix))
+    return Inertia(mass=mass, cog=as_vector(cog), moments=as_moments(matrix))
 
 
 def declared_inertia(body: URIRef, graph: Graph, base_dir: Path | None) -> Inertia | None:
     """The body's inertia in its own frame: about the centre of mass, in body orientation."""
-    inertias = list(graph.subjects(URI_DYN_PRED_OF_BODY, body))
+    inertias = [
+        inertia for inertia in graph.subjects(URI_DYN_PRED_OF_BODY, body)
+        if isinstance(inertia, URIRef)
+    ]
     if not inertias:
         return inertia_from_model_file(body, graph, base_dir)
     if len(inertias) > 1:
         raise ConstraintViolation("kinematics", f"body '{body}' has {len(inertias)} inertias")
 
-    coords = list(graph.subjects(URI_DYN_PRED_OF_INERTIA, inertias[0]))
+    coords = [
+        coord for coord in graph.subjects(URI_DYN_PRED_OF_INERTIA, inertias[0])
+        if isinstance(coord, URIRef)
+    ]
     if len(coords) != 1:
         raise ConstraintViolation(
             "kinematics", f"inertia '{inertias[0]}' must have one coordinate: {coords}"
@@ -322,24 +344,30 @@ def declared_inertia(body: URIRef, graph: Graph, base_dir: Path | None) -> Inert
             URI_DYN_PRED_IYZ,
         )
     ]
-    if mass_literal is None or any(moment is None for moment in moments):
+    if not isinstance(mass_literal, Literal) or not all(
+        isinstance(moment, Literal) for moment in moments
+    ):
         # A frame-only inertia claims where the mass is, not how much: the file states that.
         return inertia_from_model_file(body, graph, base_dir)
 
-    units = set(graph.objects(coord, URI_QUDT_PRED_UNIT)) & set(MASS_SCALE)
+    units = {
+        unit
+        for unit in graph.objects(coord, URI_QUDT_PRED_UNIT)
+        if isinstance(unit, URIRef) and unit in MASS_SCALE
+    }
     if len(units) != 1:
         raise ConstraintViolation(
             "kinematics", f"inertia coordinate '{coord}' must have one mass unit: {units}"
         )
-    mass = float(mass_literal.toPython()) * MASS_SCALE[units.pop()]
+    mass = float(str(mass_literal)) * MASS_SCALE[units.pop()]
 
     in_body = frame_in_body(InertiaModel(inertias[0], graph).inertial_frame.id, body, graph)
 
-    ixx, iyy, izz, ixy, ixz, iyz = (float(moment.toPython()) for moment in moments)
+    ixx, iyy, izz, ixy, ixz, iyz = (float(str(moment)) for moment in moments)
     matrix = np.array([[ixx, ixy, ixz], [ixy, iyy, iyz], [ixz, iyz, izz]])
     rotation = in_body.rotation.as_matrix()
     rotated = rotation @ matrix @ rotation.T
-    return Inertia(mass=mass, cog=as_floats(in_body.translation), moments=as_moments(rotated))
+    return Inertia(mass=mass, cog=as_vector(in_body.translation), moments=as_moments(rotated))
 
 
 def joint_owners(graph: Graph) -> dict[URIRef, set[URIRef]]:
@@ -347,11 +375,12 @@ def joint_owners(graph: Graph) -> dict[URIRef, set[URIRef]]:
     owners: dict[URIRef, set[URIRef]] = {}
     for scope in naming_scopes(graph):
         for joint in graph.objects(scope, URI_KC_PRED_JOINTS):
-            owners.setdefault(joint, set()).add(scope)
+            if isinstance(joint, URIRef):
+                owners.setdefault(joint, set()).add(scope)
     return owners
 
 
-def tree_roots(joints: dict[URIRef, JointModel], graph: Graph) -> dict[URIRef, URIRef | None]:
+def tree_roots(joints: dict[URIRef, JointModel], graph: Graph) -> dict[URIRef, URIRef]:
     """The body each tree hangs from, and the tree that names it.
 
     A tree declares its own root, but a composed tree's root is attached by the tree
@@ -363,7 +392,7 @@ def tree_roots(joints: dict[URIRef, JointModel], graph: Graph) -> dict[URIRef, U
         for body in joint.bodies:
             attached.setdefault(body, set()).update(owners.get(joint.id, set()))
 
-    roots: dict[URIRef, URIRef | None] = {}
+    roots: dict[URIRef, URIRef] = {}
     for tree in naming_scopes(graph):
         frame = ensure_one_obj_uri(graph=graph, subject=tree, predicate=URI_KC_EXT_PRED_ROOT)
         if frame is None:
@@ -404,8 +433,8 @@ def segment_for(
         direction = in_parent.rotation.as_matrix()[:, "xyz".index(axis)]
 
     joint.name = element_name(joint.id, scopes)
-    joint.origin = as_floats(in_parent.translation)
-    joint.axis = as_floats(direction)
+    joint.origin = as_vector(in_parent.translation)
+    joint.axis = as_vector(direction)
 
     return SegmentModel(
         body_id=child,
@@ -464,6 +493,8 @@ def chains_over(
     """
     chains, tips = [], {}
     for serial in graph.subjects(RDF.type, URI_KC_TYPE_SERIAL):
+        if not isinstance(serial, URIRef):
+            continue
         root_frame = ensure_one_obj_uri(graph=graph, subject=serial, predicate=URI_KC_EXT_PRED_ROOT)
         tip_frame = ensure_one_obj_uri(graph=graph, subject=serial, predicate=URI_KC_EXT_PRED_TIP)
         if root_frame is None or tip_frame is None:

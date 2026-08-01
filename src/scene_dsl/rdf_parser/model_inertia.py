@@ -33,9 +33,13 @@ def mapped_model(body: URIRef, graph: Graph) -> tuple[URIRef, str] | None:
     A mapping of the body names it outright; a mapping of the tree holding it leaves the
     body's own name to stand, since a tree mapping names the tree, not each body under it.
     """
-    by_tree = None
+    by_tree: tuple[URIRef, str] | None = None
     for model in graph.subjects(URI_EXEC_PRED_HAS_MAPPING, None):
+        if not isinstance(model, URIRef):
+            continue
         for mapping_id in graph.objects(model, URI_EXEC_PRED_HAS_MAPPING):
+            if not isinstance(mapping_id, URIRef):
+                continue
             mapping = get_kinematic_mapping(mapping_id, graph)
             if mapping.target_id == body:
                 return model, mapping.entity or str(body).rsplit("/", 1)[-1]

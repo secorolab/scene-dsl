@@ -7,7 +7,6 @@ from rdf_utils.models.vocab import (
     URI_EXEC_PRED_MAPS,
     URI_EXEC_PRED_MODEL_ENTITY,
     URI_EXEC_PRED_PATH,
-    URI_GEOM_TYPE_KTREE,
     URI_GEOM_TYPE_RIGID_BODY,
 )
 from rdflib import RDF, Literal, Namespace, URIRef
@@ -15,14 +14,12 @@ from rdflib import RDF, Literal, Namespace, URIRef
 from scene_dsl.classes.common import IHasNamespace
 from scene_dsl.langs import scene_metamodel, scenex_metamodel
 from scene_dsl.rdf.scene import create_scene_model_graph
-from scene_dsl.rdf.scenex import create_scenex_model_graph
-from scene_dsl.rdf_parser.ktree import RigidBodyModel, get_root_frame
+from scene_dsl.rdf.scenex import URI_MJCF_MUJOCO, create_scenex_model_graph
 from scene_dsl.rdf_parser.scene import SceneModel
 from scene_dsl.rdf_parser.scenex import (
     SceneInstanceModel,
     get_kinematic_mappings,
     get_ros_pkg_path,
-    load_attr_kinematic_mappings,
     load_ros_path,
 )
 from scene_dsl.rdf_parser.vocab import (
@@ -255,52 +252,31 @@ def test_scene_parser_loads_mappings_and_resolves_element_roots():
     graph = create_scenex_model_graph(model)
     parsed = SceneInstanceModel(scene_instance.uri, graph)
 
-    resource_ids = set(graph.subjects(predicate=URI_EXEC_PRED_HAS_MAPPING))
-    resources = [ModelBase(URIRef(resource_id), graph) for resource_id in resource_ids]
-    for resource in resources:
-        load_attr_kinematic_mappings(graph, resource)
-
-    box_resource = next(resource for resource in resources if "box1-mjc" in str(resource.id))
-    [box_mapping] = get_kinematic_mappings(box_resource, URI_GEOM_TYPE_RIGID_BODY)
-    assert box_mapping.entity == "cube"
-
     box = next(
         modelled.obj for modelled in scene_instance.modelled_objs if modelled.obj.name == "box1"
     )
     panda = next(
         modelled.agn for modelled in scene_instance.modelled_agns if modelled.agn.name == "panda"
     )
-    box_resources = parsed.object_models[box.uri].values()
-    [box_mapping] = [
-        mapping
-        for resource in box_resources
-        for mapping in get_kinematic_mappings(resource, URI_GEOM_TYPE_RIGID_BODY)
-    ]
-    box_body = RigidBodyModel(box_mapping.target_id, graph)
-    assert str(box_body.root_frame.id).endswith("lab_graph/box1_body/box1_root")
-    [panda_mapping] = [
-        mapping
-        for resource in parsed.agent_models[panda.uri].values()
-        for mapping in get_kinematic_mappings(resource, URI_GEOM_TYPE_KTREE)
-    ]
-    panda_root = get_root_frame(panda_mapping.target_id, graph)
+    box_resource, box_mapping, box_root = parsed.resolve_element_root_frame(
+        box.uri, {URI_MJCF_MUJOCO}, graph
+    )
+    assert "box1-mjc" in str(box_resource.id)
+    assert box_mapping.entity == "cube"
+    assert str(box_root.id).endswith("lab_graph/box1_body/box1_root")
+
+    _, _, panda_root = parsed.resolve_element_root_frame(panda.uri, {URI_MJCF_MUJOCO}, graph)
     assert str(panda_root.id).endswith("panda_tree/panda_base_body/base_link")
+    assert parsed.resolve_element_root_frame(URIRef("urn:test:missing"), set(), graph) is None
+    assert parsed.resolve_element_root_frame(box.uri, {URI_USD_STAGE}, graph) is None
 
     arm_gripper = next(
         modelled.agn
         for modelled in scene_instance.modelled_agns
         if modelled.agn.name == "arm1_gripper"
     )
-    assert (
-        len(
-            [
-                mapping
-                for resource in parsed.agent_models[arm_gripper.uri].values()
-                for mapping in get_kinematic_mappings(resource, URI_GEOM_TYPE_KTREE)
-            ]
-        )
-        > 1
-    )
+    with pytest.raises(ValueError, match="ambiguous compatible resources"):
+        parsed.resolve_element_root_frame(arm_gripper.uri, {URI_MJCF_MUJOCO}, graph)
 
 
 def test_scene_parser_rejects_mapping_without_target():
@@ -349,6 +325,10 @@ def test_object_set_without_body_mappings_returns_none():
             get_kinematic_mappings(resource, URI_GEOM_TYPE_RIGID_BODY)
             for resource in parsed.object_models[modelled.obj.uri].values()
         )
+        for modelled in scene_instance.modelled_objs
+    )
+    assert all(
+        parsed.resolve_element_root_frame(modelled.obj.uri, {URI_MJCF_MUJOCO}, graph) is None
         for modelled in scene_instance.modelled_objs
     )
 

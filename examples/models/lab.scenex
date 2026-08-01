@@ -37,8 +37,20 @@ ktree (ns=scene_lab_mjc) panda_tree {
                 }
             }
         }
-        frame bracelet_link { }
-        frame tool0 { }
+        frame bracelet_link {
+            pose bracelet_link_on_base_link {
+                wrt: <panda_base_body.base_link>
+                xyz: (0.0, 0.0, 0.0) m
+                orientation: euler { angles: (0.0, 0.0, 0.0) unit: rad }
+            }
+        }
+        frame tool0 {
+            pose tool0_on_base_link {
+                wrt: <panda_base_body.base_link>
+                xyz: (0.0, 0.0, 0.0) m
+                orientation: euler { angles: (0.0, 0.0, 0.0) unit: rad }
+            }
+        }
         inertia {
             frame: <base_link>
             mass: 1.0 kg
@@ -73,7 +85,13 @@ ktree (ns=scene_lab_mjc) panda_tree {
     }
     body panda_link1_body {
         frame panda_joint1 { }
-        frame panda_link1 { }
+        frame panda_link1 {
+            pose panda_link1_on_panda_joint1 {
+                wrt: <panda_link1_body.panda_joint1>
+                xyz: (0.0, 0.0, 0.0) m
+                orientation: euler { angles: (0.0, 0.0, 0.0) unit: rad }
+            }
+        }
         inertia {
             frame: <panda_joint1>
             mass: 1.0 kg
@@ -86,7 +104,13 @@ ktree (ns=scene_lab_mjc) panda_tree {
     }
     body panda_link2_body {
         frame panda_joint2 { }
-        frame panda_tip { }
+        frame panda_tip {
+            pose panda_tip_on_panda_joint2 {
+                wrt: <panda_link2_body.panda_joint2>
+                xyz: (0.0, 0.0, 0.0) m
+                orientation: euler { angles: (0.0, 0.0, 0.0) unit: rad }
+            }
+        }
         inertia {
             frame: <panda_joint2>
             mass: 1.0 kg

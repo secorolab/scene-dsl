@@ -172,9 +172,24 @@ def as_moments(matrix: np.ndarray) -> np.ndarray:
 
 
 def frame_in_body(frame: URIRef, body: URIRef, graph: Graph) -> RigidTransform:
-    """Where a frame sits on its body. Declaring no pose puts it at the body's root frame."""
-    transform = get_transform_between_frames(frame, get_root_frame(body, graph).id, graph)
-    return RigidTransform.identity() if transform is None else transform
+    """Where a frame sits on its body.
+
+    A body's root frame is where the body is, so it needs no pose. Any other frame is
+    somewhere, and a model that does not say where cannot be placed: report that rather
+    than assume the two coincide, which is a difference no later error would point at.
+    """
+    root = get_root_frame(body, graph).id
+    if frame == root:
+        return RigidTransform.identity()
+
+    transform = get_transform_between_frames(frame, root, graph)
+    if transform is None:
+        raise ConstraintViolation(
+            "kinematics",
+            f"no pose places frame '{frame}' on body '{body}': a frame that is not the "
+            f"body's root frame needs a pose leading to it",
+        )
+    return transform
 
 
 def naming_scopes(graph: Graph) -> list[URIRef]:

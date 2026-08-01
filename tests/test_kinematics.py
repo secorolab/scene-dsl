@@ -31,13 +31,7 @@ ktree (ns=t) rig {{
     }}
     body link1 {{
         frame link1_origin {{ }}
-        frame tcp {{
-            pose tcp_in_link1 {{
-                wrt: <link1.link1_origin>
-                xyz: (0, 0, 0.4) m
-                orientation: euler {{ angles: (0, 0, 0) unit: rad }}
-            }}
-        }}
+        frame tcp {{ {tcp_pose} }}
         {inertia}
     }}
     joints {{
@@ -93,10 +87,23 @@ URDF = """<robot name="rig">
 """
 
 
-def _tree(tmp_path: Path, inertia: str = STATED_INERTIA, kind: str = "mjcf", body: str = MJCF):
+TCP_POSE = """pose tcp_in_link1 {
+                wrt: <link1.link1_origin>
+                xyz: (0, 0, 0.4) m
+                orientation: euler { angles: (0, 0, 0) unit: rad }
+            }"""
+
+
+def _tree(
+    tmp_path: Path,
+    inertia: str = STATED_INERTIA,
+    kind: str = "mjcf",
+    body: str = MJCF,
+    tcp_pose: str = TCP_POSE,
+):
     (tmp_path / "bench.scene").write_text(SCENE)
     (tmp_path / "rig.model").write_text(body)
-    (tmp_path / "rig.scenex").write_text(TREE.format(inertia=inertia, kind=kind))
+    (tmp_path / "rig.scenex").write_text(TREE.format(inertia=inertia, kind=kind, tcp_pose=tcp_pose))
     model = scenex_metamodel().model_from_file(str(tmp_path / "rig.scenex"))
     [tree] = build_kinematic_model(create_scenex_model_graph(model=model), tmp_path)
     return tree
@@ -137,6 +144,12 @@ def test_inertia_absent_from_the_scene_is_read_from_the_model_file(tmp_path, kin
     assert np.allclose(inertia.cog, (0.0, 0.0, 0.2))
     # a quarter turn about z swaps which axis carries which moment
     assert np.allclose(inertia.moments[:3], (0.005, 0.004, 0.0006))
+
+
+def test_a_frame_with_no_pose_is_rejected(tmp_path):
+    """A frame that is not the body's root is somewhere, and the model has to say where."""
+    with pytest.raises(ConstraintViolation, match="no pose places frame"):
+        _tree(tmp_path, tcp_pose="")
 
 
 def test_a_model_file_stating_no_inertial_is_an_error(tmp_path):

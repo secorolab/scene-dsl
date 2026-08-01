@@ -129,8 +129,10 @@ def _mjcf_rotation(inertial: ElementTree.Element, degrees: bool, eulerseq: str) 
     if inertial.get("axisangle") is not None:
         values = _floats(inertial.get("axisangle"), 4, (0.0, 0.0, 1.0, 0.0))
         angle = np.deg2rad(values[3]) if degrees else values[3]
-        axis = values[:3] / np.linalg.norm(values[:3])
-        return Rotation.from_rotvec(axis * angle).as_matrix()
+        length = np.linalg.norm(values[:3])
+        if length == 0.0:
+            raise ModelFileError(f"'axisangle' has no axis to turn about: '{inertial.get('axisangle')}'")
+        return Rotation.from_rotvec(values[:3] / length * angle).as_matrix()
     if inertial.get("zaxis") is not None or inertial.get("xyaxes") is not None:
         raise ModelFileError("'zaxis' and 'xyaxes' inertial orientations are not handled")
     return np.eye(3)

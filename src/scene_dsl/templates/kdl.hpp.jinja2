@@ -37,6 +37,7 @@ KDL::Segment("{{ segment.name }}",
 #include <kdl/chain.hpp>
 #include <kdl/frames.hpp>
 #include <kdl/tree.hpp>
+#include <stdexcept>
 
 namespace {{ identifier(data.name) }} {
 {% for tree in data.trees %}
@@ -44,9 +45,11 @@ inline KDL::Tree make_tree_{{ identifier(tree.name) }}()
 {
     KDL::Tree tree("{{ tree.root }}");
 {%- for seg in tree.segments %}
-    tree.addSegment(
-        {{ segment(seg) }},
-        "{{ seg.hook }}");
+    if (!tree.addSegment(
+          {{ segment(seg) }},
+          "{{ seg.hook }}")) {
+        throw std::runtime_error("{{ data.name }}: cannot hang '{{ seg.name }}' from '{{ seg.hook }}'");
+    }
 {%- endfor %}
     return tree;
 }
@@ -54,7 +57,9 @@ inline KDL::Tree make_tree_{{ identifier(tree.name) }}()
 inline KDL::Chain make_chain_{{ identifier(chain.name) }}()
 {
     KDL::Chain chain;
-    make_tree_{{ identifier(tree.name) }}().getChain("{{ chain.root }}", "{{ chain.tip }}", chain);
+    if (!make_tree_{{ identifier(tree.name) }}().getChain("{{ chain.root }}", "{{ chain.tip }}", chain)) {
+        throw std::runtime_error("{{ data.name }}: no chain from '{{ chain.root }}' to '{{ chain.tip }}'");
+    }
     return chain;
 }
 {% endfor %}

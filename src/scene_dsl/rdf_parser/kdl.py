@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+from collections import deque
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -223,6 +224,11 @@ def _revolute_axis(joint: _Joint, parent_frame: URIRef, graph: Graph) -> str:
         raise KinematicsError(
             f"revolute joint '{joint.uri}' makes '{'' .join(sorted(set(axes.values())))}' axes "
             f"collinear: which way the child frame then faces about them is undetermined"
+        )
+    if parent_frame not in axes:
+        raise KinematicsError(
+            f"common axis of '{joint.uri}' does not mention its parent attachment "
+            f"'{parent_frame}': it relates {sorted(str(frame) for frame in axes)}"
         )
     return axes[parent_frame]
 
@@ -477,10 +483,10 @@ def build_kdl_model(graph: Graph, base_dir: Path | None = None) -> list[TreeIR]:
     trees = []
 
     for root, owner in sorted(_roots(joints, graph).items(), key=lambda item: str(item[0])):
-        pending, seen, ordered = [root], {root}, []
+        pending, seen, ordered = deque([root]), {root}, []
         parents: dict[URIRef, URIRef] = {}
         while pending:
-            body = pending.pop(0)
+            body = pending.popleft()
             for joint in joints.values():
                 if body not in joint.bodies:
                     continue

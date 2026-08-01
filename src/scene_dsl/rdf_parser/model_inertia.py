@@ -21,7 +21,7 @@ from rdf_utils.models.vocab import (
 from rdflib import RDF, Graph, URIRef
 from scipy.spatial.transform import Rotation
 
-from scene_dsl.rdf_parser.scenex import get_kinematic_mapping
+from scene_dsl.rdf_parser.common import get_kinematic_mapping
 from scene_dsl.rdf_parser.vocab import URI_MJCF_MUJOCO, URI_URDF_ROBOT
 
 MJCF_ANGLE_SCALE = {"degree": True, "radian": False}

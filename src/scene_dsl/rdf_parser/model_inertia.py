@@ -38,20 +38,19 @@ def _mapped_model(body: URIRef, graph: Graph) -> tuple[URIRef, str] | None:
     body's own name to stand, since a tree mapping names the tree, not each body under it.
     """
     by_tree = None
-    for model, mapping in (
-        (model, mapping)
-        for model in graph.subjects(URI_EXEC_PRED_HAS_MAPPING, None)
-        for mapping in graph.objects(model, URI_EXEC_PRED_HAS_MAPPING)
-    ):
-        target = graph.value(mapping, URI_EXEC_PRED_MAPS)
-        if target is None:
-            continue
-        entity = graph.value(mapping, URI_EXEC_PRED_MODEL_ENTITY)
-        if target == body:
-            name = str(entity) if isinstance(entity, Literal) else str(body).rsplit("/", 1)[-1]
-            return model, name
-        if (target, RDF.type, URI_GEOM_TYPE_KTREE) in graph and str(body).startswith(f"{target}/"):
-            by_tree = (model, str(body).rsplit("/", 1)[-1])
+    for model in graph.subjects(URI_EXEC_PRED_HAS_MAPPING, None):
+        for mapping in graph.objects(model, URI_EXEC_PRED_HAS_MAPPING):
+            target = graph.value(mapping, URI_EXEC_PRED_MAPS)
+            if target is None:
+                continue
+            entity = graph.value(mapping, URI_EXEC_PRED_MODEL_ENTITY)
+            if target == body:
+                name = str(entity) if isinstance(entity, Literal) else str(body).rsplit("/", 1)[-1]
+                return model, name
+            if (target, RDF.type, URI_GEOM_TYPE_KTREE) in graph and str(body).startswith(
+                f"{target}/"
+            ):
+                by_tree = (model, str(body).rsplit("/", 1)[-1])
     return by_tree
 
 

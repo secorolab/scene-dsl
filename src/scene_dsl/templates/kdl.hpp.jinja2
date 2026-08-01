@@ -42,30 +42,30 @@ KDL::Segment("{{ segment.name }}",
 #include <kdl/chain.hpp>
 #include <kdl/frames.hpp>
 #include <kdl/tree.hpp>
-#include <stdexcept>
 
 namespace {{ identifier(data.name) }} {
 {% for tree in data.trees %}
-inline KDL::Tree make_tree_{{ identifier(tree.name) }}()
+inline bool make_tree_{{ identifier(tree.name) }}(KDL::Tree *tree)
 {
-    KDL::Tree tree("{{ tree.root }}");
+    *tree = KDL::Tree("{{ tree.root }}");
 {%- for seg in tree.segments %}
-    if (!tree.addSegment(
+    if (!tree->addSegment(
           {{ segment(seg) }},
           "{{ seg.hook }}")) {
-        throw std::runtime_error("{{ data.name }}: cannot hang '{{ seg.name }}' from '{{ seg.hook }}'");
+        return false;  // no segment "{{ seg.hook }}" to attach "{{ seg.name }}" to
     }
 {%- endfor %}
-    return tree;
+    return true;
 }
 {% for chain in tree.chains %}
-inline KDL::Chain make_chain_{{ identifier(chain.name) }}()
+inline bool make_chain_{{ identifier(chain.name) }}(KDL::Chain *chain)
 {
-    KDL::Chain chain;
-    if (!make_tree_{{ identifier(tree.name) }}().getChain("{{ chain.root }}", "{{ chain.tip }}", chain)) {
-        throw std::runtime_error("{{ data.name }}: no chain from '{{ chain.root }}' to '{{ chain.tip }}'");
+    KDL::Tree tree;
+    if (!make_tree_{{ identifier(tree.name) }}(&tree)) {
+        return false;
     }
-    return chain;
+    // '{{ chain.root }}' -> '{{ chain.tip }}'
+    return tree.getChain("{{ chain.root }}", "{{ chain.tip }}", *chain);
 }
 {% endfor %}
 {%- endfor %}

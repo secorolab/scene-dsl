@@ -9,13 +9,10 @@ from pathlib import Path
 
 import numpy as np
 from rdf_utils.constraints import ConstraintViolation
-from rdf_utils.models.common import ModelBase
 from rdf_utils.models.geom_coord import (
-    get_coord_vectorxyz,
-    get_pose_coords,
     get_transform_between_frames,
+    get_translation_between_points,
 )
-from rdf_utils.models.geom_rel import find_pose_path
 from rdf_utils.models.vocab import (
     URI_DYN_PRED_AS_SEEN_BY,
     URI_DYN_PRED_IXX,
@@ -28,7 +25,7 @@ from rdf_utils.models.vocab import (
     URI_DYN_PRED_OF_BODY,
     URI_DYN_PRED_OF_INERTIA,
     URI_GEOM_PRED_LINES,
-    URI_GEOM_PRED_OF_POSITION,
+    URI_GEOM_PRED_ORIGIN,
     URI_GEOM_PRED_SIMPLICES,
     URI_GEOM_PRED_VECT_X,
     URI_GEOM_PRED_VECT_Y,
@@ -46,11 +43,8 @@ from rdf_utils.models.vocab import (
     URI_KC_TYPE_REVOLUTE_JOINT,
     URI_KC_TYPE_SERIAL,
     URI_QUDT_PRED_UNIT,
-    URI_QUDT_UNIT_CM,
     URI_QUDT_UNIT_G,
     URI_QUDT_UNIT_KG,
-    URI_QUDT_UNIT_M,
-    URI_QUDT_UNIT_MM,
 )
 from rdflib import RDF, Graph, URIRef
 from scipy.spatial.transform import RigidTransform
@@ -59,7 +53,6 @@ from scene_dsl.rdf_parser.common import ensure_one_obj_uri
 from scene_dsl.rdf_parser.ktree import get_root_frame
 from scene_dsl.rdf_parser.model_inertia import read_body_inertia
 
-LENGTH_SCALE = {URI_QUDT_UNIT_M: 1.0, URI_QUDT_UNIT_CM: 1e-2, URI_QUDT_UNIT_MM: 1e-3}
 MASS_SCALE = {URI_QUDT_UNIT_KG: 1.0, URI_QUDT_UNIT_G: 1e-3}
 AXIS_PREDS = {"x": URI_GEOM_PRED_VECT_X, "y": URI_GEOM_PRED_VECT_Y, "z": URI_GEOM_PRED_VECT_Z}
 
@@ -118,41 +111,17 @@ def _moments(matrix) -> tuple[float, ...]:
     )
 
 
-def length_scale(unit: URIRef | None) -> float:
-    """What a length in this unit is in metres."""
-    if unit not in LENGTH_SCALE:
-        raise ConstraintViolation("kinematics", f"unhandled length unit '{unit}'")
-    return LENGTH_SCALE[unit]
-
-
-def transform_in_metres(
-    of_frame: URIRef, wrt_frame: URIRef, graph: Graph
-) -> RigidTransform | None:
-    """The pose of one frame in another, as metres.
-
-    `rdf_utils` composes the path and requires its positions to share one unit, but leaves
-    the result in that unit; converting is the caller's job, so do it here rather than let
-    a model authored in mm read as metres.
-    """
-    path = find_pose_path(of_frame, wrt_frame, graph)
-    if path is None:
-        return None
-    transform = get_transform_between_frames(of_frame, wrt_frame, graph)
-    if transform is None or not path:
-        return transform
-
-    _pose, coords = next(iter(get_pose_coords(graph=graph, poses=path[:1])))
-    scale = length_scale(coords[0].position_coord.unit)
-    if scale == 1.0:
-        return transform
-    return RigidTransform.from_components(
-        np.asarray(transform.translation) * scale, transform.rotation
-    )
+def get_frame_origin(frame: URIRef, graph: Graph) -> URIRef:
+    """The point a frame is pinned at, which is what a Position relates."""
+    origin = ensure_one_obj_uri(graph=graph, subject=frame, predicate=URI_GEOM_PRED_ORIGIN)
+    if origin is None:
+        raise ConstraintViolation("kinematics", f"frame '{frame}' has no origin point")
+    return origin
 
 
 def _in_body(frame: URIRef, body: URIRef, graph: Graph) -> RigidTransform:
     """Where a frame sits on its body. Declaring no pose puts it at the body's root frame."""
-    transform = transform_in_metres(frame, get_root_frame(body, graph).id, graph)
+    transform = get_transform_between_frames(frame, get_root_frame(body, graph).id, graph)
     return RigidTransform.identity() if transform is None else transform
 
 
@@ -245,23 +214,20 @@ def _revolute_axis(joint: _Joint, parent_frame: URIRef, graph: Graph) -> str:
     return axes[parent_frame]
 
 
-def _offset(joint: _Joint, graph: Graph) -> np.ndarray:
-    """The child frame's displacement from the anchor, seen by the anchor, in metres."""
+def _offset(joint: _Joint, parent_frame: URIRef, child_frame: URIRef, graph: Graph) -> np.ndarray:
+    """The child frame's displacement from the anchor, seen by the anchor."""
     position = ensure_one_obj_uri(
         graph=graph, subject=joint.uri, predicate=URI_KC_PRED_ORIGIN_OFFSET
     )
     if position is None:
         return np.zeros(3)
 
-    coords = list(graph.subjects(URI_GEOM_PRED_OF_POSITION, position))
-    if len(coords) != 1:
-        raise ConstraintViolation(
-            "kinematics", f"offset '{position}' must have one coordinate, found {coords}"
-        )
-    values = get_coord_vectorxyz(ModelBase(node_id=coords[0], graph=graph), graph)
+    values = get_translation_between_points(
+        get_frame_origin(child_frame, graph), get_frame_origin(parent_frame, graph), graph
+    )
     if values is None:
-        raise ConstraintViolation("kinematics", f"offset '{position}' has no coordinate values")
-    return np.asarray(values) * length_scale(graph.value(coords[0], URI_QUDT_PRED_UNIT))
+        raise ConstraintViolation("kinematics", f"offset '{position}' relates no two points")
+    return np.asarray(values)
 
 
 def _from_model_file(body: URIRef, graph: Graph, base_dir: Path | None) -> InertiaIR | None:
@@ -383,13 +349,13 @@ def _segment(
     in_parent = _in_body(parent_frame, parent, graph)
     in_child = _in_body(child_frame, child, graph)
     # An attachment makes two frames coincide unless a pose says how they differ.
-    attach = transform_in_metres(child_frame, parent_frame, graph)
+    attach = get_transform_between_frames(child_frame, parent_frame, graph)
     if attach is None:
         attach = RigidTransform.identity()
 
     if joint.revolute:
         axis = _revolute_axis(joint, parent_frame, graph)
-        attach = RigidTransform.from_translation(_offset(joint, graph)) * attach
+        attach = RigidTransform.from_translation(_offset(joint, parent_frame, child_frame, graph)) * attach
         kind, direction = "RotAxis", in_parent.rotation.as_matrix()[:, "xyz".index(axis)]
     else:
         kind, direction = "None", np.zeros(3)

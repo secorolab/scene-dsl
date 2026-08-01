@@ -112,7 +112,7 @@ def test_a_joint_places_its_child_where_its_anchor_is(tmp_path):
     assert np.allclose(segment.joint.origin, (0.0, 0.0, 0.15643))
     # the anchor is turned 180 degrees about x, so its z points down in the parent body
     assert np.allclose(segment.joint.axis, (0.0, 0.0, -1.0), atol=1e-12)
-    assert np.allclose(segment.pos, (0.0, 0.0, 0.15643))
+    assert np.allclose(segment.transform.translation, (0.0, 0.0, 0.15643))
     assert np.allclose(segment.inertia.moments, (0.004, 0.005, 0.0006, 0.0, 0.0, 0.0))
 
 
@@ -125,7 +125,7 @@ def test_a_chain_is_a_slice_of_its_tree(tmp_path):
     tip = tree.segments[-1]
     assert (tip.name, tip.hook) == ("rig/link1/tcp", "rig/link1")
     assert tip.joint is None  # a frame is no body and no joint moves to it
-    assert np.allclose(tip.pos, (0.0, 0.0, 0.4))
+    assert np.allclose(tip.transform.translation, (0.0, 0.0, 0.4))
 
 
 @pytest.mark.parametrize(("kind", "body"), [("mjcf", MJCF), ("urdf", URDF)])

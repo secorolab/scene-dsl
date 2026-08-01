@@ -28,9 +28,10 @@ KDL::RigidBodyInertia({{ inertia.mass }}, {{ vector(inertia.cog) }},
 {%- endmacro -%}
 
 {%- macro segment(segment) -%}
+{%- set q = segment.transform.rotation.as_quat() -%}
 KDL::Segment("{{ segment.name }}",
             {{ joint(segment.joint) }},
-            KDL::Frame(KDL::Rotation::Quaternion({{ segment.quat[0] }}, {{ segment.quat[1] }}, {{ segment.quat[2] }}, {{ segment.quat[3] }}), {{ vector(segment.pos) }}),
+            KDL::Frame(KDL::Rotation::Quaternion({{ q[0] }}, {{ q[1] }}, {{ q[2] }}, {{ q[3] }}), {{ vector(segment.transform.translation) }}),
             {{ inertia(segment.inertia) }})
 {%- endmacro -%}
 // This is an auto-generated file. Do not edit it directly.

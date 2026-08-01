@@ -78,8 +78,8 @@ class Inertia:
     """
 
     mass: float
-    cog: tuple[float, float, float]
-    moments: tuple[float, float, float, float, float, float]  # Ixx, Iyy, Izz, Ixy, Ixz, Iyz
+    cog: np.ndarray  # centre of mass in the body frame
+    moments: np.ndarray  # Ixx, Iyy, Izz, Ixy, Ixz, Iyz, about the centre of mass
 
 
 class JointModel(ModelBase):
@@ -109,8 +109,8 @@ class JointModel(ModelBase):
             else JointKind.FIXED
         )
         self.name = ""
-        self.origin: tuple[float, float, float] = (0.0, 0.0, 0.0)
-        self.axis: tuple[float, float, float] = (0.0, 0.0, 0.0)
+        self.origin = np.zeros(3)
+        self.axis = np.zeros(3)
 
 
 class SegmentModel(ModelBase):
@@ -135,17 +135,6 @@ class SegmentModel(ModelBase):
         self.joint = joint
         self.transform = transform
         self.inertia = inertia
-
-    @property
-    def quat(self) -> tuple[float, float, float, float]:
-        """The placement's rotation, xyzw."""
-        x, y, z, w = self.transform.rotation.as_quat()
-        return float(x), float(y), float(z), float(w)
-
-    @property
-    def pos(self) -> tuple[float, float, float]:
-        """The placement's translation, metres."""
-        return as_vector(self.transform.translation)
 
 
 class ChainModel(ModelBase):
@@ -177,21 +166,17 @@ class TreeModel(ModelBase):
         self.chains = chains
 
 
-def as_vector(values) -> tuple[float, float, float]:
-    """A template prints these, so they are plain floats, not numpy scalars."""
-    x, y, z = values
-    return float(x), float(y), float(z)
-
-
-def as_moments(matrix) -> tuple[float, float, float, float, float, float]:
-    """A symmetric tensor as Ixx, Iyy, Izz, Ixy, Ixz, Iyz."""
-    return (
-        float(matrix[0][0]),
-        float(matrix[1][1]),
-        float(matrix[2][2]),
-        float(matrix[0][1]),
-        float(matrix[0][2]),
-        float(matrix[1][2]),
+def as_moments(matrix: np.ndarray) -> np.ndarray:
+    """A symmetric tensor read out as Ixx, Iyy, Izz, Ixy, Ixz, Iyz."""
+    return np.array(
+        [
+            matrix[0][0],
+            matrix[1][1],
+            matrix[2][2],
+            matrix[0][1],
+            matrix[0][2],
+            matrix[1][2],
+        ]
     )
 
 
@@ -279,13 +264,15 @@ def revolute_axis(joint: JointModel, parent_frame: URIRef, graph: Graph) -> str:
     return axes[parent_frame]
 
 
-def joint_offset(joint: JointModel, parent_frame: URIRef, child_frame: URIRef, graph: Graph) -> np.ndarray:
+def joint_offset(
+    joint: JointModel, parent_frame: URIRef, child_frame: URIRef, graph: Graph
+) -> tuple[float, float, float]:
     """The child frame's displacement from the anchor, seen by the anchor."""
     position = ensure_one_obj_uri(
         graph=graph, subject=joint.id, predicate=URI_KC_PRED_ORIGIN_OFFSET
     )
     if position is None:
-        return np.zeros(3)
+        return (0.0, 0.0, 0.0)
 
     values = get_translation_between_points(
         FrameModel(frame_id=child_frame, graph=graph).origin,
@@ -294,7 +281,7 @@ def joint_offset(joint: JointModel, parent_frame: URIRef, child_frame: URIRef, g
     )
     if values is None:
         raise ConstraintViolation("kinematics", f"offset '{position}' relates no two points")
-    return np.asarray(values)
+    return values
 
 
 def inertia_from_model_file(body: URIRef, graph: Graph, base_dir: Path | None) -> Inertia | None:
@@ -303,7 +290,7 @@ def inertia_from_model_file(body: URIRef, graph: Graph, base_dir: Path | None) -
     if read is None:
         return None
     mass, cog, matrix = read
-    return Inertia(mass=mass, cog=as_vector(cog), moments=as_moments(matrix))
+    return Inertia(mass=mass, cog=cog, moments=as_moments(matrix))
 
 
 def declared_inertia(body: URIRef, graph: Graph, base_dir: Path | None) -> Inertia | None:
@@ -339,9 +326,8 @@ def declared_inertia(body: URIRef, graph: Graph, base_dir: Path | None) -> Inert
             URI_DYN_PRED_IYZ,
         )
     ]
-    if not isinstance(mass_literal, Literal) or not all(
-        isinstance(moment, Literal) for moment in moments
-    ):
+    stated = [moment for moment in moments if isinstance(moment, Literal)]
+    if not isinstance(mass_literal, Literal) or len(stated) != len(moments):
         # A frame-only inertia claims where the mass is, not how much: the file states that.
         return inertia_from_model_file(body, graph, base_dir)
 
@@ -354,15 +340,15 @@ def declared_inertia(body: URIRef, graph: Graph, base_dir: Path | None) -> Inert
         raise ConstraintViolation(
             "kinematics", f"inertia coordinate '{coord}' must have one mass unit: {units}"
         )
-    mass = float(str(mass_literal)) * MASS_SCALE[units.pop()]
+    mass = float(mass_literal.toPython()) * MASS_SCALE[units.pop()]
 
     in_body = frame_in_body(InertiaModel(inertias[0], graph).inertial_frame.id, body, graph)
 
-    ixx, iyy, izz, ixy, ixz, iyz = (float(str(moment)) for moment in moments)
+    ixx, iyy, izz, ixy, ixz, iyz = (float(moment.toPython()) for moment in stated)
     matrix = np.array([[ixx, ixy, ixz], [ixy, iyy, iyz], [ixz, iyz, izz]])
     rotation = in_body.rotation.as_matrix()
     rotated = rotation @ matrix @ rotation.T
-    return Inertia(mass=mass, cog=as_vector(in_body.translation), moments=as_moments(rotated))
+    return Inertia(mass=mass, cog=in_body.translation, moments=as_moments(rotated))
 
 
 def joint_owners(graph: Graph) -> dict[URIRef, set[URIRef]]:
@@ -428,8 +414,8 @@ def segment_for(
         direction = in_parent.rotation.as_matrix()[:, "xyz".index(axis)]
 
     joint.name = element_name(joint.id, scopes)
-    joint.origin = as_vector(in_parent.translation)
-    joint.axis = as_vector(direction)
+    joint.origin = in_parent.translation
+    joint.axis = direction
 
     return SegmentModel(
         body_id=child,

@@ -1,13 +1,16 @@
 # SPDX-License-Identifier: MPL-2.0
-from os.path import basename, exists, join, splitext
+from os.path import basename, dirname, exists, join, splitext
+from pathlib import Path
 from typing import Any
 
+from jinja2 import Environment, FileSystemLoader
 from rdflib import Graph
 from rdflib.plugin import PluginException
 
 from scene_dsl.dot import create_dot
 from scene_dsl.rdf.scene import create_scene_model_graph
 from scene_dsl.rdf.scenex import create_scenex_model_graph
+from scene_dsl.rdf_parser.kdl import build_kdl_model
 
 _GRAPH_FORMAT_EXT = {"json-ld": "json", "ttl": "ttl", "xml": "xml"}
 
@@ -128,4 +131,34 @@ def scenex_dot_gen(metamodel, model, output_path, overwrite, debug, **kwargs):
             outfile.write(dot_source)
     else:
         _render(dot_source, full_output_path, img_format)
+    print(f"... wrote {full_output_path}")
+
+
+def scenex_kdl_gen(metamodel, model, output_path, overwrite, debug, **kwargs):
+    filename = kwargs.get("filename", basename(model._tx_filename)) or "kinematics"
+    full_output_path = join(
+        "" if output_path is None else output_path, f"{splitext(filename)[0]}.kdl.hpp"
+    )
+    if exists(full_output_path) and not overwrite:
+        print(f"not overwriting existing file '{full_output_path}'")
+        return
+
+    # Model file paths are written relative to the model declaring them.
+    base_dir = dirname(model._tx_filename)
+    trees = build_kdl_model(
+        create_scenex_model_graph(model=model), Path(base_dir) if base_dir else None
+    )
+
+    env = Environment(
+        loader=FileSystemLoader(Path(__file__).parent / "templates"), keep_trailing_newline=True
+    )
+    template = env.get_template("kdl.hpp.jinja2")
+    source = basename(model._tx_filename) or "a scene model"
+    with open(full_output_path, "w") as outfile:
+        outfile.write(
+            template.render(
+                # The header holds one scene's kinematics, so that scene names its namespace.
+                {"data": {"name": splitext(source)[0] or "scene", "source": source, "trees": trees}}
+            )
+        )
     print(f"... wrote {full_output_path}")

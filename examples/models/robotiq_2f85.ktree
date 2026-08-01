@@ -16,6 +16,27 @@ ktree gripper_tree {
                 orientation: euler { axes: xyz extrinsic angles: (0, 0, 0) unit: deg }
             }
         }
+        // 2f85.xml states no <inertial> for base_mount: MuJoCo derives it from the mesh
+        // geoms at compile time, so the compiled values are carried here instead.
+        frame g_base_mount_com {
+            pose g_base_mount_com_in_g_base_mount {
+                wrt: <g_base_mount.g_base_mount_origin>
+                xyz: (-0.0003605835958214157, 8.536274800937428e-05, -5.9199141450506514e-05) m
+                orientation: quat {
+                    xyzw: (0.7060997694368735, 0.0005237112247473686,
+                           0.708111974627504, -0.0005222230216346258)
+                }
+            }
+        }
+        inertia {
+            frame: <g_base_mount_com>
+            mass: 0.15000285516377976 kg
+            inertia-matrix: (
+                (0.00010234548901794908, 0.0, 0.0),
+                (0.0, 5.35996872189825e-05, 0.0),
+                (0.0, 0.0, 5.217176310506675e-05)
+            ) kg*m^2
+        }
     }
     body g_base {
         frame g_base_origin {

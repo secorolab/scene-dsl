@@ -39,6 +39,15 @@ ktree (ns=scene_lab_mjc) panda_tree {
         }
         frame bracelet_link { }
         frame tool0 { }
+        inertia {
+            frame: <base_link>
+            mass: 1.0 kg
+            inertia-matrix: (
+                (0.01, 0.0, 0.0),
+                (0.0, 0.01, 0.0),
+                (0.0, 0.0, 0.01)
+            ) kg*m^2
+        }
     }
     body gripper_body {
         frame gripper_base {
@@ -52,14 +61,41 @@ ktree (ns=scene_lab_mjc) panda_tree {
                 }
             }
         }
+        inertia {
+            frame: <gripper_base>
+            mass: 1.0 kg
+            inertia-matrix: (
+                (0.01, 0.0, 0.0),
+                (0.0, 0.01, 0.0),
+                (0.0, 0.0, 0.01)
+            ) kg*m^2
+        }
     }
     body panda_link1_body {
         frame panda_joint1 { }
         frame panda_link1 { }
+        inertia {
+            frame: <panda_joint1>
+            mass: 1.0 kg
+            inertia-matrix: (
+                (0.01, 0.0, 0.0),
+                (0.0, 0.01, 0.0),
+                (0.0, 0.0, 0.01)
+            ) kg*m^2
+        }
     }
     body panda_link2_body {
         frame panda_joint2 { }
         frame panda_tip { }
+        inertia {
+            frame: <panda_joint2>
+            mass: 1.0 kg
+            inertia-matrix: (
+                (0.01, 0.0, 0.0),
+                (0.0, 0.01, 0.0),
+                (0.0, 0.0, 0.01)
+            ) kg*m^2
+        }
     }
     joints {
         fixed robotiq_2f85 {
@@ -97,6 +133,16 @@ ktree (ns=scene_lab_mjc) panda_tree {
 ktree (ns=scene_lab_mjc) ur10_tree {
     body ur10_body {
         frame ur10_base_link { }
+        // As ur10e.xml states it for the body it calls 'base'.
+        inertia {
+            frame: <ur10_base_link>
+            mass: 4.0 kg
+            inertia-matrix: (
+                (0.0061063308908, 0.0, 0.0),
+                (0.0, 0.0061063308908, 0.0),
+                (0.0, 0.0, 0.01125)
+            ) kg*m^2
+        }
     }
     joints { }
 }

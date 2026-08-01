@@ -1,0 +1,62 @@
+{%- macro identifier(name) -%}
+{{ name | replace('/', '_') | replace('-', '_') }}
+{%- endmacro -%}
+
+{%- macro vector(values) -%}
+KDL::Vector({{ values[0] }}, {{ values[1] }}, {{ values[2] }})
+{%- endmacro -%}
+
+{%- macro joint(joint) -%}
+{%- if joint.kind == 'None' -%}
+KDL::Joint({% if joint.name %}"{{ joint.name }}", {% endif %}KDL::Joint::None)
+{%- else -%}
+KDL::Joint("{{ joint.name }}", {{ vector(joint.origin) }}, {{ vector(joint.axis) }}, KDL::Joint::RotAxis)
+{%- endif -%}
+{%- endmacro -%}
+
+{%- macro inertia(inertia) -%}
+{%- if inertia is none -%}
+KDL::RigidBodyInertia::Zero()
+{%- else -%}
+KDL::RigidBodyInertia({{ inertia.mass }}, {{ vector(inertia.cog) }},
+            KDL::RotationalInertia({{ inertia.rot[0] }}, {{ inertia.rot[1] }}, {{ inertia.rot[2] }}, {{ inertia.rot[3] }}, {{ inertia.rot[4] }}, {{ inertia.rot[5] }}))
+{%- endif -%}
+{%- endmacro -%}
+
+{%- macro segment(segment) -%}
+KDL::Segment("{{ segment.name }}",
+            {{ joint(segment.joint) }},
+            KDL::Frame(KDL::Rotation::Quaternion({{ segment.quat[0] }}, {{ segment.quat[1] }}, {{ segment.quat[2] }}, {{ segment.quat[3] }}), {{ vector(segment.pos) }}),
+            {{ inertia(segment.inertia) }})
+{%- endmacro -%}
+// This is an auto-generated file. Do not edit it directly.
+//
+// KDL trees and chains for the kinematics of: {{ data.source }}
+#pragma once
+
+#include <kdl/chain.hpp>
+#include <kdl/frames.hpp>
+#include <kdl/tree.hpp>
+
+namespace {{ identifier(data.name) }} {
+{% for tree in data.trees %}
+inline KDL::Tree make_tree_{{ identifier(tree.name) }}()
+{
+    KDL::Tree tree("{{ tree.root }}");
+{%- for seg in tree.segments %}
+    tree.addSegment(
+        {{ segment(seg) }},
+        "{{ seg.hook }}");
+{%- endfor %}
+    return tree;
+}
+{% for chain in tree.chains %}
+inline KDL::Chain make_chain_{{ identifier(chain.name) }}()
+{
+    KDL::Chain chain;
+    make_tree_{{ identifier(tree.name) }}().getChain("{{ chain.root }}", "{{ chain.tip }}", chain);
+    return chain;
+}
+{% endfor %}
+{%- endfor %}
+}  // namespace {{ identifier(data.name) }}

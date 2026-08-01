@@ -139,7 +139,8 @@ class SegmentModel(ModelBase):
     @property
     def quat(self) -> tuple[float, float, float, float]:
         """The placement's rotation, xyzw."""
-        return as_quaternion(self.transform.rotation.as_quat())
+        x, y, z, w = self.transform.rotation.as_quat()
+        return float(x), float(y), float(z), float(w)
 
     @property
     def pos(self) -> tuple[float, float, float]:
@@ -180,12 +181,6 @@ def as_vector(values) -> tuple[float, float, float]:
     """A template prints these, so they are plain floats, not numpy scalars."""
     x, y, z = values
     return float(x), float(y), float(z)
-
-
-def as_quaternion(values) -> tuple[float, float, float, float]:
-    """An xyzw quaternion as plain floats."""
-    x, y, z, w = values
-    return float(x), float(y), float(z), float(w)
 
 
 def as_moments(matrix) -> tuple[float, float, float, float, float, float]:

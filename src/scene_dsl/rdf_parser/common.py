@@ -6,12 +6,10 @@ from rdf_utils.models.vocab import URI_EXEC_PRED_HAS_CONFIG
 from rdflib import RDF, Graph, Literal, Node, URIRef
 
 
-def load_attr_has_config(graph: Graph, model: ModelBase) -> None:
+def load_attr_has_config(graph: Graph, model: ModelBase, **kwargs) -> None:
     serialized = graph.value(model.id, URI_EXEC_PRED_HAS_CONFIG, any=False)
-    model.set_attr(
-        URI_EXEC_PRED_HAS_CONFIG,
-        {} if serialized is None else json.loads(str(serialized)),
-    )
+    if serialized is not None:
+        model.set_attr(URI_EXEC_PRED_HAS_CONFIG, json.loads(str(serialized)))
 
 
 def _ensure_one_typed_obj_node(

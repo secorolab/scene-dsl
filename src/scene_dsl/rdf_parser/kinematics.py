@@ -22,15 +22,7 @@ from rdf_utils.models.geom_coord import (
 )
 from rdf_utils.models.geom_rel import FrameModel
 from rdf_utils.models.vocab import (
-    URI_DYN_PRED_IXX,
-    URI_DYN_PRED_IXY,
-    URI_DYN_PRED_IXZ,
-    URI_DYN_PRED_IYY,
-    URI_DYN_PRED_IYZ,
-    URI_DYN_PRED_IZZ,
-    URI_DYN_PRED_MASS,
     URI_DYN_PRED_OF_BODY,
-    URI_DYN_PRED_OF_INERTIA,
     URI_GEOM_PRED_LINES,
     URI_GEOM_PRED_SIMPLICES,
     URI_GEOM_PRED_VECT_X,
@@ -48,11 +40,10 @@ from rdf_utils.models.vocab import (
     URI_KC_TYPE_JOINT,
     URI_KC_TYPE_REVOLUTE_JOINT,
     URI_KC_TYPE_SERIAL,
-    URI_QUDT_PRED_UNIT,
     URI_QUDT_UNIT_G,
     URI_QUDT_UNIT_KG,
 )
-from rdflib import RDF, Graph, Literal, URIRef
+from rdflib import RDF, Graph, URIRef
 from scipy.spatial.transform import RigidTransform
 
 from scene_dsl.rdf_parser.common import ensure_one_obj_uri
@@ -296,7 +287,8 @@ def inertia_from_model_file(body: URIRef, graph: Graph, base_dir: Path | None) -
 def declared_inertia(body: URIRef, graph: Graph, base_dir: Path | None) -> Inertia | None:
     """The body's inertia in its own frame: about the centre of mass, in body orientation."""
     inertias = [
-        inertia for inertia in graph.subjects(URI_DYN_PRED_OF_BODY, body)
+        inertia
+        for inertia in graph.subjects(URI_DYN_PRED_OF_BODY, body)
         if isinstance(inertia, URIRef)
     ]
     if not inertias:
@@ -304,51 +296,20 @@ def declared_inertia(body: URIRef, graph: Graph, base_dir: Path | None) -> Inert
     if len(inertias) > 1:
         raise ConstraintViolation("kinematics", f"body '{body}' has {len(inertias)} inertias")
 
-    coords = [
-        coord for coord in graph.subjects(URI_DYN_PRED_OF_INERTIA, inertias[0])
-        if isinstance(coord, URIRef)
-    ]
-    if len(coords) != 1:
-        raise ConstraintViolation(
-            "kinematics", f"inertia '{inertias[0]}' must have one coordinate: {coords}"
-        )
-    coord = coords[0]
-
-    mass_literal = graph.value(coord, URI_DYN_PRED_MASS)
-    moments = [
-        graph.value(coord, predicate)
-        for predicate in (
-            URI_DYN_PRED_IXX,
-            URI_DYN_PRED_IYY,
-            URI_DYN_PRED_IZZ,
-            URI_DYN_PRED_IXY,
-            URI_DYN_PRED_IXZ,
-            URI_DYN_PRED_IYZ,
-        )
-    ]
-    stated = [moment for moment in moments if isinstance(moment, Literal)]
-    if not isinstance(mass_literal, Literal) or len(stated) != len(moments):
+    inertia = InertiaModel(inertias[0], graph)
+    if inertia.mass is None or inertia.moments is None:
         # A frame-only inertia claims where the mass is, not how much: the file states that.
         return inertia_from_model_file(body, graph, base_dir)
 
-    units = {
-        unit
-        for unit in graph.objects(coord, URI_QUDT_PRED_UNIT)
-        if isinstance(unit, URIRef) and unit in MASS_SCALE
-    }
-    if len(units) != 1:
-        raise ConstraintViolation(
-            "kinematics", f"inertia coordinate '{coord}' must have one mass unit: {units}"
-        )
-    mass = float(mass_literal.toPython()) * MASS_SCALE[units.pop()]
-
-    in_body = frame_in_body(InertiaModel(inertias[0], graph).inertial_frame.id, body, graph)
-
-    ixx, iyy, izz, ixy, ixz, iyz = (float(moment.toPython()) for moment in stated)
-    matrix = np.array([[ixx, ixy, ixz], [ixy, iyy, iyz], [ixz, iyz, izz]])
+    ixx, iyy, izz, ixy, ixz, iyz = inertia.moments
+    in_body = frame_in_body(inertia.inertial_frame.id, body, graph)
     rotation = in_body.rotation.as_matrix()
-    rotated = rotation @ matrix @ rotation.T
-    return Inertia(mass=mass, cog=in_body.translation, moments=as_moments(rotated))
+    matrix = np.array([[ixx, ixy, ixz], [ixy, iyy, iyz], [ixz, iyz, izz]])
+    return Inertia(
+        mass=inertia.mass,
+        cog=in_body.translation,
+        moments=as_moments(rotation @ matrix @ rotation.T),
+    )
 
 
 def joint_owners(graph: Graph) -> dict[URIRef, set[URIRef]]:

@@ -1,23 +1,54 @@
 # SPDX-License-Identifier: MPL-2.0
+import numpy as np
+from rdf_utils.constraints import ConstraintViolation
 from rdf_utils.models.common import ModelBase
 from rdf_utils.models.geom_rel import FrameModel
 from rdf_utils.models.vocab import (
     URI_DYN_PRED_ABOUT,
+    URI_DYN_PRED_IXX,
+    URI_DYN_PRED_IXY,
+    URI_DYN_PRED_IXZ,
+    URI_DYN_PRED_IYY,
+    URI_DYN_PRED_IYZ,
+    URI_DYN_PRED_IZZ,
+    URI_DYN_PRED_MASS,
     URI_DYN_PRED_OF_BODY,
+    URI_DYN_PRED_OF_INERTIA,
     URI_DYN_TYPE_RIGID_BODY_INERTIA,
     URI_GEOM_PRED_ORIGIN,
     URI_GEOM_PRED_SIMPLICES,
     URI_GEOM_TYPE_FRAME,
     URI_GEOM_TYPE_RIGID_BODY,
     URI_KC_EXT_PRED_ROOT,
+    URI_QUDT_PRED_UNIT,
+    URI_QUDT_UNIT_G,
+    URI_QUDT_UNIT_KG,
 )
-from rdflib import Graph, URIRef
+from rdflib import Graph, Literal, URIRef
+
+MASS_IN_KG = {URI_QUDT_UNIT_KG: 1.0, URI_QUDT_UNIT_G: 1e-3}
+MOMENT_PREDS = (
+    URI_DYN_PRED_IXX,
+    URI_DYN_PRED_IYY,
+    URI_DYN_PRED_IZZ,
+    URI_DYN_PRED_IXY,
+    URI_DYN_PRED_IXZ,
+    URI_DYN_PRED_IYZ,
+)
 
 from scene_dsl.rdf_parser.common import ensure_one_obj_uri, ensure_one_typed_subject_uri
 
 
 class InertiaModel(ModelBase):
+    """A body's rigid-body inertia: where its mass is, and how much of it.
+
+    `mass` and `moments` are None for an inertia that names only its frame, which is a
+    body claiming where its centre of mass sits without saying what it weighs.
+    """
+
     inertial_frame: FrameModel
+    mass: float | None
+    moments: np.ndarray | None
 
     def __init__(self, inertia_id: URIRef, graph: Graph) -> None:
         super().__init__(node_id=inertia_id, graph=graph)
@@ -40,7 +71,38 @@ class InertiaModel(ModelBase):
             raise ValueError(f"RigidBodyInertia {self} about {about_node} is not a frame origin")
         self.inertial_frame = FrameModel(frame_id=inertial_frame_id, graph=graph)
 
-        # TODO(minhnh): parse inertia coordinates
+        self.mass = None
+        self.moments = None
+        coords = [
+            coord
+            for coord in graph.subjects(URI_DYN_PRED_OF_INERTIA, self.id)
+            if isinstance(coord, URIRef)
+        ]
+        if len(coords) > 1:
+            raise ConstraintViolation(
+                "dynamics", f"RigidBodyInertia {self} has {len(coords)} coordinates"
+            )
+        if not coords:
+            return
+
+        mass = graph.value(coords[0], URI_DYN_PRED_MASS)
+        moments = [graph.value(coords[0], predicate) for predicate in MOMENT_PREDS]
+        stated = [moment for moment in moments if isinstance(moment, Literal)]
+        # An inertia may name only its frame: a body says where its mass is, not how much.
+        if not isinstance(mass, Literal) or len(stated) != len(moments):
+            return
+
+        units = {
+            unit
+            for unit in graph.objects(coords[0], URI_QUDT_PRED_UNIT)
+            if isinstance(unit, URIRef) and unit in MASS_IN_KG
+        }
+        if len(units) != 1:
+            raise ConstraintViolation(
+                "dynamics", f"inertia coordinate '{coords[0]}' must have one mass unit: {units}"
+            )
+        self.mass = float(mass.toPython()) * MASS_IN_KG[units.pop()]
+        self.moments = np.array([float(moment.toPython()) for moment in stated])
 
 
 def get_root_frame(target_id: URIRef, graph: Graph) -> FrameModel:

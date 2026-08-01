@@ -8,9 +8,9 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
+from rdf_utils.constraints import ConstraintViolation
 from rdf_utils.models.common import ModelBase
-from rdf_utils.models.geom_coord import get_coord_vectorxyz, get_pose_coord_vals, get_pose_coords
-from rdf_utils.models.geom_rel import find_pose_path
+from rdf_utils.models.geom_coord import get_coord_vectorxyz, get_transform_between_frames
 from rdf_utils.models.vocab import (
     URI_DYN_PRED_AS_SEEN_BY,
     URI_DYN_PRED_IXX,
@@ -51,7 +51,8 @@ from rdflib import RDF, Graph, URIRef
 from scipy.spatial.transform import RigidTransform
 
 from scene_dsl.rdf_parser.common import ensure_one_obj_uri
-from scene_dsl.rdf_parser.model_inertia import ModelFileError, read_body_inertia
+from scene_dsl.rdf_parser.ktree import get_root_frame
+from scene_dsl.rdf_parser.model_inertia import read_body_inertia
 
 LENGTH_SCALE = {URI_QUDT_UNIT_M: 1.0, URI_QUDT_UNIT_CM: 1e-2, URI_QUDT_UNIT_MM: 1e-3}
 MASS_SCALE = {URI_QUDT_UNIT_KG: 1.0, URI_QUDT_UNIT_G: 1e-3}
@@ -100,10 +101,6 @@ class TreeIR:
     chains: tuple[ChainIR, ...]
 
 
-class KinematicsError(Exception):
-    """The graph does not describe kinematics a KDL tree can be built from."""
-
-
 def _floats(values) -> tuple[float, ...]:
     """The IR is printed by a template, so it holds plain floats, not numpy scalars."""
     return tuple(float(value) for value in values)
@@ -116,34 +113,29 @@ def _moments(matrix) -> tuple[float, ...]:
     )
 
 
-def transform_between(of_frame: URIRef, wrt_frame: URIRef, graph: Graph) -> RigidTransform | None:
-    """The pose of one frame in another, in metres.
+def check_lengths_in_metres(graph: Graph) -> None:
+    """Reject a graph whose positions are not in metres.
 
-    `rdf_utils` composes the pose path but leaves lengths in their authored unit, so scale
-    each pose as it is composed -- which also lifts its one-unit-per-path restriction.
+    `get_transform_between_frames` composes a pose path without converting lengths, so a
+    graph authored in mm would compose into a transform that reads as metres. Resolving
+    units belongs in `rdf_utils` beside the composition; until it lives there, refuse the
+    graphs the composition would silently mis-scale rather than convert them here.
     """
-    path = find_pose_path(of_frame, wrt_frame, graph)
-    if path is None:
-        return None
-
-    result = RigidTransform.identity()
-    for pose, coords in get_pose_coords(graph=graph, poses=path):
-        if len(coords) != 1:
-            raise KinematicsError(f"pose '{pose.id}' must have one coordinate, found {len(coords)}")
-        unit = coords[0].position_coord.unit
-        if unit not in LENGTH_SCALE:
-            raise KinematicsError(f"pose '{pose.id}' has unhandled length unit '{unit}'")
-        transform = get_pose_coord_vals(coords[0], graph)
-        scaled = RigidTransform.from_components(
-            np.asarray(transform.translation) * LENGTH_SCALE[unit], transform.rotation
+    units = set(graph.objects(None, URI_QUDT_PRED_UNIT)) & {
+        URI_QUDT_UNIT_M,
+        URI_QUDT_UNIT_CM,
+        URI_QUDT_UNIT_MM,
+    }
+    if units - {URI_QUDT_UNIT_M}:
+        raise ConstraintViolation(
+            "kinematics",
+            f"positions must be in metres to compose: found {sorted(str(u) for u in units)}",
         )
-        result = scaled * result
-    return result
 
 
 def _in_body(frame: URIRef, body: URIRef, graph: Graph) -> RigidTransform:
     """Where a frame sits on its body. Declaring no pose puts it at the body's root frame."""
-    transform = transform_between(frame, _root_frame(body, graph), graph)
+    transform = get_transform_between_frames(frame, get_root_frame(body, graph).id, graph)
     return RigidTransform.identity() if transform is None else transform
 
 
@@ -170,15 +162,10 @@ def _body_of(frame: URIRef, graph: Graph) -> URIRef:
         if (body, RDF.type, URI_GEOM_TYPE_RIGID_BODY) in graph
     ]
     if len(bodies) != 1:
-        raise KinematicsError(f"frame '{frame}' must belong to one rigid body, found {bodies}")
+        raise ConstraintViolation(
+            "kinematics", f"frame '{frame}' must belong to one rigid body, found {bodies}"
+        )
     return bodies[0]
-
-
-def _root_frame(body: URIRef, graph: Graph) -> URIRef:
-    frame = ensure_one_obj_uri(graph=graph, subject=body, predicate=URI_KC_EXT_PRED_ROOT)
-    if frame is None:
-        raise KinematicsError(f"rigid body '{body}' declares no root frame")
-    return frame
 
 
 @dataclass
@@ -194,7 +181,9 @@ def _joints(graph: Graph) -> dict[URIRef, _Joint]:
     for uri in graph.subjects(RDF.type, URI_KC_TYPE_JOINT):
         frames = tuple(graph.objects(uri, URI_KC_PRED_BETWEEN_ATTACHMENTS))
         if len(frames) != 2:
-            raise KinematicsError(f"joint '{uri}' must join two attachments, found {len(frames)}")
+            raise ConstraintViolation(
+                "kinematics", f"joint '{uri}' must join two attachments, found {len(frames)}"
+            )
         joints[uri] = _Joint(
             uri=uri,
             frames=frames,
@@ -209,26 +198,32 @@ def _axis_of(vector: URIRef, graph: Graph) -> tuple[URIRef, str]:
     for axis, predicate in AXIS_PREDS.items():
         for frame in graph.subjects(predicate, vector):
             return frame, axis
-    raise KinematicsError(f"axis vector '{vector}' is no frame's axis")
+    raise ConstraintViolation("kinematics", f"axis vector '{vector}' is no frame's axis")
 
 
 def _revolute_axis(joint: _Joint, parent_frame: URIRef, graph: Graph) -> str:
     """The axis letter the joint turns about, rejecting an under-determined pairing."""
     common = ensure_one_obj_uri(graph=graph, subject=joint.uri, predicate=URI_KC_PRED_COMMON_AXIS)
     if common is None:
-        raise KinematicsError(f"revolute joint '{joint.uri}' declares no common axis")
+        raise ConstraintViolation(
+            "kinematics", f"revolute joint '{joint.uri}' declares no common axis"
+        )
     axes = dict(_axis_of(vector, graph) for vector in graph.objects(common, URI_GEOM_PRED_LINES))
     if len(axes) != 2:
-        raise KinematicsError(f"common axis of '{joint.uri}' must relate two frame axes: {axes}")
+        raise ConstraintViolation(
+            "kinematics", f"common axis of '{joint.uri}' must relate two frame axes: {axes}"
+        )
     if len(set(axes.values())) != 1:
-        raise KinematicsError(
-            f"revolute joint '{joint.uri}' makes '{'' .join(sorted(set(axes.values())))}' axes "
-            f"collinear: which way the child frame then faces about them is undetermined"
+        raise ConstraintViolation(
+            "kinematics",
+            f"revolute joint '{joint.uri}' makes '{''.join(sorted(set(axes.values())))}' axes "
+            f"collinear: which way the child frame then faces about them is undetermined",
         )
     if parent_frame not in axes:
-        raise KinematicsError(
+        raise ConstraintViolation(
+            "kinematics",
             f"common axis of '{joint.uri}' does not mention its parent attachment "
-            f"'{parent_frame}': it relates {sorted(str(frame) for frame in axes)}"
+            f"'{parent_frame}': it relates {sorted(str(frame) for frame in axes)}",
         )
     return axes[parent_frame]
 
@@ -243,13 +238,17 @@ def _offset(joint: _Joint, graph: Graph) -> np.ndarray:
 
     coords = list(graph.subjects(URI_GEOM_PRED_OF_POSITION, position))
     if len(coords) != 1:
-        raise KinematicsError(f"offset '{position}' must have one coordinate, found {coords}")
+        raise ConstraintViolation(
+            "kinematics", f"offset '{position}' must have one coordinate, found {coords}"
+        )
     values = get_coord_vectorxyz(ModelBase(node_id=coords[0], graph=graph), graph)
     if values is None:
-        raise KinematicsError(f"offset '{position}' has no coordinate values")
+        raise ConstraintViolation("kinematics", f"offset '{position}' has no coordinate values")
     unit = graph.value(coords[0], URI_QUDT_PRED_UNIT)
     if unit not in LENGTH_SCALE:
-        raise KinematicsError(f"offset '{position}' has unhandled length unit '{unit}'")
+        raise ConstraintViolation(
+            "kinematics", f"offset '{position}' has unhandled length unit '{unit}'"
+        )
     return np.asarray(values) * LENGTH_SCALE[unit]
 
 
@@ -272,11 +271,13 @@ def _inertia(body: URIRef, graph: Graph, base_dir: Path | None) -> InertiaIR | N
     if not inertias:
         return _from_model_file(body, graph, base_dir)
     if len(inertias) > 1:
-        raise KinematicsError(f"body '{body}' has {len(inertias)} inertias")
+        raise ConstraintViolation("kinematics", f"body '{body}' has {len(inertias)} inertias")
 
     coords = list(graph.subjects(URI_DYN_PRED_OF_INERTIA, inertias[0]))
     if len(coords) != 1:
-        raise KinematicsError(f"inertia '{inertias[0]}' must have one coordinate: {coords}")
+        raise ConstraintViolation(
+            "kinematics", f"inertia '{inertias[0]}' must have one coordinate: {coords}"
+        )
     coord = coords[0]
 
     mass_literal = graph.value(coord, URI_DYN_PRED_MASS)
@@ -297,12 +298,16 @@ def _inertia(body: URIRef, graph: Graph, base_dir: Path | None) -> InertiaIR | N
 
     units = set(graph.objects(coord, URI_QUDT_PRED_UNIT)) & set(MASS_SCALE)
     if len(units) != 1:
-        raise KinematicsError(f"inertia coordinate '{coord}' must have one mass unit: {units}")
+        raise ConstraintViolation(
+            "kinematics", f"inertia coordinate '{coord}' must have one mass unit: {units}"
+        )
     mass = float(mass_literal.toPython()) * MASS_SCALE[units.pop()]
 
-    inertial_frame = ensure_one_obj_uri(graph=graph, subject=coord, predicate=URI_DYN_PRED_AS_SEEN_BY)
+    inertial_frame = ensure_one_obj_uri(
+        graph=graph, subject=coord, predicate=URI_DYN_PRED_AS_SEEN_BY
+    )
     if inertial_frame is None:
-        raise KinematicsError(f"inertia coordinate '{coord}' is seen by no frame")
+        raise ConstraintViolation("kinematics", f"inertia coordinate '{coord}' is seen by no frame")
     in_body = _in_body(inertial_frame, body, graph)
 
     ixx, iyy, izz, ixy, ixz, iyz = (float(moment.toPython()) for moment in moments)
@@ -366,7 +371,7 @@ def _segment(
     in_parent = _in_body(parent_frame, parent, graph)
     in_child = _in_body(child_frame, child, graph)
     # An attachment makes two frames coincide unless a pose says how they differ.
-    attach = transform_between(child_frame, parent_frame, graph)
+    attach = get_transform_between_frames(child_frame, parent_frame, graph)
     if attach is None:
         attach = RigidTransform.identity()
 
@@ -405,7 +410,7 @@ def _body_inertia(
     """
     try:
         return _inertia(body, graph, base_dir)
-    except ModelFileError:
+    except ConstraintViolation:
         if moves:
             raise
         return None
@@ -442,26 +447,31 @@ def _chains(
         root_frame = ensure_one_obj_uri(graph=graph, subject=serial, predicate=URI_KC_EXT_PRED_ROOT)
         tip_frame = ensure_one_obj_uri(graph=graph, subject=serial, predicate=URI_KC_EXT_PRED_TIP)
         if root_frame is None or tip_frame is None:
-            raise KinematicsError(f"serial chain '{serial}' declares no root or no tip")
+            raise ConstraintViolation(
+                "kinematics", f"serial chain '{serial}' declares no root or no tip"
+            )
 
         chain_root, tip = _body_of(root_frame, graph), _body_of(tip_frame, graph)
         if tip not in parents and tip != root:
             continue
-        if root_frame != _root_frame(chain_root, graph):
-            raise KinematicsError(
+        if root_frame != get_root_frame(chain_root, graph).id:
+            raise ConstraintViolation(
+                "kinematics",
                 f"serial chain '{serial}' starts at '{root_frame}', which is not the root frame "
-                f"of body '{chain_root}': a KDL chain carries no offset before its first segment"
+                f"of body '{chain_root}': a KDL chain carries no offset before its first segment",
             )
 
         body = tip
         while body != chain_root:
             parent = parents.get(body)
             if parent is None:
-                raise KinematicsError(f"serial chain '{serial}' tip is not below its root")
+                raise ConstraintViolation(
+                    "kinematics", f"serial chain '{serial}' tip is not below its root"
+                )
             body = parent
 
         tip_name = _name(tip, scopes)
-        if tip_frame != _root_frame(tip, graph):
+        if tip_frame != get_root_frame(tip, graph).id:
             segment = _tip_segment(tip_frame, tip, scopes, graph)
             # Two chains may end at one frame, and the tree holds it once.
             tips.setdefault(segment.name, segment)
@@ -478,6 +488,7 @@ def _chains(
 
 def build_kdl_model(graph: Graph, base_dir: Path | None = None) -> list[TreeIR]:
     """Every tree the graph's kinematics hang from, with the chains declared over them."""
+    check_lengths_in_metres(graph)
     scopes = _scopes(graph)
     joints = _joints(graph)
     trees = []
@@ -505,9 +516,10 @@ def build_kdl_model(graph: Graph, base_dir: Path | None = None) -> list[TreeIR]:
             if segment.inertia is None and segment.joint.kind != "None"
         ]
         if missing:
-            raise KinematicsError(
+            raise ConstraintViolation(
+                "kinematics",
                 f"no inertia for {', '.join(sorted(missing))}: state mass and inertia-matrix "
-                f"in the model, or map the bodies to a model file that does"
+                f"in the model, or map the bodies to a model file that does",
             )
 
         # Appended last, so each tip frame follows the body it hangs from.

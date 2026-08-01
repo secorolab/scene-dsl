@@ -3,11 +3,11 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from rdf_utils.constraints import ConstraintViolation
 
 from scene_dsl.langs import scenex_metamodel
 from scene_dsl.rdf.scenex import create_scenex_model_graph
 from scene_dsl.rdf_parser.kdl import build_kdl_model
-from scene_dsl.rdf_parser.model_inertia import ModelFileError
 
 SCENE = """ns t = "https://example.test/"
 agn set (ns=t) agents { agent arm }
@@ -140,7 +140,7 @@ def test_inertia_absent_from_the_scene_is_read_from_the_model_file(tmp_path, kin
 
 def test_a_model_file_stating_no_inertial_is_an_error(tmp_path):
     """MuJoCo would derive it from the geoms; the file is parsed, so this cannot be answered."""
-    with pytest.raises(ModelFileError, match="states no inertial"):
+    with pytest.raises(ConstraintViolation, match="states no inertial"):
         _tree(
             tmp_path,
             inertia="",

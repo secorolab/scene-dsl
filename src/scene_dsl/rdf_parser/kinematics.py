@@ -92,7 +92,11 @@ class JointModel(ModelBase):
 
     def __init__(self, joint_id: URIRef, graph: Graph) -> None:
         super().__init__(node_id=joint_id, graph=graph)
-        frames = tuple(graph.objects(joint_id, URI_KC_PRED_BETWEEN_ATTACHMENTS))
+        frames = tuple(
+            frame
+            for frame in graph.objects(joint_id, URI_KC_PRED_BETWEEN_ATTACHMENTS)
+            if isinstance(frame, URIRef)
+        )
         if len(frames) != 2:
             raise ConstraintViolation(
                 "kinematics", f"joint '{joint_id}' must join two attachments, found {len(frames)}"
@@ -210,7 +214,7 @@ def body_of_frame(frame: URIRef, graph: Graph) -> URIRef:
     bodies = [
         body
         for body in graph.subjects(URI_GEOM_PRED_SIMPLICES, frame)
-        if (body, RDF.type, URI_GEOM_TYPE_RIGID_BODY) in graph
+        if isinstance(body, URIRef) and (body, RDF.type, URI_GEOM_TYPE_RIGID_BODY) in graph
     ]
     if len(bodies) != 1:
         raise ConstraintViolation(
@@ -224,6 +228,7 @@ def joints_in_graph(graph: Graph) -> dict[URIRef, JointModel]:
     return {
         uri: JointModel(joint_id=uri, graph=graph)
         for uri in graph.subjects(RDF.type, URI_KC_TYPE_JOINT)
+        if isinstance(uri, URIRef)
     }
 
 
@@ -231,7 +236,8 @@ def axis_of_vector(vector: URIRef, graph: Graph) -> tuple[URIRef, str]:
     """The frame a bound axis vector belongs to, and which of its axes it is."""
     for axis, predicate in AXIS_PREDS.items():
         for frame in graph.subjects(predicate, vector):
-            return frame, axis
+            if isinstance(frame, URIRef):
+                return frame, axis
     raise ConstraintViolation("kinematics", f"axis vector '{vector}' is no frame's axis")
 
 

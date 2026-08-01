@@ -101,5 +101,7 @@ def add_distribution(graph: Graph, distribution: Distribution) -> None:
 
 
 def add_sampled_quantity(graph: Graph, quantity_uri: URIRef, distrib_ref: DistributionRef) -> None:
+    if (distrib_ref.distribution.uri, RDF.type, URI_DISTRIB_TYPE_DISTRIB) not in graph:
+        add_distribution(graph, distrib_ref.distribution)
     graph.add((quantity_uri, RDF.type, URI_DISTRIB_TYPE_SAMPLED_QUANTITY))
     graph.add((quantity_uri, URI_DISTRIB_PRED_FROM_DISTRIB, distrib_ref.distribution.uri))

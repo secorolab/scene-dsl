@@ -16,37 +16,22 @@ from pathlib import Path
 
 import numpy as np
 from rdf_utils.constraints import ConstraintViolation
-from rdf_utils.models.geom_coord import get_transform_between_frames
-from rdf_utils.models.vocab import URI_DYN_PRED_OF_BODY, URI_KC_TYPE_REVOLUTE_JOINT
 from rdflib import Graph, URIRef
 from rdflib.namespace import split_uri
 from scipy.spatial.transform import RigidTransform
 
 from scene_dsl.rdf_parser.ktree import (
     Attachment,
-    InertiaModel,
+    Inertia,
     KinematicTreeModel,
     body_owners,
     build_kinematic_trees,
+    declared_inertia,
     declaring_tree,
+    frame_in_body,
     get_root_frame,
-    joint_offset,
-    revolute_axis,
+    place,
 )
-from scene_dsl.rdf_parser.mapped_inertia import read_body_inertia
-
-
-@dataclass
-class Inertia:
-    """A body's mass and how it is distributed, in the body's own frame.
-
-    Not a graph model: a body whose inertia is read from its model file has no inertia
-    node to be one of.
-    """
-
-    mass: float
-    cog: np.ndarray  # centre of mass in the body frame
-    moments: np.ndarray  # Ixx, Iyy, Izz, Ixy, Ixz, Iyz, about the centre of mass
 
 
 @dataclass
@@ -109,86 +94,6 @@ def scoped_name(uri: URIRef, owner: URIRef | None) -> str:
     return f"{split_uri(owner)[1]}/{name}"
 
 
-def as_moments(matrix: np.ndarray) -> np.ndarray:
-    """A symmetric tensor read out as Ixx, Iyy, Izz, Ixy, Ixz, Iyz."""
-    return np.array(
-        [
-            matrix[0][0],
-            matrix[1][1],
-            matrix[2][2],
-            matrix[0][1],
-            matrix[0][2],
-            matrix[1][2],
-        ]
-    )
-
-
-def frame_in_body(frame: URIRef, body: URIRef, graph: Graph) -> RigidTransform:
-    """Where a frame sits on its body.
-
-    A body's root frame is where the body is, so it needs no pose. Any other frame is
-    somewhere, and a model that does not say where cannot be placed: report that rather
-    than assume the two coincide, which is a difference no later error would point at.
-    """
-    root = get_root_frame(body, graph).id
-    if frame == root:
-        return RigidTransform.identity()
-
-    transform = get_transform_between_frames(frame, root, graph)
-    if transform is None:
-        raise ConstraintViolation(
-            "kinematics",
-            f"no pose places frame '{frame}' on body '{body}': a frame that is not the "
-            f"body's root frame needs a pose leading to it",
-        )
-    return transform
-
-
-def inertia_from_model_file(
-    body: URIRef, graph: Graph, owner: URIRef | None, base_dir: Path | None
-) -> Inertia | None:
-    """What the mapped model file states, when the scene itself states no inertia."""
-    read = read_body_inertia(body, graph, owner, base_dir)
-    if read is None:
-        return None
-    mass, cog, matrix = read
-    return Inertia(mass=mass, cog=cog, moments=as_moments(matrix))
-
-
-def declared_inertia(
-    body: URIRef, graph: Graph, owner: URIRef | None, base_dir: Path | None
-) -> Inertia | None:
-    """The body's inertia in its own frame: about the centre of mass, in body orientation."""
-    inertias = [
-        inertia
-        for inertia in graph.subjects(URI_DYN_PRED_OF_BODY, body)
-        if isinstance(inertia, URIRef)
-    ]
-    if not inertias:
-        return inertia_from_model_file(body, graph, owner, base_dir)
-    if len(inertias) > 1:
-        raise ConstraintViolation("kinematics", f"body '{body}' has {len(inertias)} inertias")
-
-    inertia = InertiaModel(inertias[0], graph)
-    if inertia.mass is None or inertia.moments is None:
-        # A frame-only inertia claims where the mass is, not how much: the file states that.
-        return inertia_from_model_file(body, graph, owner, base_dir)
-
-    ixx, iyy, izz, ixy, ixz, iyz = inertia.moments
-    in_body = frame_in_body(inertia.inertial_frame.id, body, graph)
-    rotation = in_body.rotation.as_matrix()
-    matrix = np.array([[ixx, ixy, ixz], [ixy, iyy, iyz], [ixz, iyz, izz]])
-    return Inertia(
-        mass=inertia.mass,
-        # The frame states where the mass is, so its origin is the centre of mass.
-        cog=in_body.translation,
-        # R I R^T: the tensor is stated about the inertial frame's axes and wanted about the
-        # body's. Only the axes turn -- both frames are at the centre of mass, so no parallel
-        # axis term arises.
-        moments=as_moments(rotation @ matrix @ rotation.T),
-    )
-
-
 def segment_inertia(
     body: URIRef, graph: Graph, owner: URIRef | None, base_dir: Path | None, moves: bool
 ) -> Inertia | None:
@@ -213,29 +118,9 @@ def segment_for(
     graph: Graph,
     base_dir: Path | None,
 ) -> Segment:
-    """The child body as a segment: its joint, and where it sits at zero position."""
+    """The child body as a segment: KDL takes the axis in the parent, and the rest as f_tip."""
     parent, joint, child = attachment
-    # The graph holds the joint's two attachments unordered; the tree says which is the parent.
-    child_index = 1 if joint.bodies[0] == parent else 0
-    parent_frame, child_frame = joint.frames[1 - child_index], joint.frames[child_index]
-
-    # KDL hangs a body off a body, so both attachment frames are placed on the body carrying them.
-    in_parent = frame_in_body(parent_frame, parent, graph)
-    in_child = frame_in_body(child_frame, child, graph)
-    # An attachment makes two frames coincide unless a pose says how they differ.
-    attach = get_transform_between_frames(child_frame, parent_frame, graph)
-    if attach is None:
-        attach = RigidTransform.identity()
-
-    direction = None
-    if URI_KC_TYPE_REVOLUTE_JOINT in joint.types:
-        axis = revolute_axis(joint, parent_frame, graph)
-        # The offset displaces the child frame within the anchor, so it comes after it.
-        offset = joint_offset(joint, parent_frame, child_frame, graph)
-        attach = RigidTransform.from_translation(offset) * attach
-        # A rotation's columns are its axes in the frame it rotates into: the anchor's axis,
-        # the one the joint turns about, read in the parent body's frame.
-        direction = in_parent.rotation.as_matrix()[:, "xyz".index(axis)]
+    placed = place(attachment, graph)
 
     return Segment(
         iri=child,
@@ -244,14 +129,12 @@ def segment_for(
         joint=Joint(
             iri=joint.id,
             name=scoped_name(joint.id, declaring_tree(joint.id, graph)),
-            origin=in_parent.translation,  # a point the axis passes through, in the parent body
-            axis=direction,
+            origin=placed.origin,
+            axis=placed.direction,
         ),
-        # Parent body <- anchor <- child frame <- child body, so what is left is the child body
-        # in its parent's: the segment's pose while the joint contributes nothing.
-        transform=in_parent * attach * in_child.inv(),
+        transform=placed.transform,
         inertia=segment_inertia(
-            child, graph, owners.get(child), base_dir, moves=direction is not None
+            child, graph, owners.get(child), base_dir, moves=placed.direction is not None
         ),
     )
 

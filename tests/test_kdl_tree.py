@@ -120,7 +120,7 @@ def test_a_joint_places_its_child_where_its_anchor_is(tmp_path):
     # the anchor is turned 180 degrees about x, so its z points down in the parent body
     assert np.allclose(segment.joint.axis, (0.0, 0.0, -1.0), atol=1e-12)
     assert np.allclose(segment.transform.translation, (0.0, 0.0, 0.15643))
-    assert np.allclose(segment.inertia.moments, (0.004, 0.005, 0.0006, 0.0, 0.0, 0.0))
+    assert np.allclose(segment.inertia.matrix, np.diag((0.004, 0.005, 0.0006)))
 
 
 def test_a_chain_is_a_slice_of_its_tree(tmp_path):
@@ -143,7 +143,7 @@ def test_inertia_absent_from_the_scene_is_read_from_the_model_file(tmp_path, kin
     assert inertia.mass == pytest.approx(0.75)
     assert np.allclose(inertia.cog, (0.0, 0.0, 0.2))
     # a quarter turn about z swaps which axis carries which moment
-    assert np.allclose(inertia.moments[:3], (0.005, 0.004, 0.0006))
+    assert np.allclose(np.diag(inertia.matrix), (0.005, 0.004, 0.0006))
 
 
 def test_a_frame_with_no_pose_is_rejected(tmp_path):

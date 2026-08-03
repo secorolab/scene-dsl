@@ -29,7 +29,7 @@ from scene_dsl.rdf_parser.common import (
     load_attr_has_config,
     load_attr_kinematic_mappings,
 )
-from scene_dsl.rdf_parser.ktree import RigidBodyModel, get_root_frame
+from scene_dsl.rdf_parser.ktree import RigidBodyModel, root_frame_of
 from scene_dsl.rdf_parser.scene import SceneModel
 from scene_dsl.rdf_parser.vocab import (
     URI_BDD_PRED_OF_SCENE,
@@ -179,7 +179,7 @@ class SceneInstanceModel(ModelBase):
             raise ValueError(f"resource '{resource.id}' has ambiguous kinematic mappings")
 
         mapping = mappings[0]
-        return resource, mapping, get_root_frame(mapping.target_id, graph)
+        return resource, mapping, root_frame_of(mapping.target_id, graph)
 
     def _load_models(
         self,

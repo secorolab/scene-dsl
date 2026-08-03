@@ -1,222 +1,204 @@
-# SPDX-License-Identifier: MPL-2.0
-"""What KDL builds a tree from, lowered out of the scene's kinematics.
-
-A KDL segment is `pose(q) = joint.pose(q) * f_tip`: KDL applies the joint position
-itself, so what a segment is built with is the constant part -- where the child body
-sits in its parent while the joint contributes nothing. The graph relates frames rather
-than bodies, so that constant is composed here, along with everything else derived from
-what the scene states: the joint axis in the parent body, a body's inertia about its own
-frame, and the names -- KDL knows a segment by a string, and nothing but a backend does.
-"""
+"""Build the plain-data representation used to render Orocos KDL trees."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
 from rdf_utils.constraints import ConstraintViolation
+from rdf_utils.models.geom_coord import get_translation_between_points
+from rdf_utils.models.vocab import URI_GEOM_PRED_ORIGIN
 from rdflib import Graph, URIRef
-from rdflib.namespace import split_uri
-from scipy.spatial.transform import RigidTransform
+from scipy.spatial.transform import Rotation
 
-from scene_dsl.rdf_parser.ktree import (
-    Attachment,
-    Inertia,
-    KinematicTreeModel,
-    body_owners,
-    build_kinematic_trees,
-    declared_inertia,
-    declaring_tree,
-    frame_in_body,
-    get_root_frame,
-    place,
-)
+from scene_dsl.rdf_parser.ktree import KinematicTreeModel, RevoluteJointModel, kinematic_trees
 
 
-@dataclass
-class Joint:
-    """The line a joint moves about, in the parent body's frame.
-
-    `axis` is None for a joint that does not move: KDL builds it as `Joint::None`, and
-    the segment is then only the pose its parent holds it at.
-    """
-
-    iri: URIRef
-    name: str
-    origin: np.ndarray
-    axis: np.ndarray | None
+def _local(uri: URIRef) -> str:
+    return str(uri).rsplit("/", 1)[-1]
 
 
-@dataclass
-class Segment:
-    """A body, its joint, and where it sits in the segment before it at zero position."""
-
-    iri: URIRef
-    name: str
-    parent: str
-    joint: Joint | None
-    transform: RigidTransform
-    inertia: Inertia | None
+def _scoped(uri: URIRef) -> str:
+    """A readable KDL name that remains unique for elements owned by different trees."""
+    parts = str(uri).rstrip("/").rsplit("/", 2)
+    return "/".join(parts[-2:])
 
 
-@dataclass
-class Chain:
-    """A slice of a tree: the names KDL is asked to cut between."""
-
-    iri: URIRef
-    name: str
-    root: str
-    tip: str
+def _cpp_name(name: str) -> str:
+    """The C++ identifier rendered for a scene element in the KDL header."""
+    return name.replace("/", "_").replace("-", "_")
 
 
-@dataclass
-class Tree:
-    """One `KDL::Tree` to build, and the chains sliced out of it."""
-
-    iri: URIRef
-    name: str
-    root: str
-    root_iri: URIRef
-    segments: tuple[Segment, ...]
-    chains: tuple[Chain, ...]
+def _body_name(tree: KinematicTreeModel, body: URIRef) -> str:
+    return f"{_local(tree.defining_tree_by_body[body])}/{_local(body)}"
 
 
-def scoped_name(uri: URIRef, owner: URIRef | None) -> str:
-    """What KDL calls an element: its own name under the tree that owns it.
-
-    Two instances of one device share every local name and may hang in one tree, where
-    KDL tells its segments apart by name alone -- so the owning tree qualifies it.
-    """
-    _, name = split_uri(uri)
-    if owner is None:
-        return name
-    return f"{split_uri(owner)[1]}/{name}"
+def _pose_matrix(transform) -> np.ndarray:
+    return np.asarray(transform.as_matrix(), dtype=float)
 
 
-def segment_inertia(
-    body: URIRef, graph: Graph, owner: URIRef | None, base_dir: Path | None, moves: bool
-) -> Inertia | None:
-    """What a body weighs, if anything has to know.
+def _inverse_pose(pose: np.ndarray) -> np.ndarray:
+    inverse = np.eye(4)
+    inverse[:3, :3] = pose[:3, :3].T
+    inverse[:3, 3] = -inverse[:3, :3] @ pose[:3, 3]
+    return inverse
 
-    A body a fixed joint holds carries the tree without moving in it -- a sensor's frame,
-    a table, a mounting plate -- so having no mass is a thing it may legitimately be, and
-    KDL carries that as a zero inertia. A body a joint moves is another matter: a missing
-    mass there is a hole in the dynamics, and is reported rather than assumed away.
-    """
+
+def _translation_pose(translation: np.ndarray) -> np.ndarray:
+    pose = np.eye(4)
+    pose[:3, 3] = translation
+    return pose
+
+
+def _transform_data(pose: np.ndarray) -> dict:
+    return {
+        "rotation": [float(value) for value in Rotation.from_matrix(pose[:3, :3]).as_quat()],
+        "translation": [float(value) for value in pose[:3, 3]],
+    }
+
+
+def _inertia_data(
+    tree: KinematicTreeModel, body: URIRef, graph: Graph, strict: bool
+) -> dict | None:
     try:
-        return declared_inertia(body, graph, owner, base_dir)
-    except ConstraintViolation:
-        if moves:
+        inertia = tree.mass_properties(body, graph)
+    except ConstraintViolation as error:
+        # KDL can represent a purely kinematic body with zero inertia. Direct Scene DSL
+        # generation keeps mapping errors visible; downstream control generation can opt
+        # into zero inertia for scene fixtures outside its solver chain.
+        if strict and "nothing states the inertia" not in str(error):
             raise
         return None
+    return {
+        "mass": float(inertia.mass),
+        "com": [float(value) for value in inertia.com],
+        "tensor": [[float(value) for value in row] for row in inertia.tensor],
+    }
 
 
-def segment_for(
-    attachment: Attachment,
-    owners: dict[URIRef, URIRef],
+def _origin(frame: URIRef, graph: Graph) -> URIRef:
+    origin = graph.value(frame, URI_GEOM_PRED_ORIGIN)
+    if not isinstance(origin, URIRef):
+        raise ConstraintViolation("kinematics", f"frame '{frame}' has no origin")
+    return origin
+
+
+def _joint_data(
+    tree: KinematicTreeModel,
+    parent: URIRef,
+    child: URIRef,
+    joint_id: URIRef,
     graph: Graph,
-    base_dir: Path | None,
-) -> Segment:
-    """The child body as a segment: KDL takes the axis in the parent, and the rest as f_tip."""
-    parent, joint, child = attachment
-    placed = place(attachment, graph)
+) -> tuple[dict, dict]:
+    """The KDL joint and child segment pose for one directed graph joint."""
+    joint = tree.joints[joint_id]
+    parent_frame = joint.frame_on(parent)
+    child_frame = joint.frame_on(child)
+    parent_attachment = _pose_matrix(tree.bodies[parent].pose_of(parent_frame, graph))
+    child_attachment = _pose_matrix(tree.bodies[child].pose_of(child_frame, graph))
 
-    return Segment(
-        iri=child,
-        name=scoped_name(child, owners.get(child)),
-        parent=scoped_name(parent, owners.get(parent)),
-        joint=Joint(
-            iri=joint.id,
-            name=scoped_name(joint.id, declaring_tree(joint.id, graph)),
-            origin=placed.origin,
-            axis=placed.direction,
-        ),
-        transform=placed.transform,
-        inertia=segment_inertia(
-            child, graph, owners.get(child), base_dir, moves=placed.direction is not None
-        ),
-    )
-
-
-def tip_frame_segment(
-    tip_frame: URIRef, tip: URIRef, owners: dict[URIRef, URIRef], graph: Graph
-) -> Segment:
-    """A frame a chain ends at, but its body is not rooted at, is a fixed segment of its own."""
-    return Segment(
-        iri=tip_frame,
-        name=f"{scoped_name(tip, owners.get(tip))}/{split_uri(tip_frame)[1]}",
-        parent=scoped_name(tip, owners.get(tip)),
-        joint=None,
-        transform=frame_in_body(tip_frame, tip, graph),
-        inertia=None,
-    )
-
-
-def chains_of(
-    tree: KinematicTreeModel, owners: dict[URIRef, URIRef], graph: Graph
-) -> tuple[list[Chain], list[Segment]]:
-    """The tree's chains, and the segments their endpoints add.
-
-    A chain is the tree between two of its segments, so it names them rather than
-    repeating them. A tip frame is no body, so nothing has made a segment of it yet:
-    it joins the tree as a fixed leaf, and the chain then slices out to it.
-    """
-    chains, tips = [], {}
-    for chain in tree.chains:
-        root_name = scoped_name(chain.root_body, owners.get(chain.root_body))
-        tip_name = scoped_name(chain.tip_body, owners.get(chain.tip_body))
-        if chain.tip_frame != get_root_frame(chain.tip_body, graph).id:
-            segment = tip_frame_segment(chain.tip_frame, chain.tip_body, owners, graph)
-            # Two chains may end at one frame, and the tree holds it once.
-            tips.setdefault(segment.name, segment)
-            tip_name = segment.name
-        chains.append(
-            Chain(
-                iri=chain.id,
-                name="__".join(part.replace("/", "_") for part in (root_name, tip_name)),
-                root=root_name,
-                tip=tip_name,
-            )
+    if not isinstance(joint, RevoluteJointModel):
+        return {"name": _scoped(joint.id), "iri": str(joint.id), "axis": None}, _transform_data(
+            parent_attachment @ _inverse_pose(child_attachment)
         )
-    return chains, list(tips.values())
 
-
-def build_kdl_trees(graph: Graph, base_dir: Path | None = None) -> list[Tree]:
-    """Every tree KDL has to build for this scene, with the chains declared over them."""
-    owners = body_owners(graph)
-    trees = []
-
-    for tree in build_kinematic_trees(graph):
-        segments = [
-            segment_for(attachment, owners, graph, base_dir) for attachment in tree.attachments
-        ]
-        # A fixed segment may weigh nothing; one a joint moves may not (see segment_inertia).
-        missing = [
-            segment.name
-            for segment in segments
-            if segment.inertia is None
-            and segment.joint is not None
-            and segment.joint.axis is not None
-        ]
-        if missing:
+    offset_pose = np.eye(4)
+    if joint.offset is not None:
+        offset = get_translation_between_points(
+            _origin(child_frame, graph), _origin(parent_frame, graph), graph
+        )
+        if offset is None:
             raise ConstraintViolation(
-                "kinematics",
-                f"no inertia for {', '.join(sorted(missing))}: state mass and inertia-matrix "
-                f"in the model, or map the bodies to a model file that does",
+                "kinematics", f"joint '{joint.id}' has an offset with no coordinates"
+            )
+        offset_pose[:3, 3] = np.asarray(offset, dtype=float)
+
+    origin = parent_attachment[:3, 3]
+    axis = np.zeros(3)
+    axis["xyz".index(joint.axis_on(parent_frame))] = 1.0
+    return (
+        {
+            "name": _scoped(joint.id),
+            "iri": str(joint.id),
+            "origin": [float(value) for value in origin],
+            "axis": [float(value) for value in parent_attachment[:3, :3] @ axis],
+        },
+        _transform_data(parent_attachment @ offset_pose @ _inverse_pose(child_attachment)),
+    )
+
+
+def _endpoint_segments(tree: KinematicTreeModel, graph: Graph) -> tuple[list[dict], dict[URIRef, str]]:
+    """Add fixed KDL leaves for chain endpoints that name a body-local frame."""
+    frames = {frame for chain in tree.chains for frame in (chain.root_frame, chain.tip_frame)}
+    names: dict[URIRef, str] = {}
+    segments = []
+    for frame in sorted(frames, key=str):
+        body = next(body for body, model in tree.bodies.items() if frame in model.frames)
+        body_name = _body_name(tree, body)
+        if frame == tree.bodies[body].root_frame.id:
+            names[frame] = body_name
+            continue
+        name = f"{body_name}/{_local(frame)}"
+        names[frame] = name
+        segments.append(
+            {
+                "name": name,
+                "iri": str(frame),
+                "parent": body_name,
+                "joint": None,
+                "transform": _transform_data(_pose_matrix(tree.bodies[body].pose_of(frame, graph))),
+                "inertia": None,
+            }
+        )
+    return segments, names
+
+
+def build_kdl_trees(
+    graph: Graph, base_dir: Path | None = None, *, strict_inertia: bool = True
+) -> list[dict]:
+    """Read scene kinematics into a JSON-serializable representation."""
+    result = []
+    for tree in kinematic_trees(graph, base_dir):
+        segments = []
+        for child in tree.topological_order[1:]:
+            parent = tree.parent[child]
+            joint, transform = _joint_data(tree, parent, child, tree.parent_joint[child], graph)
+            segments.append(
+                {
+                    "name": _body_name(tree, child),
+                    "iri": str(child),
+                    "parent": _body_name(tree, parent),
+                    "joint": joint,
+                    "transform": transform,
+                    "inertia": _inertia_data(tree, child, graph, strict_inertia),
+                }
             )
 
-        # Appended last, so each tip frame follows the body it hangs from.
-        chains, tips = chains_of(tree, owners, graph)
-        trees.append(
-            Tree(
-                iri=tree.id,
-                name=split_uri(tree.id)[1],
-                root=scoped_name(tree.root, owners.get(tree.root)),
-                # Nothing attaches the root, so it is the one name no segment carries.
-                root_iri=tree.root,
-                segments=tuple(segments + tips),
-                chains=tuple(chains),
-            )
+        endpoint_segments, endpoint_names = _endpoint_segments(tree, graph)
+        segments.extend(endpoint_segments)
+        result.append(
+            {
+                "name": _local(tree.id),
+                "cpp_name": _cpp_name(_local(tree.id)),
+                "iri": str(tree.id),
+                "root": _body_name(tree, tree.root),
+                "root_iri": str(tree.root),
+                "segments": segments,
+                "chains": [
+                    {
+                        "name": _scoped(chain.id),
+                        "cpp_name": _cpp_name(_scoped(chain.id)),
+                        "iri": str(chain.id),
+                        "root": endpoint_names[chain.root_frame],
+                        "tip": endpoint_names[chain.tip_frame],
+                        "joints": [
+                            {"name": _scoped(joint_id), "local_name": _local(joint_id)}
+                            for joint_id in chain.path
+                            if isinstance(tree.joints[joint_id], RevoluteJointModel)
+                        ],
+                    }
+                    for chain in tree.chains
+                ],
+            }
         )
-    return trees
+    return result

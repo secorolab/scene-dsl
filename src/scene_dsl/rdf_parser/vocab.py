@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MPL-2.0
-from rdf_utils.namespace import URL_SECORO_MM
+from rdf_utils.namespace import NS_MM_KC_EXT, URL_SECORO_MM
 from rdflib import Namespace
 
 NS_XML = Namespace("https://www.w3.org/TR/2006/REC-xml11-20060816#")
@@ -8,6 +8,10 @@ NS_MJCF = Namespace("https://mujoco.readthedocs.io/en/stable/XMLreference.html#"
 NS_USD = Namespace("https://openusd.org/release/spec.html#")
 NS_MM_ROS = Namespace("https://index.ros.org/p/")
 NS_MM_BDD = Namespace(f"{URL_SECORO_MM}/acceptance-criteria/bdd#")
+
+# What a tree or a graph is built from: the trees below it, and the bodies it hangs
+# itself. The DSL's `tree <x>` and a graph's own bodies would otherwise leave no trace.
+URI_KC_EXT_PRED_COMPOSES = NS_MM_KC_EXT["composes"]
 
 URI_XML_DOCUMENT = NS_XML["document"]
 URI_URDF_ROBOT = NS_URDF["robot"]

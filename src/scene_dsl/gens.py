@@ -107,7 +107,7 @@ def _render(dot_source: str, path: str, img_format: str) -> None:
 
 
 def scenex_dot_gen_console(metamodel, model, output_path, overwrite, debug, **kwargs):
-    print(create_dot(model=model), end="")
+    print(create_dot(create_scenex_model_graph(model=model)), end="")
 
 
 def scenex_dot_gen(metamodel, model, output_path, overwrite, debug, **kwargs):
@@ -125,7 +125,7 @@ def scenex_dot_gen(metamodel, model, output_path, overwrite, debug, **kwargs):
         print(f"not overwriting existing file '{full_output_path}'")
         return
 
-    dot_source = create_dot(model=model)
+    dot_source = create_dot(create_scenex_model_graph(model=model))
     if img_format == "dot":
         with open(full_output_path, "w") as outfile:
             outfile.write(dot_source)

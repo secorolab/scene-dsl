@@ -530,7 +530,11 @@ def declared_inertia(
     matrix = np.array([[ixx, ixy, ixz], [ixy, iyy, iyz], [ixz, iyz, izz]])
     return Inertia(
         mass=inertia.mass,
+        # The frame states where the mass is, so its origin is the centre of mass.
         cog=in_body.translation,
+        # R I R^T: the tensor is stated about the inertial frame's axes and wanted about the
+        # body's. Only the axes turn -- both frames are at the centre of mass, so no parallel
+        # axis term arises.
         moments=as_moments(rotation @ matrix @ rotation.T),
     )
 

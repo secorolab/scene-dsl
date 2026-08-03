@@ -8,7 +8,7 @@ from rdflib import Graph
 from rdflib.plugin import PluginException
 
 from scene_dsl.dot import create_dot
-from scene_dsl.kdl import build_kdl_trees
+from scene_dsl.kdl_tree import build_kdl_trees
 from scene_dsl.rdf.scene import create_scene_model_graph
 from scene_dsl.rdf.scenex import create_scenex_model_graph
 

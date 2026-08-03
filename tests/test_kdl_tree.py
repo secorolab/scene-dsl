@@ -5,7 +5,7 @@ import numpy as np
 import pytest
 from rdf_utils.constraints import ConstraintViolation
 
-from scene_dsl.kdl import build_kdl_trees
+from scene_dsl.kdl_tree import build_kdl_trees
 from scene_dsl.langs import scenex_metamodel
 from scene_dsl.rdf.scenex import create_scenex_model_graph
 

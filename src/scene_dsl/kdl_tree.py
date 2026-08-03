@@ -122,9 +122,11 @@ def segment_for(
 ) -> Segment:
     """The child body as a segment: its joint, and where it sits at zero position."""
     parent, joint, child = attachment
+    # The graph holds the joint's two attachments unordered; the tree says which is the parent.
     child_index = 1 if joint.bodies[0] == parent else 0
     parent_frame, child_frame = joint.frames[1 - child_index], joint.frames[child_index]
 
+    # KDL hangs a body off a body, so both attachment frames are placed on the body carrying them.
     in_parent = frame_in_body(parent_frame, parent, graph)
     in_child = frame_in_body(child_frame, child, graph)
     # An attachment makes two frames coincide unless a pose says how they differ.
@@ -135,8 +137,11 @@ def segment_for(
     direction = None
     if URI_KC_TYPE_REVOLUTE_JOINT in joint.types:
         axis = revolute_axis(joint, parent_frame, graph)
+        # The offset displaces the child frame within the anchor, so it comes after it.
         offset = joint_offset(joint, parent_frame, child_frame, graph)
         attach = RigidTransform.from_translation(offset) * attach
+        # A rotation's columns are its axes in the frame it rotates into: the anchor's axis,
+        # the one the joint turns about, read in the parent body's frame.
         direction = in_parent.rotation.as_matrix()[:, "xyz".index(axis)]
 
     return Segment(
@@ -146,9 +151,11 @@ def segment_for(
         joint=Joint(
             iri=joint.id,
             name=scoped_name(joint.id, declaring_tree(joint.id, graph)),
-            origin=in_parent.translation,
+            origin=in_parent.translation,  # a point the axis passes through, in the parent body
             axis=direction,
         ),
+        # Parent body <- anchor <- child frame <- child body, so what is left is the child body
+        # in its parent's: the segment's pose while the joint contributes nothing.
         transform=in_parent * attach * in_child.inv(),
         inertia=segment_inertia(
             child, graph, owners.get(child), base_dir, moves=direction is not None

@@ -5,9 +5,9 @@ import numpy as np
 import pytest
 from rdf_utils.constraints import ConstraintViolation
 
+from scene_dsl.kdl import build_kdl_trees
 from scene_dsl.langs import scenex_metamodel
 from scene_dsl.rdf.scenex import create_scenex_model_graph
-from scene_dsl.rdf_parser.kinematics import build_kinematic_model
 
 SCENE = """ns t = "https://example.test/"
 agn set (ns=t) agents { agent arm }
@@ -105,7 +105,7 @@ def _tree(
     (tmp_path / "rig.model").write_text(body)
     (tmp_path / "rig.scenex").write_text(TREE.format(inertia=inertia, kind=kind, tcp_pose=tcp_pose))
     model = scenex_metamodel().model_from_file(str(tmp_path / "rig.scenex"))
-    [tree] = build_kinematic_model(create_scenex_model_graph(model=model), tmp_path)
+    [tree] = build_kdl_trees(create_scenex_model_graph(model=model), tmp_path)
     return tree
 
 
@@ -115,7 +115,7 @@ def test_a_joint_places_its_child_where_its_anchor_is(tmp_path):
 
     assert tree.root == "rig/base"
     segment = tree.segments[0]
-    assert (segment.name, segment.hook) == ("rig/link1", "rig/base")
+    assert (segment.name, segment.parent) == ("rig/link1", "rig/base")
     assert np.allclose(segment.joint.origin, (0.0, 0.0, 0.15643))
     # the anchor is turned 180 degrees about x, so its z points down in the parent body
     assert np.allclose(segment.joint.axis, (0.0, 0.0, -1.0), atol=1e-12)
@@ -130,7 +130,7 @@ def test_a_chain_is_a_slice_of_its_tree(tmp_path):
 
     assert (chain.root, chain.tip) == ("rig/base", "rig/link1/tcp")
     tip = tree.segments[-1]
-    assert (tip.name, tip.hook) == ("rig/link1/tcp", "rig/link1")
+    assert (tip.name, tip.parent) == ("rig/link1/tcp", "rig/link1")
     assert tip.joint is None  # a frame is no body and no joint moves to it
     assert np.allclose(tip.transform.translation, (0.0, 0.0, 0.4))
 

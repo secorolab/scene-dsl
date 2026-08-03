@@ -16,8 +16,8 @@ from rdf_utils.models.vocab import (
     URI_EXEC_PRED_HAS_MAPPING,
     URI_GEOM_TYPE_KTREE,
 )
-from rdflib.namespace import split_uri
 from rdflib import RDF, Graph, URIRef
+from rdflib.namespace import split_uri
 from scipy.spatial.transform import Rotation
 
 from scene_dsl.rdf_parser.common import get_kinematic_mapping

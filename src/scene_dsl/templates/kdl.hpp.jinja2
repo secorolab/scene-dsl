@@ -9,12 +9,10 @@ KDL::Vector({{ values[0] }}, {{ values[1] }}, {{ values[2] }})
 {%- macro joint(joint) -%}
 {%- if joint is none -%}
 KDL::Joint(KDL::Joint::None)
-{%- elif joint.kind == 'fixed' -%}
-KDL::Joint({% if joint.name %}"{{ joint.name }}", {% endif %}KDL::Joint::None)
-{%- elif joint.kind == 'revolute' -%}
-KDL::Joint("{{ joint.name }}", {{ vector(joint.origin) }}, {{ vector(joint.axis) }}, KDL::Joint::RotAxis)
+{%- elif joint.axis is none -%}
+KDL::Joint("{{ joint.name }}", KDL::Joint::None)
 {%- else -%}
-#error "no KDL joint for a {{ joint.kind }} joint"
+KDL::Joint("{{ joint.name }}", {{ vector(joint.origin) }}, {{ vector(joint.axis) }}, KDL::Joint::RotAxis)
 {%- endif -%}
 {%- endmacro -%}
 
@@ -54,8 +52,8 @@ inline bool make_tree_{{ identifier(tree.name) }}(KDL::Tree *tree)
 {%- for seg in tree.segments %}
     if (!tree->addSegment(
           {{ segment(seg) }},
-          "{{ seg.hook }}")) {
-        return false;  // no segment "{{ seg.hook }}" to attach "{{ seg.name }}" to
+          "{{ seg.parent }}")) {
+        return false;  // no segment "{{ seg.parent }}" to attach "{{ seg.name }}" to
     }
 {%- endfor %}
     return true;
@@ -76,16 +74,16 @@ inline bool make_chain_{{ identifier(chain.name) }}(const KDL::Tree &tree, KDL::
 // names to look up: what the scene called the thing is not recoverable from them otherwise.
 inline const std::unordered_map<std::string_view, std::string_view> kIris = {
 {%- for tree in data.trees %}
-    {"{{ identifier(tree.name) }}", "{{ tree.id }}"},
-    {"{{ tree.root }}", "{{ tree.root_id }}"},
+    {"{{ identifier(tree.name) }}", "{{ tree.iri }}"},
+    {"{{ tree.root }}", "{{ tree.root_iri }}"},
 {%- for seg in tree.segments %}
-    {"{{ seg.name }}", "{{ seg.id }}"},
-{%- if seg.joint is not none and seg.joint.name %}
-    {"{{ seg.joint.name }}", "{{ seg.joint.id }}"},
+    {"{{ seg.name }}", "{{ seg.iri }}"},
+{%- if seg.joint is not none %}
+    {"{{ seg.joint.name }}", "{{ seg.joint.iri }}"},
 {%- endif %}
 {%- endfor %}
 {%- for chain in tree.chains %}
-    {"{{ identifier(chain.name) }}", "{{ chain.id }}"},
+    {"{{ identifier(chain.name) }}", "{{ chain.iri }}"},
 {%- endfor %}
 {%- endfor %}
 };

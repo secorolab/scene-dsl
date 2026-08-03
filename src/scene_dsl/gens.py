@@ -8,9 +8,9 @@ from rdflib import Graph
 from rdflib.plugin import PluginException
 
 from scene_dsl.dot import create_dot
+from scene_dsl.kdl import build_kdl_trees
 from scene_dsl.rdf.scene import create_scene_model_graph
 from scene_dsl.rdf.scenex import create_scenex_model_graph
-from scene_dsl.rdf_parser.kinematics import build_kinematic_model
 
 _GRAPH_FORMAT_EXT = {"json-ld": "json", "ttl": "ttl", "xml": "xml"}
 
@@ -145,7 +145,7 @@ def scenex_kdl_gen(metamodel, model, output_path, overwrite, debug, **kwargs):
 
     # Model file paths are written relative to the model declaring them.
     base_dir = dirname(model._tx_filename)
-    trees = build_kinematic_model(
+    trees = build_kdl_trees(
         create_scenex_model_graph(model=model), Path(base_dir) if base_dir else None
     )
 

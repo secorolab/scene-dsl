@@ -43,12 +43,13 @@ from rdf_utils.models.vocab import (
     URI_QUDT_UNIT_G,
     URI_QUDT_UNIT_KG,
 )
+from rdflib.namespace import split_uri
 from rdflib import RDF, Graph, URIRef
 from scipy.spatial.transform import RigidTransform
 
 from scene_dsl.rdf_parser.common import ensure_one_obj_uri
 from scene_dsl.rdf_parser.ktree import InertiaModel, get_root_frame
-from scene_dsl.rdf_parser.model_inertia import read_body_inertia
+from scene_dsl.rdf_parser.mapped_inertia import read_body_inertia
 
 MASS_SCALE = {URI_QUDT_UNIT_KG: 1.0, URI_QUDT_UNIT_G: 1e-3}
 AXIS_PREDS = {"x": URI_GEOM_PRED_VECT_X, "y": URI_GEOM_PRED_VECT_Y, "z": URI_GEOM_PRED_VECT_Z}
@@ -147,12 +148,15 @@ class TreeModel(ModelBase):
         graph: Graph,
         name: str,
         root: str,
+        root_id: URIRef,
         segments: tuple[SegmentModel, ...],
         chains: tuple[ChainModel, ...],
     ) -> None:
         super().__init__(node_id=tree_id, graph=graph)
         self.name = name
         self.root = root
+        # Nothing attaches the root, so it is the one name no segment carries.
+        self.root_id = root_id
         self.segments = segments
         self.chains = chains
 
@@ -190,11 +194,6 @@ def frame_in_body(frame: URIRef, body: URIRef, graph: Graph) -> RigidTransform:
             f"body's root frame needs a pose leading to it",
         )
     return transform
-
-
-def local_name(uri: URIRef) -> str:
-    """The last step of an IRI, which is what the scene called the thing."""
-    return str(uri).rsplit("/", 1)[-1]
 
 
 def trees_in_graph(graph: Graph) -> set[URIRef]:
@@ -271,7 +270,10 @@ def scoped_name(uri: URIRef, owner: URIRef | None) -> str:
     Two instances of one device share every local name, so the tree that owns the
     element is what tells them apart.
     """
-    return local_name(uri) if owner is None else f"{local_name(owner)}/{local_name(uri)}"
+    _, name = split_uri(uri)
+    if owner is None:
+        return name
+    return f"{split_uri(owner)[1]}/{name}"
 
 
 def body_of_frame(frame: URIRef, graph: Graph) -> URIRef:
@@ -356,16 +358,20 @@ def joint_offset(
     return values
 
 
-def inertia_from_model_file(body: URIRef, graph: Graph, base_dir: Path | None) -> Inertia | None:
+def inertia_from_model_file(
+    body: URIRef, graph: Graph, owner: URIRef | None, base_dir: Path | None
+) -> Inertia | None:
     """What the mapped model file states, when the scene itself states no inertia."""
-    read = read_body_inertia(body, graph, base_dir)
+    read = read_body_inertia(body, graph, owner, base_dir)
     if read is None:
         return None
     mass, cog, matrix = read
     return Inertia(mass=mass, cog=cog, moments=as_moments(matrix))
 
 
-def declared_inertia(body: URIRef, graph: Graph, base_dir: Path | None) -> Inertia | None:
+def declared_inertia(
+    body: URIRef, graph: Graph, owner: URIRef | None, base_dir: Path | None
+) -> Inertia | None:
     """The body's inertia in its own frame: about the centre of mass, in body orientation."""
     inertias = [
         inertia
@@ -373,14 +379,14 @@ def declared_inertia(body: URIRef, graph: Graph, base_dir: Path | None) -> Inert
         if isinstance(inertia, URIRef)
     ]
     if not inertias:
-        return inertia_from_model_file(body, graph, base_dir)
+        return inertia_from_model_file(body, graph, owner, base_dir)
     if len(inertias) > 1:
         raise ConstraintViolation("kinematics", f"body '{body}' has {len(inertias)} inertias")
 
     inertia = InertiaModel(inertias[0], graph)
     if inertia.mass is None or inertia.moments is None:
         # A frame-only inertia claims where the mass is, not how much: the file states that.
-        return inertia_from_model_file(body, graph, base_dir)
+        return inertia_from_model_file(body, graph, owner, base_dir)
 
     ixx, iyy, izz, ixy, ixz, iyz = inertia.moments
     in_body = frame_in_body(inertia.inertial_frame.id, body, graph)
@@ -472,12 +478,14 @@ def segment_for(
         hook=scoped_name(parent, owners.get(parent)),
         joint=joint,
         transform=in_parent * attach * in_child.inv(),
-        inertia=segment_inertia(child, graph, base_dir, moves=joint.kind is JointKind.REVOLUTE),
+        inertia=segment_inertia(
+            child, graph, owners.get(child), base_dir, moves=joint.kind is JointKind.REVOLUTE
+        ),
     )
 
 
 def segment_inertia(
-    body: URIRef, graph: Graph, base_dir: Path | None, moves: bool
+    body: URIRef, graph: Graph, owner: URIRef | None, base_dir: Path | None, moves: bool
 ) -> Inertia | None:
     """What a body weighs, if anything has to know.
 
@@ -487,7 +495,7 @@ def segment_inertia(
     mass there is a hole in the dynamics, and is reported rather than assumed away.
     """
     try:
-        return declared_inertia(body, graph, base_dir)
+        return declared_inertia(body, graph, owner, base_dir)
     except ConstraintViolation:
         if moves:
             raise
@@ -499,7 +507,7 @@ def tip_frame_segment(tip_frame: URIRef, tip: URIRef, owners: dict[URIRef, URIRe
     return SegmentModel(
         body_id=tip_frame,
         graph=graph,
-        name=f"{scoped_name(tip, owners.get(tip))}/{local_name(tip_frame)}",
+        name=f"{scoped_name(tip, owners.get(tip))}/{split_uri(tip_frame)[1]}",
         hook=scoped_name(tip, owners.get(tip)),
         joint=None,
         transform=frame_in_body(tip_frame, tip, graph),
@@ -613,8 +621,9 @@ def build_kinematic_model(graph: Graph, base_dir: Path | None = None) -> list[Tr
             TreeModel(
                 tree_id=owner,
                 graph=graph,
-                name=local_name(owner),
+                name=split_uri(owner)[1],
                 root=scoped_name(root, owners.get(root)),
+                root_id=root,
                 segments=tuple(ordered + tips),
                 chains=chains,
             )

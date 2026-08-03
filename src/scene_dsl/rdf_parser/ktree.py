@@ -1,23 +1,18 @@
 # SPDX-License-Identifier: MPL-2.0
 """The kinematics a scene graph states: bodies, the joints between them, chains.
 
-Everything here is what the graph says or directly implies -- a joint's two frames, the
-tree they hang in once directed out of a root, a body's inertia. What a solver library
-needs beyond that, names included, is its backend's to derive.
+Everything here is read: a joint's two frames, the tree they hang in once directed out
+of a root, the inertia a body declares. Nothing is computed from it -- a pose composed,
+a tensor turned, a name a library knows a segment by are all its backend's to derive.
 """
 
 from collections import deque
-from dataclasses import dataclass
-from pathlib import Path
 from typing import NamedTuple
 
 import numpy as np
 from rdf_utils.constraints import ConstraintViolation
 from rdf_utils.models.common import ModelBase
-from rdf_utils.models.geom_coord import (
-    get_transform_between_frames,
-    get_translation_between_points,
-)
+from rdf_utils.models.geom_coord import get_translation_between_points
 from rdf_utils.models.geom_rel import FrameModel
 from rdf_utils.models.vocab import (
     URI_DYN_PRED_ABOUT,
@@ -54,10 +49,8 @@ from rdf_utils.models.vocab import (
     URI_QUDT_UNIT_KG,
 )
 from rdflib import RDF, Graph, Literal, URIRef
-from scipy.spatial.transform import RigidTransform
 
 from scene_dsl.rdf_parser.common import ensure_one_obj_uri, ensure_one_typed_subject_uri
-from scene_dsl.rdf_parser.mapped_inertia import read_body_inertia
 
 MASS_IN_KG = {URI_QUDT_UNIT_KG: 1.0, URI_QUDT_UNIT_G: 1e-3}
 MOMENT_PREDS = (
@@ -183,19 +176,6 @@ class RigidBodyModel(ModelBase):
             self.inertia = InertiaModel(inertia_id=inertia_id, graph=graph)
 
 
-@dataclass
-class Inertia:
-    """A body's mass and how it is distributed, in the body's own frame.
-
-    Not a graph model: a body whose inertia is read from its model file has no inertia
-    node to be one of.
-    """
-
-    mass: float
-    cog: np.ndarray  # centre of mass in the body frame
-    moments: np.ndarray  # Ixx, Iyy, Izz, Ixy, Ixz, Iyz, about the centre of mass
-
-
 class JointModel(ModelBase):
     """A joint: the two frames it attaches, and the bodies those frames are on.
 
@@ -265,41 +245,6 @@ class KinematicTreeModel(ModelBase):
         self.root = root
         self.attachments = attachments
         self.chains = chains
-
-
-def as_moments(matrix: np.ndarray) -> np.ndarray:
-    """A symmetric tensor read out as Ixx, Iyy, Izz, Ixy, Ixz, Iyz."""
-    return np.array(
-        [
-            matrix[0][0],
-            matrix[1][1],
-            matrix[2][2],
-            matrix[0][1],
-            matrix[0][2],
-            matrix[1][2],
-        ]
-    )
-
-
-def frame_in_body(frame: URIRef, body: URIRef, graph: Graph) -> RigidTransform:
-    """Where a frame sits on its body.
-
-    A body's root frame is where the body is, so it needs no pose. Any other frame is
-    somewhere, and a model that does not say where cannot be placed: report that rather
-    than assume the two coincide, which is a difference no later error would point at.
-    """
-    root = get_root_frame(body, graph).id
-    if frame == root:
-        return RigidTransform.identity()
-
-    transform = get_transform_between_frames(frame, root, graph)
-    if transform is None:
-        raise ConstraintViolation(
-            "kinematics",
-            f"no pose places frame '{frame}' on body '{body}': a frame that is not the "
-            f"body's root frame needs a pose leading to it",
-        )
-    return transform
 
 
 def body_of_frame(frame: URIRef, graph: Graph) -> URIRef:
@@ -492,51 +437,6 @@ def joint_offset(
     if values is None:
         raise ConstraintViolation("kinematics", f"offset '{position}' relates no two points")
     return values
-
-
-def inertia_from_model_file(
-    body: URIRef, graph: Graph, owner: URIRef | None, base_dir: Path | None
-) -> Inertia | None:
-    """What the mapped model file states, when the scene itself states no inertia."""
-    read = read_body_inertia(body, graph, owner, base_dir)
-    if read is None:
-        return None
-    mass, cog, matrix = read
-    return Inertia(mass=mass, cog=cog, moments=as_moments(matrix))
-
-
-def declared_inertia(
-    body: URIRef, graph: Graph, owner: URIRef | None, base_dir: Path | None
-) -> Inertia | None:
-    """The body's inertia in its own frame: about the centre of mass, in body orientation."""
-    inertias = [
-        inertia
-        for inertia in graph.subjects(URI_DYN_PRED_OF_BODY, body)
-        if isinstance(inertia, URIRef)
-    ]
-    if not inertias:
-        return inertia_from_model_file(body, graph, owner, base_dir)
-    if len(inertias) > 1:
-        raise ConstraintViolation("kinematics", f"body '{body}' has {len(inertias)} inertias")
-
-    inertia = InertiaModel(inertias[0], graph)
-    if inertia.mass is None or inertia.moments is None:
-        # A frame-only inertia claims where the mass is, not how much: the file states that.
-        return inertia_from_model_file(body, graph, owner, base_dir)
-
-    ixx, iyy, izz, ixy, ixz, iyz = inertia.moments
-    in_body = frame_in_body(inertia.inertial_frame.id, body, graph)
-    rotation = in_body.rotation.as_matrix()
-    matrix = np.array([[ixx, ixy, ixz], [ixy, iyy, iyz], [ixz, iyz, izz]])
-    return Inertia(
-        mass=inertia.mass,
-        # The frame states where the mass is, so its origin is the centre of mass.
-        cog=in_body.translation,
-        # R I R^T: the tensor is stated about the inertial frame's axes and wanted about the
-        # body's. Only the axes turn -- both frames are at the centre of mass, so no parallel
-        # axis term arises.
-        moments=as_moments(rotation @ matrix @ rotation.T),
-    )
 
 
 def chains_over(

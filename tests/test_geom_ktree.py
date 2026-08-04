@@ -1404,12 +1404,15 @@ scene inst (ns=n) sx {
     kgraph = model.scene_insts[0].kgraph
     assert {joint.name for joint in kgraph.joints_spec.joints} == {"a_to_c", "b_to_c", "c_to_a"}
 
-    # Joints and chain export as a tree's do; the root does not, a graph having none.
+    # Joints and chain export as a tree's do; the root is every body no joint attaches,
+    # which here is the one the cycle hangs from.
     graph = create_scenex_model_graph(model)
     assert set(graph.objects(kgraph.uri, URI_KC_PRED_JOINTS)) == {
         URIRef(f"https://example.test/graph/{name}") for name in ("a_to_c", "b_to_c", "c_to_a")
     }
-    assert not list(graph.objects(kgraph.uri, URI_KC_EXT_PRED_ROOT))
+    assert set(graph.objects(kgraph.uri, URI_KC_EXT_PRED_ROOT)) == {
+        URIRef("https://example.test/graph/b/b_to_c")
+    }
 
     chain = URIRef("https://example.test/graph/chain")
     assert (chain, RDF.type, URI_KC_TYPE_SERIAL) in graph

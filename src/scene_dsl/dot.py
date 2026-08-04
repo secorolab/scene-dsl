@@ -18,7 +18,6 @@ from rdflib import Graph, URIRef
 from scene_dsl.rdf_parser.common import ensure_one_obj_uri
 from scene_dsl.rdf_parser.kgraph import (
     KinematicGraphModel,
-    composed_trees,
     kinematic_graphs,
 )
 from scene_dsl.rdf_parser.ktree import KinematicTreeModel, typed, uris
@@ -106,7 +105,7 @@ def _cluster(
     on_chain: set[URIRef],
     stands_for: dict[URIRef, str],
     tips: dict[URIRef, URIRef],
-    graph: Graph,
+    nested: dict[URIRef, tuple[URIRef, ...]],
     lines: list,
     depth: int,
     prefix: str,
@@ -131,8 +130,8 @@ def _cluster(
                         f'{pad}  "{_frame_node(frame, body, owner)}" [label="{_local(frame)}", '
                         f'style="rounded,dashed,filled", fillcolor="{_FILL[True]}"];'
                     )
-    for sub in sorted(composed_trees(node, graph), key=str):
-        _cluster(sub, owners, on_chain, stands_for, tips, graph, lines, depth + 1, f"{path}/")
+    for sub in nested.get(node, ()):
+        _cluster(sub, owners, on_chain, stands_for, tips, nested, lines, depth + 1, f"{path}/")
     lines.append(f"{pad}}}")
 
 
@@ -177,7 +176,7 @@ def create_dot(graph: Graph) -> str:
         owners = _owners(kgraph)
         on_chain = {body for tree in kgraph.trees for body in _chain_bodies(tree)}
         tips = {frame: body for tree in kgraph.trees for frame, body in _tip_frames(tree).items()}
-        _cluster(kgraph.id, owners, on_chain, stands_for, tips, graph, lines, 1, "")
+        _cluster(kgraph.id, owners, on_chain, stands_for, tips, kgraph.nested_trees, lines, 1, "")
         for tree in kgraph.trees:
             _edges(tree, owners, on_chain, _tip_frames(tree), lines)
     lines.append("}")

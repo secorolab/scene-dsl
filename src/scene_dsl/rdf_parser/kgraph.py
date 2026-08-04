@@ -1,20 +1,17 @@
 # SPDX-License-Identifier: MPL-2.0
-"""A scene's whole kinematics: the trees it composes, and the bodies hanging from nothing.
+"""A scene's whole kinematics: the trees it carries, and the bodies hanging from nothing.
 
-A tree has one root and reaches every body of its own through a joint. A body no joint
-attaches is therefore no tree's -- it is placed, not articulated -- and belongs to the
-graph composing it, which is what this reads.
+A graph states a root for every body no joint attaches, which is what says the body is
+this graph's and not another's. A tree stands on one of them; the rest are only placed.
 """
 
-from collections import deque
 from pathlib import Path
 
 from rdf_utils.models.common import ModelBase
 from rdf_utils.models.vocab import (
     URI_GEOM_PRED_SIMPLICES,
     URI_GEOM_TYPE_KGRAPH,
-    URI_GEOM_TYPE_KTREE,
-    URI_GEOM_TYPE_RIGID_BODY,
+    URI_KC_EXT_PRED_ROOT,
     URI_KC_PRED_BETWEEN_ATTACHMENTS,
     URI_KC_TYPE_JOINT,
 )
@@ -23,33 +20,18 @@ from rdflib import RDF, Graph, URIRef
 from scene_dsl.rdf_parser.ktree import (
     KinematicTreeModel,
     RigidBodyModel,
+    body_of_frame,
     kinematic_trees,
     typed,
     uris,
 )
-from scene_dsl.rdf_parser.vocab import URI_KC_EXT_PRED_COMPOSES
 
 
-def composed_trees(node: URIRef, graph: Graph) -> set[URIRef]:
-    """The trees a graph or a tree is built from, directly."""
-    return typed(graph.objects(node, URI_KC_EXT_PRED_COMPOSES), URI_GEOM_TYPE_KTREE, graph)
-
-
-def composed_bodies(node: URIRef, graph: Graph) -> set[URIRef]:
-    """The bodies a graph hangs itself, rather than through a tree below it."""
-    return typed(graph.objects(node, URI_KC_EXT_PRED_COMPOSES), URI_GEOM_TYPE_RIGID_BODY, graph)
-
-
-def trees_below(node: URIRef, graph: Graph) -> set[URIRef]:
-    """Every tree under a graph or tree, composed directly or through another."""
-    found: set[URIRef] = set()
-    pending = deque([node])
-    while pending:
-        for tree in composed_trees(pending.popleft(), graph):
-            if tree not in found:
-                found.add(tree)
-                pending.append(tree)
-    return found
+def root_bodies(node: URIRef, graph: Graph) -> set[URIRef]:
+    """The bodies a graph hangs from: what its trees stand on, and what it only places."""
+    return {
+        body_of_frame(frame, graph) for frame in uris(graph.objects(node, URI_KC_EXT_PRED_ROOT))
+    }
 
 
 def is_attached(body: URIRef, graph: Graph) -> bool:
@@ -65,6 +47,7 @@ class KinematicGraphModel(ModelBase):
 
     trees: tuple[KinematicTreeModel, ...]
     free_bodies: dict[URIRef, RigidBodyModel]
+    nested_trees: dict[URIRef, tuple[URIRef, ...]]
 
     def __init__(
         self,
@@ -78,17 +61,22 @@ class KinematicGraphModel(ModelBase):
             raise TypeError(f"{self} is not a KinematicGraph")
 
         self.base_dir = base_dir
-        below = trees_below(self.id, graph)
+        roots = root_bodies(self.id, graph)
         built = kinematic_trees(graph, base_dir) if trees is None else trees
-        self.trees = tuple(tree for tree in built if tree.id in below)
+        self.trees = tuple(tree for tree in built if tree.root in roots)
 
         # A body a joint holds is carried by a tree, and belongs to it; what is left hangs
         # from nothing -- placed by a pose, not articulated.
         self.free_bodies = {
             body: RigidBodyModel(body, graph)
-            for body in sorted(composed_bodies(self.id, graph), key=str)
+            for body in sorted(roots, key=str)
             if not is_attached(body, graph)
         }
+
+        # A component the graph itself names is no tree below it: those bodies are its own.
+        self.nested_trees = {self.id: tuple(tree.id for tree in self.trees if tree.id != self.id)}
+        for tree in self.trees:
+            self.nested_trees.update(tree.nested_trees)
 
 
 def kinematic_graphs(graph: Graph, base_dir: Path | None = None) -> list[KinematicGraphModel]:

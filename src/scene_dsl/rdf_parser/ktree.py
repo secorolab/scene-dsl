@@ -9,6 +9,7 @@ tree whose root body the walk reaches.
 
 from collections import deque
 from dataclasses import dataclass
+from itertools import pairwise
 from pathlib import Path
 
 import numpy as np
@@ -402,9 +403,8 @@ class _KinematicIndex:
 
         self.joints_by_tree: dict[URIRef, set[URIRef]] = {}
         self.trees_by_root_body: dict[URIRef, set[URIRef]] = {}
-        tree_ids = uris(graph.subjects(RDF.type, URI_GEOM_TYPE_KTREE)) | uris(
-            graph.subjects(RDF.type, URI_GEOM_TYPE_KGRAPH)
-        )
+        self.kgraphs = uris(graph.subjects(RDF.type, URI_GEOM_TYPE_KGRAPH))
+        tree_ids = uris(graph.subjects(RDF.type, URI_GEOM_TYPE_KTREE)) | self.kgraphs
         for tree_id in sorted(tree_ids, key=str):
             self.joints_by_tree[tree_id] = (
                 uris(graph.objects(tree_id, URI_KC_PRED_JOINTS)) & self.joints.keys()
@@ -460,6 +460,7 @@ class _ExpandedComponent:
     parent_by_body: dict[URIRef, URIRef]
     parent_joint_by_body: dict[URIRef, URIRef]
     defining_tree_by_body: dict[URIRef, URIRef]
+    declaring_tree_by_joint: dict[URIRef, URIRef]
     body_order: list[URIRef]
     chains: list[KinematicChainModel]
 
@@ -477,10 +478,11 @@ def _expand_component(
         parent_by_body={},
         parent_joint_by_body={},
         defining_tree_by_body={root_body: index.defining_tree(root_body, declaring_tree=None)},
+        declaring_tree_by_joint={},
         body_order=[],
         chains=[],
     )
-    active_joints: dict[URIRef, URIRef] = {}  # joint -> declaring tree
+    active_joints = component.declaring_tree_by_joint  # joint -> declaring tree
     pending = deque([root_body])
 
     while pending:
@@ -516,16 +518,6 @@ def _expand_component(
             component.defining_tree_by_body[child] = index.defining_tree(child, declaring_tree)
             pending.append(child)
 
-    # Every joint a tree carries places one of its bodies. One that placed nothing is a
-    # piece of the kinematics gone missing, which is worth more than a quieter picture.
-    unused_joints = active_joints.keys() - set(component.parent_joint_by_body.values())
-    if unused_joints:
-        raise ConstraintViolation(
-            "kinematics",
-            f"the component rooted at '{root_body}' never reaches "
-            f"{sorted(unused_joints, key=str)}: those joints attach nothing the walk found",
-        )
-
     return component
 
 
@@ -533,7 +525,25 @@ def _expand_components(index: _KinematicIndex, graph: Graph) -> list[_ExpandedCo
     """Expand every top-level component exactly once."""
     roots = index.component_roots()
     claimed_bodies = set(roots)  # reserve all roots before any component is walked
-    return [_expand_component(root, index, graph, claimed_bodies) for root in roots]
+    components = [_expand_component(root, index, graph, claimed_bodies) for root in roots]
+
+    # A joint that placed no body is kinematics gone missing. Asked of the scene, not of
+    # each walk: a graph rooted at several bodies activates its joints in all of them.
+    active_joints: set[URIRef] = set()
+    parent_joints: set[URIRef] = set()
+    for component in components:
+        active_joints.update(component.declaring_tree_by_joint)
+        parent_joints.update(component.parent_joint_by_body.values())
+
+    unreached = active_joints - parent_joints
+    if unreached:
+        raise ConstraintViolation(
+            "kinematics",
+            f"nothing reaches {sorted(unreached, key=str)}: those joints are the parent of "
+            f"no body the walk out of any root found",
+        )
+
+    return components
 
 
 def _chain_path(chain: KinematicChainModel, component: _ExpandedComponent) -> tuple[URIRef, ...]:
@@ -574,20 +584,56 @@ def _assign_chains(index: _KinematicIndex, components: list[_ExpandedComponent])
         component.chains.append(chain)
 
 
-def _top_level_tree(component: _ExpandedComponent, index: _KinematicIndex) -> URIRef:
-    """Outermost tree that names an expanded component."""
-    candidates = index.trees_by_root_body[component.root_body]
+def _trees_held(tree: URIRef, component: _ExpandedComponent, index: _KinematicIndex) -> set[URIRef]:
+    """The trees a tree's joints reach into: a device touches its own bodies, an assembly
+    the devices it joins. No edge states it."""
+    held = set()
+    for joint_id in index.joints_by_tree[tree]:
+        for body in index.joints[joint_id].bodies:
+            defining_tree = component.defining_tree_by_body.get(body)
+            if defining_tree is not None and defining_tree != tree:
+                held.add(defining_tree)
+    return held
+
+
+def _top_level_tree(component: _ExpandedComponent, index: _KinematicIndex) -> URIRef | None:
+    """Outermost tree naming a component; the graph itself where it articulates bodies of
+    its own, and nothing for a body it only places."""
+    rooted = index.trees_by_root_body[component.root_body]
+    candidates = rooted - index.kgraphs
+    if not candidates:
+        return min(rooted, key=str) if component.parent_joint_by_body else None
     if len(candidates) == 1:
         return next(iter(candidates))
 
-    composed = set()
-    for declaring_tree in candidates:
-        for joint_id in index.joints_by_tree[declaring_tree]:
-            for body in index.joints[joint_id].bodies:
-                defining_tree = component.defining_tree_by_body.get(body)
-                if defining_tree is not None and defining_tree != declaring_tree:
-                    composed.add(defining_tree)
+    composed = {held for tree in candidates for held in _trees_held(tree, component, index)}
     return min(candidates - composed or candidates, key=str)
+
+
+def _nested_trees(
+    component: _ExpandedComponent, index: _KinematicIndex
+) -> dict[URIRef, tuple[URIRef, ...]]:
+    """The trees each tree composes. Trees sharing a root body nest by how much each
+    holds; the outermost hangs from the tree whose joint attached that body."""
+    parent: dict[URIRef, URIRef] = {}
+    for body in component.body_order:
+        rooted = index.trees_by_root_body.get(body, set()) - index.kgraphs
+        order = sorted(
+            rooted, key=lambda tree: (len(_trees_held(tree, component, index) & rooted), str(tree))
+        )
+        for inner, outer in pairwise(order):
+            parent[inner] = outer
+
+        joint = component.parent_joint_by_body.get(body)
+        if order and joint is not None:
+            holder = component.declaring_tree_by_joint[joint]
+            if holder != order[-1]:
+                parent[order[-1]] = holder
+
+    nested: dict[URIRef, list[URIRef]] = {}
+    for tree, holder in sorted(parent.items(), key=lambda pair: str(pair[0])):
+        nested.setdefault(holder, []).append(tree)
+    return {holder: tuple(trees) for holder, trees in nested.items()}
 
 
 class KinematicTreeModel(ModelBase):
@@ -602,6 +648,7 @@ class KinematicTreeModel(ModelBase):
     defining_tree_by_body: dict[URIRef, URIRef]
     topological_order: tuple[URIRef, ...]
     chains: tuple[KinematicChainModel, ...]
+    nested_trees: dict[URIRef, tuple[URIRef, ...]]
 
     def __init__(
         self,
@@ -616,8 +663,9 @@ class KinematicTreeModel(ModelBase):
             raise TypeError(f"{self} is not a KinematicTree")
 
         self.base_dir = base_dir
-        self.root_frame = root_frame_of(self.id, graph)
         self.root = component.root_body
+        # Off the root body: a graph rooted at several bodies states no one frame.
+        self.root_frame = component.bodies[self.root].root_frame
         self.topological_order = tuple(component.body_order)
         self.bodies = dict(component.bodies)
         self.parent = dict(component.parent_by_body)
@@ -625,6 +673,7 @@ class KinematicTreeModel(ModelBase):
         self.joints = {joint_id: index.joints[joint_id] for joint_id in self.parent_joint.values()}
         self.defining_tree_by_body = dict(component.defining_tree_by_body)
         self.chains = tuple(component.chains)
+        self.nested_trees = _nested_trees(component, index)
 
     def mass_properties(self, body: URIRef, graph: Graph) -> MassProperties:
         """Mass properties using the body's defining tree for mapped-model lookup."""
@@ -636,17 +685,14 @@ class KinematicTreeModel(ModelBase):
 
 
 def kinematic_trees(graph: Graph, base_dir: Path | None = None) -> list[KinematicTreeModel]:
-    """Read all top-level kinematic components from the graph."""
+    """Read all top-level kinematic components from the graph. A body the scene only
+    places is articulated by nothing, so no tree is built for it."""
     index = _KinematicIndex(graph)
     components = _expand_components(index, graph)
     _assign_chains(index, components)
+    trees = ((component, _top_level_tree(component, index)) for component in components)
     return [
-        KinematicTreeModel(
-            _top_level_tree(component, index),
-            graph,
-            component,
-            index,
-            base_dir,
-        )
-        for component in components
+        KinematicTreeModel(tree_id, graph, component, index, base_dir)
+        for component, tree_id in trees
+        if tree_id is not None
     ]

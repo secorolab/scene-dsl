@@ -18,6 +18,7 @@ from rdflib import RDF, URIRef
 from scene_dsl.kdl_tree import build_kdl_trees
 from scene_dsl.langs import scenex_metamodel
 from scene_dsl.rdf.scenex import create_scenex_model_graph
+from scene_dsl.rdf_parser.kgraph import kinematic_graphs
 from scene_dsl.rdf_parser.ktree import RevoluteJointModel, kinematic_trees
 
 from .test_common import write_example_scene
@@ -279,8 +280,7 @@ def test_kdl_ir_is_json_and_keeps_chain_endpoint_frames(tmp_path):
     link1 = next(segment for segment in tree["segments"] if segment["name"] == "arm/link1")
     assert link1["transform"]["translation"] == pytest.approx((0.0, 0.0, 0.15))
     assert {
-        chain["name"]: (chain["root"], chain["tip"], chain["joints"])
-        for chain in tree["chains"]
+        chain["name"]: (chain["root"], chain["tip"], chain["joints"]) for chain in tree["chains"]
     } == {
         "arm/chain": (
             "arm/base",
@@ -318,3 +318,38 @@ def test_a_second_path_to_a_body_is_rejected(tmp_path):
 
     with pytest.raises(ConstraintViolation, match="cycle or a second path"):
         kinematic_trees(graph, tmp_path)
+
+
+def test_a_graph_articulating_its_own_bodies_names_that_component(tmp_path):
+    """A graph joining bodies of its own names the component they form, no tree rooting
+    it. It roots every unattached body, so its joints are reached from one walk of many."""
+    write_example_scene(tmp_path)
+    (tmp_path / "g.scenex").write_text(
+        """import "example.scene"
+
+ns n = "https://example.test/"
+
+scene inst (ns=n) sx {
+    scene: <s>
+    kgraph (ns=n) g {
+        body a { frame a_out { } }
+        body b { frame b_in { } }
+        body placed { frame placed_root { } }
+        joints { fixed a_to_b { parent: <a.a_out> child: <b.b_in> } }
+    }
+}
+"""
+    )
+    scenex = scenex_metamodel().model_from_file(str(tmp_path / "g.scenex"))
+    graph = create_scenex_model_graph(model=scenex)
+    [kgraph] = kinematic_graphs(graph, tmp_path)
+
+    [tree] = kgraph.trees
+    assert _name(tree.id) == "g"
+    assert _name(tree.root) == "a"
+    assert _name(tree.root_frame.id) == "a_out"
+    assert {_name(body) for body in tree.bodies} == {"a", "b"}
+
+    # A body nothing joins is placed, not articulated, so no component is named for it.
+    assert [_name(body) for body in kgraph.free_bodies] == ["placed"]
+    assert kgraph.nested_trees == {kgraph.id: ()}

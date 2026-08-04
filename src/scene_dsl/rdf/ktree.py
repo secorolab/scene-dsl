@@ -76,7 +76,6 @@ from scene_dsl.rdf.geom import (
     add_frame,
     add_position_coord,
 )
-from scene_dsl.rdf_parser.vocab import URI_KC_EXT_PRED_COMPOSES
 
 ACTUATION_INTERFACE_TYPES = {
     "position": URI_KC_STAT_JNT_POSITION,
@@ -267,7 +266,6 @@ def add_kinematic_tree(graph: Graph, tree: KinematicTreeModel, seen_trees: set[U
 
     graph.add(triple=(tree.uri, RDF.type, URI_GEOM_TYPE_KTREE))
     for linked_tree in tree.trees:
-        graph.add(triple=(tree.uri, URI_KC_EXT_PRED_COMPOSES, linked_tree.uri))
         add_kinematic_tree(graph=graph, tree=linked_tree, seen_trees=seen_trees)
 
     for body in tree.bodies:
@@ -283,10 +281,13 @@ def add_kinematic_graph(graph: Graph, kgraph: KinematicGraph, seen_trees: set[UR
     """A scene's kinematics: the trees it composes, and the bodies hanging from nothing."""
     graph.add(triple=(kgraph.uri, RDF.type, URI_GEOM_TYPE_KGRAPH))
     for tree in kgraph.trees:
-        graph.add(triple=(kgraph.uri, URI_KC_EXT_PRED_COMPOSES, tree.uri))
         add_kinematic_tree(graph=graph, tree=tree, seen_trees=seen_trees)
     for body in kgraph.bodies:
-        graph.add(triple=(kgraph.uri, URI_KC_EXT_PRED_COMPOSES, body.uri))
         add_body(graph=graph, body=body)
-    # A graph may hang from many bodies, so it has no one root to export.
+
+    # Every body no joint attaches, a graph hanging from many where a tree has one. This
+    # is what says the bodies and the trees standing on them are this graph's.
+    for root in kgraph.roots:
+        graph.add(triple=(kgraph.uri, URI_KC_EXT_PRED_ROOT, root.default_frame.uri))
+
     add_joints_spec(graph=graph, owner=kgraph)

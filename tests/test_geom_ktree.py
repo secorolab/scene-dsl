@@ -59,7 +59,7 @@ from scene_dsl.rdf.ktree import (
     add_body,
 )
 from scene_dsl.rdf.scenex import create_scenex_model_graph
-from scene_dsl.rdf_parser.ktree import RigidBodyModel
+from scene_dsl.rdf_parser.kinematics import RigidBodyModel
 
 from .test_common import MODELS_DIR, write_example_scene
 

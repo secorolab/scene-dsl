@@ -21,15 +21,15 @@ from rdf_utils.models.vocab import (
 )
 from rdflib import RDF, Graph, Literal, URIRef
 
-from scene_dsl.rdf_parser.common import (
+from scene_dsl.rdf_parser.common import ensure_one_obj_uri, load_attr_has_config
+from scene_dsl.rdf_parser.kinematics import (
     MAPPABLE_TYPES,
     KinematicMapping,
-    ensure_one_obj_uri,
+    RigidBodyModel,
     get_kinematic_mappings,
-    load_attr_has_config,
     load_attr_kinematic_mappings,
+    root_frame_of,
 )
-from scene_dsl.rdf_parser.ktree import RigidBodyModel, root_frame_of
 from scene_dsl.rdf_parser.scene import SceneModel
 from scene_dsl.rdf_parser.vocab import (
     URI_BDD_PRED_OF_SCENE,

@@ -19,8 +19,11 @@ from rdflib import RDF, URIRef
 from scene_dsl.kdl_tree import build_kdl_trees
 from scene_dsl.langs import scenex_metamodel
 from scene_dsl.rdf.scenex import create_scenex_model_graph
-from scene_dsl.rdf_parser.kgraph import kinematic_graphs
-from scene_dsl.rdf_parser.ktree import RevoluteJointModel, kinematic_trees
+from scene_dsl.rdf_parser.kinematics import (
+    RevoluteJointModel,
+    kinematic_graphs,
+    kinematic_trees,
+)
 
 from .test_common import write_example_scene
 
@@ -213,7 +216,6 @@ def test_a_revolute_joint_states_the_axis_its_attachments_share(tmp_path):
     joint = tree.joints[next(uri for uri in tree.joints if _name(uri) == "j1")]
 
     assert isinstance(joint, RevoluteJointModel)
-    assert joint.moves
     assert set(joint.axes.values()) == {"z"}
     assert joint.axes[joint.frame_on(_body(tree, "base"))] == "z"
 

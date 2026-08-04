@@ -1,16 +1,8 @@
 # SPDX-License-Identifier: MPL-2.0
 import json
-from dataclasses import dataclass
 
-from rdf_utils.models.common import ModelBase, get_node_types
-from rdf_utils.models.vocab import (
-    URI_EXEC_PRED_HAS_CONFIG,
-    URI_EXEC_PRED_HAS_MAPPING,
-    URI_EXEC_PRED_MAPS,
-    URI_EXEC_PRED_MODEL_ENTITY,
-    URI_GEOM_TYPE_KTREE,
-    URI_GEOM_TYPE_RIGID_BODY,
-)
+from rdf_utils.models.common import ModelBase
+from rdf_utils.models.vocab import URI_EXEC_PRED_HAS_CONFIG
 from rdflib import RDF, Graph, Literal, Node, URIRef
 
 
@@ -85,64 +77,3 @@ def ensure_one_typed_subject_uri(
         )
 
     return subjects[0]
-
-
-# What a model may map: a scene names a body or a whole tree, nothing else.
-MAPPABLE_TYPES = {URI_GEOM_TYPE_RIGID_BODY, URI_GEOM_TYPE_KTREE}
-
-
-@dataclass
-class KinematicMapping:
-    target_id: URIRef
-    target_type: URIRef
-    entity: str | None = None
-
-
-def get_kinematic_mapping(mapping_id: URIRef, graph: Graph) -> KinematicMapping:
-    target_uri = ensure_one_obj_uri(graph=graph, subject=mapping_id, predicate=URI_EXEC_PRED_MAPS)
-    if target_uri is None:
-        raise ValueError(f"mapping '{mapping_id}' does not map to an URI target")
-
-    target_types = get_node_types(graph=graph, node_id=target_uri) & MAPPABLE_TYPES
-    if len(target_types) != 1:
-        raise ValueError(f"mapping '{mapping_id}' target '{target_uri}' must be one body or tree")
-
-    entity_literal = ensure_one_obj_literal(
-        graph=graph, subject=mapping_id, predicate=URI_EXEC_PRED_MODEL_ENTITY
-    )
-
-    entity = None
-    if entity_literal is not None:
-        entity = entity_literal.toPython()
-
-        if not isinstance(entity, str):
-            raise TypeError(f"mapping '{mapping_id}' entity must be a string")
-
-    return KinematicMapping(target_uri, target_types.pop(), entity=entity)
-
-
-def load_attr_kinematic_mappings(graph: Graph, model: ModelBase, **kwargs: object) -> None:
-    mappings = []
-    targets = set()
-    for mapping_id in graph.objects(model.id, URI_EXEC_PRED_HAS_MAPPING):
-        if not isinstance(mapping_id, URIRef):
-            raise TypeError(f"model '{model}' has non-URI mapping: {mapping_id}")
-        mapping = get_kinematic_mapping(mapping_id, graph)
-        if mapping.target_id in targets:
-            raise ValueError(f"multiple mappings found for target {mapping.target_id}")
-        targets.add(mapping.target_id)
-        mappings.append(mapping)
-    model.set_attr(URI_EXEC_PRED_HAS_MAPPING, tuple(mappings))
-
-
-def get_kinematic_mappings(
-    model: ModelBase, target_type: URIRef | None = None
-) -> tuple[KinematicMapping, ...]:
-    mappings = model.get_attr(URI_EXEC_PRED_HAS_MAPPING)
-    if not isinstance(mappings, tuple) or not all(
-        isinstance(mapping, KinematicMapping) for mapping in mappings
-    ):
-        raise TypeError(f"model '{model}' has no loaded mappings")
-    if target_type is None:
-        return mappings
-    return tuple(mapping for mapping in mappings if mapping.target_type == target_type)

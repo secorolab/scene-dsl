@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: MPL-2.0
-"""The inertia a body's mapped URDF or MJCF states, for a scene that states none itself.
+"""The inertia a mapped URDF or MJCF states, for a scene that states none itself.
 
-A file that cannot answer is rejected; only a body no file describes returns nothing.
+A file that cannot answer is rejected: a mapping that is wrong is never mistaken for a
+body nothing models. Which model describes a body is the kinematics' to say.
 """
 
 from __future__ import annotations
@@ -12,41 +13,10 @@ from xml.etree import ElementTree
 import numpy as np
 from rdf_utils.constraints import ConstraintViolation
 from rdf_utils.models.execution import get_path_of_node
-from rdf_utils.models.vocab import (
-    URI_EXEC_PRED_HAS_MAPPING,
-    URI_GEOM_TYPE_KTREE,
-)
 from rdflib import RDF, Graph, URIRef
-from rdflib.namespace import split_uri
 from scipy.spatial.transform import Rotation
 
-from scene_dsl.rdf_parser.common import get_kinematic_mapping
 from scene_dsl.rdf_parser.vocab import URI_MJCF_MUJOCO, URI_URDF_ROBOT
-
-
-def mapped_model(
-    body: URIRef, graph: Graph, owner: URIRef | None
-) -> tuple[URIRef, str] | None:
-    """The model describing this body, and the name it knows the body by.
-
-    A mapping of the body names it outright; a mapping of the tree that owns it leaves the
-    body's own name to stand, since a tree mapping names the tree, not each body under it.
-    Which tree owns the body is the caller's to say -- the graph answers it from the joints
-    a tree reaches its bodies through, not from how the IRIs happen to nest.
-    """
-    by_tree: tuple[URIRef, str] | None = None
-    for model in graph.subjects(URI_EXEC_PRED_HAS_MAPPING, None):
-        if not isinstance(model, URIRef):
-            continue
-        for mapping_id in graph.objects(model, URI_EXEC_PRED_HAS_MAPPING):
-            if not isinstance(mapping_id, URIRef):
-                continue
-            mapping = get_kinematic_mapping(mapping_id, graph)
-            if mapping.target_id == body:
-                return model, mapping.entity or split_uri(body)[1]
-            if mapping.target_type == URI_GEOM_TYPE_KTREE and mapping.target_id == owner:
-                by_tree = (model, split_uri(body)[1])
-    return by_tree
 
 
 def model_path(model: URIRef, graph: Graph, base_dir: Path | None) -> Path:
@@ -189,17 +159,10 @@ def _read_mjcf(path: Path, entity: str) -> tuple[float, np.ndarray, np.ndarray]:
 
 
 def read_body_inertia(
-    body: URIRef, graph: Graph, owner: URIRef | None, base_dir: Path | None = None
-) -> tuple[float, np.ndarray, np.ndarray] | None:
-    """The mass, centre of mass and inertia tensor a mapped model file states for a body.
-
-    Returns None when no model file describes the body at all; raises when one does but
-    cannot answer, so a mapping that is wrong is never mistaken for a body nothing models.
-    """
-    mapped = mapped_model(body, graph, owner)
-    if mapped is None:
-        return None
-
+    mapped: tuple[URIRef, str], graph: Graph, base_dir: Path | None = None
+) -> tuple[float, np.ndarray, np.ndarray]:
+    """The mass, centre of mass and inertia tensor a model file states for the body it
+    knows as `entity`, given the model and that name."""
     model, entity = mapped
     path = model_path(model, graph, base_dir)
     if (model, RDF.type, URI_MJCF_MUJOCO) in graph:
@@ -207,5 +170,5 @@ def read_body_inertia(
     if (model, RDF.type, URI_URDF_ROBOT) in graph:
         return _read_urdf(path, entity)
     raise ConstraintViolation(
-        "model file", f"model '{model}' for body '{body}' is neither MJCF nor URDF"
+        "model file", f"model '{model}', which describes '{entity}', is neither MJCF nor URDF"
     )

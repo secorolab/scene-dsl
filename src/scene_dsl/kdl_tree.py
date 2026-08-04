@@ -13,7 +13,11 @@ from rdflib import Graph, URIRef
 from rdflib.namespace import split_uri
 from scipy.spatial.transform import Rotation
 
-from scene_dsl.rdf_parser.ktree import KinematicTreeModel, RevoluteJointModel, kinematic_trees
+from scene_dsl.rdf_parser.kinematics import (
+    KinematicTreeModel,
+    RevoluteJointModel,
+    kinematic_trees,
+)
 
 
 def _body_name(tree: KinematicTreeModel, body: URIRef) -> str:

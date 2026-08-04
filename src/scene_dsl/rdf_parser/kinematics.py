@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MPL-2.0
-"""The kinematics a scene's graph states: bodies, the joints between them, chains, trees.
+"""The kinematics a scene's graph states: bodies, joints, chains, trees, and the graph itself.
 
 Two things the graph leaves for the reader. A joint's attachments are a set, so which of
 its bodies carries the other is only settled by walking out of a declared root. And a tree
@@ -19,7 +19,7 @@ from pathlib import Path
 
 import numpy as np
 from rdf_utils.constraints import ConstraintViolation
-from rdf_utils.models.common import ModelBase
+from rdf_utils.models.common import ModelBase, get_node_types
 from rdf_utils.models.geom_coord import get_transform_between_frames
 from rdf_utils.models.geom_rel import FrameModel
 from rdf_utils.models.vocab import (
@@ -34,6 +34,9 @@ from rdf_utils.models.vocab import (
     URI_DYN_PRED_OF_BODY,
     URI_DYN_PRED_OF_INERTIA,
     URI_DYN_TYPE_RIGID_BODY_INERTIA,
+    URI_EXEC_PRED_HAS_MAPPING,
+    URI_EXEC_PRED_MAPS,
+    URI_EXEC_PRED_MODEL_ENTITY,
     URI_GEOM_PRED_LINES,
     URI_GEOM_PRED_ORIGIN,
     URI_GEOM_PRED_SIMPLICES,
@@ -58,9 +61,10 @@ from rdf_utils.models.vocab import (
     URI_QUDT_UNIT_KG,
 )
 from rdflib import RDF, Graph, Literal, URIRef
+from rdflib.namespace import split_uri
 from scipy.spatial.transform import RigidTransform
 
-from scene_dsl.rdf_parser.common import ensure_one_obj_uri
+from scene_dsl.rdf_parser.common import ensure_one_obj_literal, ensure_one_obj_uri
 from scene_dsl.rdf_parser.mapped_inertia import read_body_inertia
 
 MASS_IN_KG = {URI_QUDT_UNIT_KG: 1.0, URI_QUDT_UNIT_G: 1e-3}
@@ -110,6 +114,90 @@ def root_frame_of(node: URIRef, graph: Graph) -> FrameModel:
     if frame is None:
         raise ConstraintViolation("kinematics", f"'{node}' declares no root frame")
     return FrameModel(frame_id=frame, graph=graph)
+
+
+# What a model may map: a scene names a body or a whole tree, nothing else.
+MAPPABLE_TYPES = {URI_GEOM_TYPE_RIGID_BODY, URI_GEOM_TYPE_KTREE}
+
+
+@dataclass
+class KinematicMapping:
+    target_id: URIRef
+    target_type: URIRef
+    entity: str | None = None
+
+
+def get_kinematic_mapping(mapping_id: URIRef, graph: Graph) -> KinematicMapping:
+    target_uri = ensure_one_obj_uri(graph=graph, subject=mapping_id, predicate=URI_EXEC_PRED_MAPS)
+    if target_uri is None:
+        raise ValueError(f"mapping '{mapping_id}' does not map to an URI target")
+
+    target_types = get_node_types(graph=graph, node_id=target_uri) & MAPPABLE_TYPES
+    if len(target_types) != 1:
+        raise ValueError(f"mapping '{mapping_id}' target '{target_uri}' must be one body or tree")
+
+    entity_literal = ensure_one_obj_literal(
+        graph=graph, subject=mapping_id, predicate=URI_EXEC_PRED_MODEL_ENTITY
+    )
+
+    entity = None
+    if entity_literal is not None:
+        entity = entity_literal.toPython()
+
+        if not isinstance(entity, str):
+            raise TypeError(f"mapping '{mapping_id}' entity must be a string")
+
+    return KinematicMapping(target_uri, target_types.pop(), entity=entity)
+
+
+def load_attr_kinematic_mappings(graph: Graph, model: ModelBase, **kwargs: object) -> None:
+    mappings = []
+    targets = set()
+    for mapping_id in graph.objects(model.id, URI_EXEC_PRED_HAS_MAPPING):
+        if not isinstance(mapping_id, URIRef):
+            raise TypeError(f"model '{model}' has non-URI mapping: {mapping_id}")
+        mapping = get_kinematic_mapping(mapping_id, graph)
+        if mapping.target_id in targets:
+            raise ValueError(f"multiple mappings found for target {mapping.target_id}")
+        targets.add(mapping.target_id)
+        mappings.append(mapping)
+    model.set_attr(URI_EXEC_PRED_HAS_MAPPING, tuple(mappings))
+
+
+def get_kinematic_mappings(
+    model: ModelBase, target_type: URIRef | None = None
+) -> tuple[KinematicMapping, ...]:
+    mappings = model.get_attr(URI_EXEC_PRED_HAS_MAPPING)
+    if not isinstance(mappings, tuple) or not all(
+        isinstance(mapping, KinematicMapping) for mapping in mappings
+    ):
+        raise TypeError(f"model '{model}' has no loaded mappings")
+    if target_type is None:
+        return mappings
+    return tuple(mapping for mapping in mappings if mapping.target_type == target_type)
+
+
+def mapped_model(body: URIRef, graph: Graph, owner: URIRef | None) -> tuple[URIRef, str] | None:
+    """The model describing this body, and the name it knows the body by.
+
+    A mapping of the body names it outright; a mapping of the tree that owns it leaves the
+    body's own name to stand, since a tree mapping names the tree, not each body under it.
+    Which tree owns the body is the caller's to say -- the graph answers it from the joints
+    a tree reaches its bodies through, not from how the IRIs happen to nest.
+    """
+    by_tree: tuple[URIRef, str] | None = None
+    for model in graph.subjects(URI_EXEC_PRED_HAS_MAPPING, None):
+        if not isinstance(model, URIRef):
+            continue
+        for mapping_id in graph.objects(model, URI_EXEC_PRED_HAS_MAPPING):
+            if not isinstance(mapping_id, URIRef):
+                continue
+            mapping = get_kinematic_mapping(mapping_id, graph)
+            if mapping.target_id == body:
+                return model, mapping.entity or split_uri(body)[1]
+            if mapping.target_type == URI_GEOM_TYPE_KTREE and mapping.target_id == owner:
+                by_tree = (model, split_uri(body)[1])
+    return by_tree
 
 
 @dataclass
@@ -249,14 +337,14 @@ class RigidBodyModel(ModelBase):
                 tensor=rotation @ stated.tensor @ rotation.T,
             )
 
-        read = read_body_inertia(self.id, graph, owner, base_dir)
-        if read is None:
+        mapped = mapped_model(self.id, graph, owner)
+        if mapped is None:
             raise ConstraintViolation(
                 "dynamics",
                 f"nothing states the inertia of body '{self.id}': give it mass and "
                 f"inertia-matrix in the scene, or map it to a model file that states them",
             )
-        mass, com, tensor = read
+        mass, com, tensor = read_body_inertia(mapped, graph, base_dir)
         return MassProperties(mass=mass, com=com, tensor=tensor)
 
 
@@ -281,11 +369,6 @@ class JointModel(ModelBase):
                 "kinematics", f"{self} holds {len(self.frames)} attachments, and a joint holds two"
             )
         self.bodies = tuple(body_of_frame(frame, graph) for frame in self.frames)
-
-    @property
-    def moves(self) -> bool:
-        """Whether the joint has a degree of freedom, or only holds its two frames together."""
-        return False
 
     def other_body(self, body: URIRef) -> URIRef:
         """The body across the joint from this one."""
@@ -336,10 +419,6 @@ class RevoluteJointModel(JointModel):
         self.offset = ensure_one_obj_uri(
             graph=graph, subject=self.id, predicate=URI_KC_PRED_ORIGIN_OFFSET
         )
-
-    @property
-    def moves(self) -> bool:
-        return True
 
     def axis_on(self, frame: URIRef) -> str:
         """Which of the frame's own axes the joint turns about."""
@@ -778,4 +857,69 @@ def kinematic_trees(graph: Graph, base_dir: Path | None = None) -> list[Kinemati
         KinematicTreeModel(tree_id, graph, component, index, base_dir)
         for component, tree_id in trees
         if tree_id is not None
+    ]
+
+
+def root_bodies(node: URIRef, graph: Graph) -> set[URIRef]:
+    """The bodies a graph hangs from: what its trees stand on, and what it only places."""
+    return {
+        body_of_frame(frame, graph) for frame in uris(graph.objects(node, URI_KC_EXT_PRED_ROOT))
+    }
+
+
+def is_attached(body: URIRef, graph: Graph) -> bool:
+    """Whether any joint holds this body, which is what makes it part of a tree."""
+    return any(
+        typed(graph.subjects(URI_KC_PRED_BETWEEN_ATTACHMENTS, frame), URI_KC_TYPE_JOINT, graph)
+        for frame in uris(graph.objects(body, URI_GEOM_PRED_SIMPLICES))
+    )
+
+
+class KinematicGraphModel(ModelBase):
+    """The kinematics of one scene: its trees, and the free bodies it places itself.
+
+    A graph states a root for every body no joint attaches, which is what says the body is
+    this graph's and not another's. A tree stands on one of them; the rest are only placed.
+    """
+
+    trees: tuple[KinematicTreeModel, ...]
+    free_bodies: dict[URIRef, RigidBodyModel]
+    nested_trees: dict[URIRef, tuple[URIRef, ...]]
+
+    def __init__(
+        self,
+        kgraph_id: URIRef,
+        graph: Graph,
+        base_dir: Path | None = None,
+        trees: list[KinematicTreeModel] | None = None,
+    ) -> None:
+        super().__init__(node_id=kgraph_id, graph=graph)
+        if URI_GEOM_TYPE_KGRAPH not in self.types:
+            raise TypeError(f"{self} is not a KinematicGraph")
+
+        self.base_dir = base_dir
+        roots = root_bodies(self.id, graph)
+        built = kinematic_trees(graph, base_dir) if trees is None else trees
+        self.trees = tuple(tree for tree in built if tree.root in roots)
+
+        # A body a joint holds is carried by a tree, and belongs to it; what is left hangs
+        # from nothing -- placed by a pose, not articulated.
+        self.free_bodies = {
+            body: RigidBodyModel(body, graph)
+            for body in sorted(roots, key=str)
+            if not is_attached(body, graph)
+        }
+
+        # A component the graph itself names is no tree below it: those bodies are its own.
+        self.nested_trees = {self.id: tuple(tree.id for tree in self.trees if tree.id != self.id)}
+        for tree in self.trees:
+            self.nested_trees.update(tree.nested_trees)
+
+
+def kinematic_graphs(graph: Graph, base_dir: Path | None = None) -> list[KinematicGraphModel]:
+    """Every kinematic graph the scene declares, with the trees below each already built."""
+    trees = kinematic_trees(graph, base_dir)
+    return [
+        KinematicGraphModel(kgraph_id, graph, base_dir, trees)
+        for kgraph_id in sorted(uris(graph.subjects(RDF.type, URI_GEOM_TYPE_KGRAPH)), key=str)
     ]

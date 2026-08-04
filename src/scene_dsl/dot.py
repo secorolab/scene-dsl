@@ -17,11 +17,14 @@ from rdflib import Graph, URIRef
 from rdflib.namespace import split_uri
 
 from scene_dsl.rdf_parser.common import ensure_one_obj_uri
-from scene_dsl.rdf_parser.kgraph import (
+from scene_dsl.rdf_parser.kinematics import (
     KinematicGraphModel,
+    KinematicTreeModel,
+    RevoluteJointModel,
     kinematic_graphs,
+    typed,
+    uris,
 )
-from scene_dsl.rdf_parser.ktree import KinematicTreeModel, typed, uris
 
 _FILL = {True: "#e8f0fe", False: "#ffffff"}  # keyed by 'is on a serial chain'
 
@@ -142,7 +145,7 @@ def _edges(
         joint = tree.joints[tree.parent_joint[child]]
         # What a joint is and whether it is on a chain are separate things, so they are
         # drawn separately: dashed means fixed, blue means on the declared chain.
-        style = "" if joint.moves else "style=dashed, arrowhead=diamond, "
+        style = "" if isinstance(joint, RevoluteJointModel) else "style=dashed, arrowhead=diamond, "
         if parent in on_chain and child in on_chain:
             style += 'color="#1a73e8", penwidth=2'
         else:

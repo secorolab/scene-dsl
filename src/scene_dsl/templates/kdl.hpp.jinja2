@@ -1,0 +1,87 @@
+{%- macro vector(values) -%}
+KDL::Vector({{ values[0] }}, {{ values[1] }}, {{ values[2] }})
+{%- endmacro -%}
+
+{%- macro joint(joint) -%}
+{%- if joint is none -%}
+KDL::Joint(KDL::Joint::None)
+{%- elif joint.axis is none -%}
+KDL::Joint("{{ joint.name }}", KDL::Joint::None)
+{%- else -%}
+KDL::Joint("{{ joint.name }}", {{ vector(joint.origin) }}, {{ vector(joint.axis) }}, KDL::Joint::RotAxis)
+{%- endif -%}
+{%- endmacro -%}
+
+{%- macro inertia(inertia) -%}
+{%- if inertia is none -%}
+KDL::RigidBodyInertia::Zero()
+{%- else -%}
+KDL::RigidBodyInertia({{ inertia.mass }}, {{ vector(inertia.com) }},
+            KDL::RotationalInertia({{ inertia.tensor[0][0] }}, {{ inertia.tensor[1][1] }}, {{ inertia.tensor[2][2] }}, {{ inertia.tensor[0][1] }}, {{ inertia.tensor[0][2] }}, {{ inertia.tensor[1][2] }}))
+{%- endif -%}
+{%- endmacro -%}
+
+{%- macro segment(segment) -%}
+{%- set q = segment.transform.rotation -%}
+KDL::Segment("{{ segment.name }}",
+            {{ joint(segment.joint) }},
+            KDL::Frame(KDL::Rotation::Quaternion({{ q[0] }}, {{ q[1] }}, {{ q[2] }}, {{ q[3] }}), {{ vector(segment.transform.translation) }}),
+            {{ inertia(segment.inertia) }})
+{%- endmacro -%}
+// This is an auto-generated file. Do not edit it directly.
+//
+// KDL trees and chains for the kinematics of: {{ data.source }}
+#pragma once
+
+#include <string_view>
+#include <unordered_map>
+
+#include <kdl/chain.hpp>
+#include <kdl/frames.hpp>
+#include <kdl/tree.hpp>
+
+namespace {{ data.name }} {
+{% for tree in data.trees %}
+inline bool make_tree_{{ tree.cpp_name }}(KDL::Tree *tree)
+{
+    *tree = KDL::Tree("{{ tree.root }}");
+{%- for seg in tree.segments %}
+    if (!tree->addSegment(
+          {{ segment(seg) }},
+          "{{ seg.parent }}")) {
+        return false;  // no segment "{{ seg.parent }}" to attach "{{ seg.name }}" to
+    }
+{%- endfor %}
+    return true;
+}
+{% for chain in tree.chains %}
+// Slices the chain out of a tree make_tree_{{ tree.cpp_name }} built, so several
+// chains over one tree build it once.
+inline bool make_chain_{{ chain.cpp_name }}(const KDL::Tree &tree, KDL::Chain *chain)
+{
+    // '{{ chain.root }}' -> '{{ chain.tip }}'
+    return tree.getChain("{{ chain.root }}", "{{ chain.tip }}", *chain);
+}
+{% endfor %}
+{%- endfor %}
+
+// The model element each name in this header stands for. KDL knows a segment or joint by the
+// name it is built with, and a tree or chain by the function that makes it, so those are the
+// names to look up: what the scene called the thing is not recoverable from them otherwise.
+inline const std::unordered_map<std::string_view, std::string_view> kIris = {
+{%- for tree in data.trees %}
+    {"{{ tree.cpp_name }}", "{{ tree.iri }}"},
+    {"{{ tree.root }}", "{{ tree.root_iri }}"},
+{%- for seg in tree.segments %}
+    {"{{ seg.name }}", "{{ seg.iri }}"},
+{%- if seg.joint is not none %}
+    {"{{ seg.joint.name }}", "{{ seg.joint.iri }}"},
+{%- endif %}
+{%- endfor %}
+{%- for chain in tree.chains %}
+    {"{{ chain.cpp_name }}", "{{ chain.iri }}"},
+{%- endfor %}
+{%- endfor %}
+};
+
+}  // namespace {{ data.name }}

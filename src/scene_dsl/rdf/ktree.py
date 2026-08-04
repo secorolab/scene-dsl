@@ -284,5 +284,10 @@ def add_kinematic_graph(graph: Graph, kgraph: KinematicGraph, seen_trees: set[UR
         add_kinematic_tree(graph=graph, tree=tree, seen_trees=seen_trees)
     for body in kgraph.bodies:
         add_body(graph=graph, body=body)
-    # A graph may hang from many bodies, so it has no one root to export.
+
+    # Every body no joint attaches, a graph hanging from many where a tree has one. This
+    # is what says the bodies and the trees standing on them are this graph's.
+    for root in kgraph.roots:
+        graph.add(triple=(kgraph.uri, URI_KC_EXT_PRED_ROOT, root.default_frame.uri))
+
     add_joints_spec(graph=graph, owner=kgraph)

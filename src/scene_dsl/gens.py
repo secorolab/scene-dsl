@@ -1,11 +1,15 @@
 # SPDX-License-Identifier: MPL-2.0
-from os.path import basename, exists, join, splitext
+from os.path import basename, dirname, exists, join, splitext
+from pathlib import Path
 from typing import Any
 
+from jinja2 import Environment, FileSystemLoader
+from rdf_utils.naming import get_valid_var_name
 from rdflib import Graph
 from rdflib.plugin import PluginException
 
 from scene_dsl.dot import create_dot
+from scene_dsl.kdl_tree import build_kdl_trees
 from scene_dsl.rdf.scene import create_scene_model_graph
 from scene_dsl.rdf.scenex import create_scenex_model_graph
 
@@ -104,7 +108,7 @@ def _render(dot_source: str, path: str, img_format: str) -> None:
 
 
 def scenex_dot_gen_console(metamodel, model, output_path, overwrite, debug, **kwargs):
-    print(create_dot(model=model), end="")
+    print(create_dot(create_scenex_model_graph(model=model)), end="")
 
 
 def scenex_dot_gen(metamodel, model, output_path, overwrite, debug, **kwargs):
@@ -122,10 +126,39 @@ def scenex_dot_gen(metamodel, model, output_path, overwrite, debug, **kwargs):
         print(f"not overwriting existing file '{full_output_path}'")
         return
 
-    dot_source = create_dot(model=model)
+    dot_source = create_dot(create_scenex_model_graph(model=model))
     if img_format == "dot":
         with open(full_output_path, "w") as outfile:
             outfile.write(dot_source)
     else:
         _render(dot_source, full_output_path, img_format)
+    print(f"... wrote {full_output_path}")
+
+
+def scenex_kdl_gen(metamodel, model, output_path, overwrite, debug, **kwargs):
+    filename = kwargs.get("filename", basename(model._tx_filename)) or "kinematics"
+    full_output_path = join(
+        "" if output_path is None else output_path, f"{splitext(filename)[0]}.kdl.hpp"
+    )
+    if exists(full_output_path) and not overwrite:
+        print(f"not overwriting existing file '{full_output_path}'")
+        return
+
+    # Model file paths are written relative to the model declaring them.
+    base_dir = dirname(model._tx_filename)
+    trees = build_kdl_trees(
+        create_scenex_model_graph(model=model), Path(base_dir) if base_dir else None
+    )
+
+    env = Environment(
+        loader=FileSystemLoader(Path(__file__).parent / "templates"), keep_trailing_newline=True
+    )
+    template = env.get_template("kdl.hpp.jinja2")
+    source = basename(model._tx_filename) or "a scene model"
+    # The header holds one scene's kinematics, so that scene names its namespace -- as a
+    # C++ identifier, a file called `my.lab-v2.scenex` or `2f85.scenex` naming none.
+    name = get_valid_var_name(splitext(source)[0] or "scene")
+    name = f"scene_{name}" if name[0].isdigit() else name
+    with open(full_output_path, "w") as outfile:
+        outfile.write(template.render({"data": {"name": name, "source": source, "trees": trees}}))
     print(f"... wrote {full_output_path}")

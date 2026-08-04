@@ -8,6 +8,7 @@ from scene_dsl.gens import (
     scenex_dot_gen_console,
     scenex_graph_gen,
     scenex_graph_gen_console,
+    scenex_kdl_gen,
 )
 from scene_dsl.langs import scene_metamodel, scenex_metamodel
 
@@ -61,4 +62,11 @@ scenex_dot_gen_desc = GeneratorDesc(
     description="Draw the scene's kinematics: bodies joined by joints, chains picked out."
     " Formats: dot (default), png, svg, pdf",
     generator=scenex_dot_gen,
+)
+
+scenex_kdl_gen_desc = GeneratorDesc(
+    language="scenex",
+    target="kdl",
+    description="Generate a C++ header building the scene's KDL trees and chains",
+    generator=scenex_kdl_gen,
 )

@@ -181,7 +181,7 @@ def build_kdl_trees(graph: Graph, base_dir: Path | None = None) -> list[dict]:
                                 "name": _declared_name(tree, joint_id),
                                 "local_name": split_uri(joint_id)[1],
                             }
-                            for joint_id in chain.path
+                            for joint_id in tree.path(chain)
                             if isinstance(tree.joints[joint_id], RevoluteJointModel)
                         ],
                     }
@@ -189,4 +189,30 @@ def build_kdl_trees(graph: Graph, base_dir: Path | None = None) -> list[dict]:
                 ],
             }
         )
+    _ensure_names_are_distinct(result)
     return result
+
+
+def _ensure_names_are_distinct(trees: list[dict]) -> None:
+    """Every name the header holds stands for one element.
+
+    KDL knows a segment or a joint by its name, and the header's IRI table is keyed by
+    those names, so two elements sharing one would leave a scene with a name that means
+    two things and a table that holds whichever came first.
+    """
+    named: dict[str, str] = {}
+    for tree in trees:
+        elements = [(tree["cpp_name"], tree["iri"]), (tree["root"], tree["root_iri"])]
+        for segment in tree["segments"]:
+            elements.append((segment["name"], segment["iri"]))
+            if segment["joint"] is not None:
+                elements.append((segment["joint"]["name"], segment["joint"]["iri"]))
+        elements.extend((chain["cpp_name"], chain["iri"]) for chain in tree["chains"])
+
+        for name, iri in elements:
+            if named.setdefault(name, iri) != iri:
+                raise ConstraintViolation(
+                    "kinematics",
+                    f"'{name}' names both '{named[name]}' and '{iri}': two elements the "
+                    f"header must tell apart are called the same thing",
+                )

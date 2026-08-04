@@ -67,7 +67,7 @@ def _chain_bodies(tree: KinematicTreeModel) -> set[URIRef]:
     for chain in tree.chains:
         body = chain.root_body
         bodies.add(body)
-        for joint in chain.path:
+        for joint in tree.path(chain):
             body = tree.joints[joint].other_body(body)
             bodies.add(body)
     return bodies

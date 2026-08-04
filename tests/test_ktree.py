@@ -199,7 +199,7 @@ def test_a_body_belongs_to_the_tree_that_describes_it(tmp_path):
 def test_a_chain_is_ordered_root_outwards(tmp_path):
     """The graph states a chain's joints as a set; the tree carrying them says in what order."""
     [tree], _ = _parse(tmp_path)
-    paths = {_scoped(chain.id): [_name(j) for j in chain.path] for chain in tree.chains}
+    paths = {_scoped(chain.id): [_name(j) for j in tree.path(chain)] for chain in tree.chains}
 
     assert paths == {
         "arm/chain": ["j1"],  # the arm's own chain, which lies inside the composing tree
@@ -362,3 +362,66 @@ scene inst (ns=n) sx {
     # A body nothing joins is placed, not articulated, so no component is named for it.
     assert [_name(body) for body in kgraph.free_bodies] == ["placed"]
     assert kgraph.nested_trees == {kgraph.id: ()}
+
+
+def test_the_generated_header_compiles(tmp_path):
+    """The template writes C++, so the check that it is C++ is a compiler.
+
+    Skipped where no compiler or no KDL is installed, which is what the rest of the suite
+    assumes: everything above this reads the header as data.
+    """
+    import shutil
+    import subprocess
+
+    compiler = shutil.which("g++") or shutil.which("clang++")
+    includes = [Path(base) for base in ("/usr/include", "/usr/local/include")]
+    kdl = next((base for base in includes if (base / "kdl" / "tree.hpp").is_file()), None)
+    if compiler is None or kdl is None:
+        pytest.skip("needs a C++ compiler and the KDL headers")
+
+    graph = _graph(tmp_path)
+    env = Environment(
+        loader=FileSystemLoader(Path(__file__).parents[1] / "src" / "scene_dsl" / "templates"),
+        keep_trailing_newline=True,
+    )
+    header = tmp_path / "scene.kdl.hpp"
+    header.write_text(
+        env.get_template("kdl.hpp.jinja2").render(
+            data={
+                "name": "scene",
+                "source": "sx.scenex",
+                "trees": build_kdl_trees(graph, tmp_path),
+            }
+        )
+    )
+    # Every function is inline, so a translation unit including it twice must still link.
+    main = tmp_path / "main.cpp"
+    main.write_text(
+        '#include "scene.kdl.hpp"\n'
+        '#include "scene.kdl.hpp"\n'
+        "int main() {\n"
+        "  KDL::Tree tree;\n"
+        "  KDL::Chain chain;\n"
+        "  return scene::make_tree_arm_tool(&tree) &&\n"
+        "         scene::make_chain_arm_tool_chain(tree, &chain) &&\n"
+        "         scene::kIris.size() > 0 ? 0 : 1;\n"
+        "}\n"
+    )
+    built = subprocess.run(
+        [
+            compiler,
+            "-std=c++17",
+            "-I",
+            str(kdl),
+            str(main),
+            "-o",
+            str(tmp_path / "main"),
+            "-lorocos-kdl",
+        ],
+        capture_output=True,
+        text=True,
+        cwd=tmp_path,
+        check=False,
+    )
+    assert built.returncode == 0, built.stderr
+    assert subprocess.run([str(tmp_path / "main")], cwd=tmp_path, check=False).returncode == 0

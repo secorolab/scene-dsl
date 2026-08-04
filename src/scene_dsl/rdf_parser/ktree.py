@@ -5,6 +5,11 @@ Two things the graph leaves for the reader. A joint's attachments are a set, so 
 its bodies carries the other is only settled by walking out of a declared root. And a tree
 composing another states no edge to it, so a component is expanded by activating every
 tree whose root body the walk reaches.
+
+Trees are views over the kinematics a graph states, and nothing in the metamodel stops two
+of them sharing bodies. This reads them as though nothing does: a body has one describing
+tree, an element one name, a tree one tree holding it. Views that overlap without one
+holding the other are reported rather than read, since the answer would be arbitrary.
 """
 
 from collections import deque
@@ -362,8 +367,8 @@ def joint_model(joint_id: URIRef, graph: Graph) -> JointModel:
 class KinematicChainModel(ModelBase):
     """A serial composition: the frames it runs between, and the joints it runs through.
 
-    The graph states the joints as a set; `path` is that set ordered root outwards, which
-    the tree holding the chain fills in.
+    The graph states the joints as a set. In what order they run is the component's to
+    say, not the chain's, so the ordered path lives there -- see `KinematicTreeModel.path`.
     """
 
     root_frame: URIRef
@@ -371,7 +376,6 @@ class KinematicChainModel(ModelBase):
     root_body: URIRef
     tip_body: URIRef
     joints: set[URIRef]
-    path: tuple[URIRef, ...]
 
     def __init__(self, chain_id: URIRef, graph: Graph) -> None:
         super().__init__(node_id=chain_id, graph=graph)
@@ -387,7 +391,6 @@ class KinematicChainModel(ModelBase):
         self.root_body = body_of_frame(root, graph)
         self.tip_body = body_of_frame(tip, graph)
         self.joints = uris(graph.objects(self.id, URI_KC_PRED_JOINTS))
-        self.path = ()
 
 
 class _KinematicIndex:
@@ -474,6 +477,7 @@ class _ExpandedComponent:
     declaring_tree_by_joint: dict[URIRef, URIRef]
     body_order: list[URIRef]
     chains: list[KinematicChainModel]
+    chain_paths: dict[URIRef, tuple[URIRef, ...]]
 
 
 def _expand_component(
@@ -492,6 +496,7 @@ def _expand_component(
         declaring_tree_by_joint={},
         body_order=[],
         chains=[],
+        chain_paths={},
     )
     active_joints = component.declaring_tree_by_joint  # joint -> declaring tree
     pending = deque([root_body])
@@ -598,7 +603,7 @@ def _assign_chains(index: _KinematicIndex, components: list[_ExpandedComponent])
                 f"{chain} declares joints {sorted(chain.joints, key=str)}, but its "
                 f"root-to-tip path contains {sorted(path, key=str)}",
             )
-        chain.path = path
+        component.chain_paths[chain.id] = path
         component.chains.append(chain)
 
 
@@ -647,9 +652,9 @@ def _nested_trees(
     parent: dict[URIRef, URIRef] = {}
     for body in component.body_order:
         rooted = index.trees_by_root_body.get(body, set()) - index.kgraphs
-        held = {tree: len(_trees_held(tree, component, index) & rooted) for tree in rooted}
-        if len(set(held.values())) != len(rooted):
-            counts = ", ".join(f"'{tree}' holds {count}" for tree, count in sorted(held.items()))
+        holds = {tree: _trees_held(tree, component, index) & rooted for tree in rooted}
+        if len({len(held) for held in holds.values()}) != len(rooted):
+            counts = ", ".join(f"'{tree}' holds {len(held)}" for tree, held in sorted(holds.items()))
             raise ConstraintViolation(
                 "kinematics",
                 f"several trees are rooted at body '{body}' and each holds as many other "
@@ -658,8 +663,19 @@ def _nested_trees(
                 f"holds together",
             )
 
-        order = sorted(rooted, key=lambda tree: held[tree])
+        # Trees at one root nest, so each holds the one below it. Two that hold each
+        # other's bodies without either holding the other are views laid over the same
+        # kinematics, which the rest of this -- one describing tree per body, one name
+        # per element, a picture of clusters inside clusters -- has no way to express.
+        order = sorted(rooted, key=lambda tree: len(holds[tree]))
         for inner, outer in pairwise(order):
+            if inner not in holds[outer]:
+                raise ConstraintViolation(
+                    "kinematics",
+                    f"trees '{inner}' and '{outer}' are both rooted at body '{body}' and "
+                    f"neither is composed into the other, so they overlap: a tree may share "
+                    f"the bodies of another only by holding it",
+                )
             parent[inner] = outer
 
         joint = component.parent_joint_by_body.get(body)
@@ -708,6 +724,7 @@ class KinematicTreeModel(ModelBase):
     declaring_tree: dict[URIRef, URIRef]
     topological_order: tuple[URIRef, ...]
     chains: tuple[KinematicChainModel, ...]
+    chain_paths: dict[URIRef, tuple[URIRef, ...]]
     nested_trees: dict[URIRef, tuple[URIRef, ...]]
 
     def __init__(
@@ -733,8 +750,13 @@ class KinematicTreeModel(ModelBase):
         self.joints = {joint_id: index.joints[joint_id] for joint_id in self.parent_joint.values()}
         self.defining_tree_by_body = dict(component.defining_tree_by_body)
         self.chains = tuple(component.chains)
+        self.chain_paths = dict(component.chain_paths)
         self.nested_trees = _nested_trees(component, index)
         self.declaring_tree = _declaring_trees(component, self.nested_trees, default=self.id)
+
+    def path(self, chain: KinematicChainModel) -> tuple[URIRef, ...]:
+        """The joints of a chain, root outwards, as the walk out of this root ordered them."""
+        return self.chain_paths[chain.id]
 
     def mass_properties(self, body: URIRef, graph: Graph) -> MassProperties:
         """Mass properties using the body's defining tree for mapped-model lookup."""

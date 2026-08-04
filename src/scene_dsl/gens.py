@@ -156,8 +156,9 @@ def scenex_kdl_gen(metamodel, model, output_path, overwrite, debug, **kwargs):
     template = env.get_template("kdl.hpp.jinja2")
     source = basename(model._tx_filename) or "a scene model"
     # The header holds one scene's kinematics, so that scene names its namespace -- as a
-    # C++ identifier, a file called `my.lab-v2.scenex` naming no namespace otherwise.
+    # C++ identifier, a file called `my.lab-v2.scenex` or `2f85.scenex` naming none.
     name = get_valid_var_name(splitext(source)[0] or "scene")
+    name = f"scene_{name}" if name[0].isdigit() else name
     with open(full_output_path, "w") as outfile:
         outfile.write(template.render({"data": {"name": name, "source": source, "trees": trees}}))
     print(f"... wrote {full_output_path}")

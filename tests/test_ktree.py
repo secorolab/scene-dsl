@@ -9,6 +9,7 @@ import pytest
 from jinja2 import Environment, FileSystemLoader
 from rdf_utils.constraints import ConstraintViolation
 from rdf_utils.models.vocab import (
+    URI_DYN_PRED_OF_BODY,
     URI_KC_PRED_BETWEEN_ATTACHMENTS,
     URI_KC_PRED_JOINTS,
     URI_KC_TYPE_JOINT,
@@ -75,6 +76,11 @@ ktree (ns=n) tool {{
                 xyz: (0, 0, 0.05) m
                 orientation: euler {{ angles: (0, 0, 0) unit: rad }}
             }}
+        }}
+        inertia {{
+            frame: <tool_tip_origin>
+            mass: 0.1 kg
+            inertia-matrix: ((1e-4, 0.0, 0.0), (0.0, 1e-4, 0.0), (0.0, 0.0, 1e-4)) kg*m^2
         }}
     }}
     joints {{
@@ -243,11 +249,14 @@ def test_a_mapped_file_that_cannot_answer_is_an_error(tmp_path):
 
 
 def test_a_body_nothing_states_an_inertia_for_is_an_error(tmp_path):
-    """No inertia in the scene, and no model file maps the tool at all."""
-    [tree], graph = _parse(tmp_path)
+    """A body is matter: the tip states none once its own is dropped, and nothing maps it."""
+    graph = _graph(tmp_path)
+    tip = URIRef("https://example.test/tool/tool_tip")
+    graph.remove((None, URI_DYN_PRED_OF_BODY, tip))
+    [tree] = kinematic_trees(graph, tmp_path)
 
     with pytest.raises(ConstraintViolation, match="nothing states the inertia"):
-        tree.mass_properties(_body(tree, "tool_tip"), graph)
+        tree.mass_properties(tip, graph)
 
 
 def test_a_frame_needs_a_pose_to_be_placed_on_its_body(tmp_path):

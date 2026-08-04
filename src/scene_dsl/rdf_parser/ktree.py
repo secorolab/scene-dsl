@@ -218,9 +218,8 @@ class RigidBodyModel(ModelBase):
     ) -> MassProperties:
         """What the body weighs, in its own frame.
 
-        The scene answers, or the URDF or MJCF its model maps the body into does. Neither
-        answering is an error: nothing else can be asked, and a body of unknown mass is
-        not a body a solver can carry.
+        The scene answers, or the URDF or MJCF its model maps the body into does. A body
+        is matter, so neither answering is an error -- a frame is what carries no mass.
         """
         stated = self.inertia
         if stated is not None and stated.mass is not None and stated.tensor is not None:

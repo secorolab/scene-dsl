@@ -50,18 +50,8 @@ def _transform_data(pose: np.ndarray) -> dict:
     }
 
 
-def _inertia_data(
-    tree: KinematicTreeModel, body: URIRef, graph: Graph, strict: bool
-) -> dict | None:
-    try:
-        inertia = tree.mass_properties(body, graph)
-    except ConstraintViolation as error:
-        # KDL can represent a purely kinematic body with zero inertia. Direct Scene DSL
-        # generation keeps mapping errors visible; downstream control generation can opt
-        # into zero inertia for scene fixtures outside its solver chain.
-        if strict and "nothing states the inertia" not in str(error):
-            raise
-        return None
+def _inertia_data(tree: KinematicTreeModel, body: URIRef, graph: Graph) -> dict:
+    inertia = tree.mass_properties(body, graph)
     return {
         "mass": float(inertia.mass),
         "com": [float(value) for value in inertia.com],
@@ -150,9 +140,7 @@ def _endpoint_segments(
     return segments, names
 
 
-def build_kdl_trees(
-    graph: Graph, base_dir: Path | None = None, *, strict_inertia: bool = True
-) -> list[dict]:
+def build_kdl_trees(graph: Graph, base_dir: Path | None = None) -> list[dict]:
     """Read scene kinematics into a JSON-serializable representation."""
     result = []
     for tree in kinematic_trees(graph, base_dir):
@@ -167,7 +155,7 @@ def build_kdl_trees(
                     "parent": _body_name(tree, parent),
                     "joint": joint,
                     "transform": transform,
-                    "inertia": _inertia_data(tree, child, graph, strict_inertia),
+                    "inertia": _inertia_data(tree, child, graph),
                 }
             )
 

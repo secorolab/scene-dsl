@@ -14,6 +14,7 @@ from rdf_utils.models.vocab import (
     URI_EXEC_PRED_MAPS,
 )
 from rdflib import Graph, URIRef
+from rdflib.namespace import split_uri
 
 from scene_dsl.rdf_parser.common import ensure_one_obj_uri
 from scene_dsl.rdf_parser.kgraph import (
@@ -25,22 +26,17 @@ from scene_dsl.rdf_parser.ktree import KinematicTreeModel, typed, uris
 _FILL = {True: "#e8f0fe", False: "#ffffff"}  # keyed by 'is on a serial chain'
 
 
-def _local(uri: URIRef) -> str:
-    """The element's own name, without the tree or graph scoping it."""
-    return str(uri).rsplit("/", 1)[-1]
-
-
 def _node(body: URIRef, owner: URIRef) -> str:
     """What a body is called in the picture: its name under the one that defines it.
 
     Two copies of one device share every local name, so the owner has to qualify it.
     """
-    return f"{_local(owner)}/{_local(body)}"
+    return f"{split_uri(owner)[1]}/{split_uri(body)[1]}"
 
 
 def _frame_node(frame: URIRef, body: URIRef, owner: URIRef) -> str:
     """What a frame is called: its name under the body carrying it."""
-    return f"{_node(body, owner)}/{_local(frame)}"
+    return f"{_node(body, owner)}/{split_uri(frame)[1]}"
 
 
 def _stands_for(graph: Graph) -> dict[URIRef, str]:
@@ -56,13 +52,13 @@ def _stands_for(graph: Graph) -> dict[URIRef, str]:
             for mapping in uris(graph.objects(model, URI_EXEC_PRED_HAS_MAPPING)):
                 for body in uris(graph.objects(mapping, URI_EXEC_PRED_MAPS)):
                     if obj is not None:
-                        labels[body] = _local(obj)
+                        labels[body] = split_uri(obj)[1]
     return labels
 
 
 def _label(body: URIRef, stands_for: dict[URIRef, str]) -> str:
     obj = stands_for.get(body)
-    return f"{_local(body)}\\n({obj})" if obj is not None else _local(body)
+    return f"{split_uri(body)[1]}\\n({obj})" if obj is not None else split_uri(body)[1]
 
 
 def _chain_bodies(tree: KinematicTreeModel) -> set[URIRef]:
@@ -111,10 +107,10 @@ def _cluster(
     prefix: str,
 ) -> None:
     """One cluster per graph or tree, nested the way each is composed of the next."""
-    path = f"{prefix}{_local(node)}"
+    path = f"{prefix}{split_uri(node)[1]}"
     pad = "  " * depth
     lines.append(f'{pad}subgraph "cluster_{path}" {{')
-    lines.append(f'{pad}  label="{_local(node)}";')
+    lines.append(f'{pad}  label="{split_uri(node)[1]}";')
     lines.append(f'{pad}  style=rounded; color="#9aa0a6"; fontsize=11;')
     for body, owner in owners.items():
         if owner == node:
@@ -127,7 +123,7 @@ def _cluster(
                 if tip_body == body:
                     # A frame is no body, so it is drawn as one that carries no mass.
                     lines.append(
-                        f'{pad}  "{_frame_node(frame, body, owner)}" [label="{_local(frame)}", '
+                        f'{pad}  "{_frame_node(frame, body, owner)}" [label="{split_uri(frame)[1]}", '
                         f'style="rounded,dashed,filled", fillcolor="{_FILL[True]}"];'
                     )
     for sub in nested.get(node, ()):
@@ -153,7 +149,7 @@ def _edges(
             style += 'color="#5f6368"'
         lines.append(
             f'  "{_node(parent, owners[parent])}" -> "{_node(child, owners[child])}" '
-            f'[label="{_local(joint.id)}", {style}];'
+            f'[label="{split_uri(joint.id)[1]}", {style}];'
         )
 
     # Nothing moves to a frame, so the chain reaches its tip without a joint.

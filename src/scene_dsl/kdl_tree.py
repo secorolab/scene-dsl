@@ -8,29 +8,22 @@ import numpy as np
 from rdf_utils.constraints import ConstraintViolation
 from rdf_utils.models.geom_coord import get_translation_between_points
 from rdf_utils.models.vocab import URI_GEOM_PRED_ORIGIN
+from rdf_utils.naming import get_valid_var_name
 from rdflib import Graph, URIRef
+from rdflib.namespace import split_uri
 from scipy.spatial.transform import Rotation
 
 from scene_dsl.rdf_parser.ktree import KinematicTreeModel, RevoluteJointModel, kinematic_trees
 
 
-def _local(uri: URIRef) -> str:
-    return str(uri).rsplit("/", 1)[-1]
-
-
-def _scoped(uri: URIRef) -> str:
-    """A readable KDL name that remains unique for elements owned by different trees."""
-    parts = str(uri).rstrip("/").rsplit("/", 2)
-    return "/".join(parts[-2:])
-
-
-def _cpp_name(name: str) -> str:
-    """The C++ identifier rendered for a scene element in the KDL header."""
-    return name.replace("/", "_").replace("-", "_")
-
-
 def _body_name(tree: KinematicTreeModel, body: URIRef) -> str:
-    return f"{_local(tree.defining_tree_by_body[body])}/{_local(body)}"
+    """A KDL name unique across trees: the element under the tree the model says owns it."""
+    return f"{split_uri(tree.defining_tree_by_body[body])[1]}/{split_uri(body)[1]}"
+
+
+def _declared_name(tree: KinematicTreeModel, uri: URIRef) -> str:
+    """The same, for a joint or a chain, which a tree declares rather than defines."""
+    return f"{split_uri(tree.declaring_tree[uri])[1]}/{split_uri(uri)[1]}"
 
 
 def _pose_matrix(transform) -> np.ndarray:
@@ -98,9 +91,11 @@ def _joint_data(
     child_attachment = _pose_matrix(tree.bodies[child].pose_of(child_frame, graph))
 
     if not isinstance(joint, RevoluteJointModel):
-        return {"name": _scoped(joint.id), "iri": str(joint.id), "axis": None}, _transform_data(
-            parent_attachment @ _inverse_pose(child_attachment)
-        )
+        return {
+            "name": _declared_name(tree, joint.id),
+            "iri": str(joint.id),
+            "axis": None,
+        }, _transform_data(parent_attachment @ _inverse_pose(child_attachment))
 
     offset_pose = np.eye(4)
     if joint.offset is not None:
@@ -118,7 +113,7 @@ def _joint_data(
     axis["xyz".index(joint.axis_on(parent_frame))] = 1.0
     return (
         {
-            "name": _scoped(joint.id),
+            "name": _declared_name(tree, joint.id),
             "iri": str(joint.id),
             "origin": [float(value) for value in origin],
             "axis": [float(value) for value in parent_attachment[:3, :3] @ axis],
@@ -127,7 +122,9 @@ def _joint_data(
     )
 
 
-def _endpoint_segments(tree: KinematicTreeModel, graph: Graph) -> tuple[list[dict], dict[URIRef, str]]:
+def _endpoint_segments(
+    tree: KinematicTreeModel, graph: Graph
+) -> tuple[list[dict], dict[URIRef, str]]:
     """Add fixed KDL leaves for chain endpoints that name a body-local frame."""
     frames = {frame for chain in tree.chains for frame in (chain.root_frame, chain.tip_frame)}
     names: dict[URIRef, str] = {}
@@ -138,7 +135,7 @@ def _endpoint_segments(tree: KinematicTreeModel, graph: Graph) -> tuple[list[dic
         if frame == tree.bodies[body].root_frame.id:
             names[frame] = body_name
             continue
-        name = f"{body_name}/{_local(frame)}"
+        name = f"{body_name}/{split_uri(frame)[1]}"
         names[frame] = name
         segments.append(
             {
@@ -178,21 +175,24 @@ def build_kdl_trees(
         segments.extend(endpoint_segments)
         result.append(
             {
-                "name": _local(tree.id),
-                "cpp_name": _cpp_name(_local(tree.id)),
+                "name": split_uri(tree.id)[1],
+                "cpp_name": get_valid_var_name(split_uri(tree.id)[1]),
                 "iri": str(tree.id),
                 "root": _body_name(tree, tree.root),
                 "root_iri": str(tree.root),
                 "segments": segments,
                 "chains": [
                     {
-                        "name": _scoped(chain.id),
-                        "cpp_name": _cpp_name(_scoped(chain.id)),
+                        "name": _declared_name(tree, chain.id),
+                        "cpp_name": get_valid_var_name(_declared_name(tree, chain.id)),
                         "iri": str(chain.id),
                         "root": endpoint_names[chain.root_frame],
                         "tip": endpoint_names[chain.tip_frame],
                         "joints": [
-                            {"name": _scoped(joint_id), "local_name": _local(joint_id)}
+                            {
+                                "name": _declared_name(tree, joint_id),
+                                "local_name": split_uri(joint_id)[1],
+                            }
                             for joint_id in chain.path
                             if isinstance(tree.joints[joint_id], RevoluteJointModel)
                         ],

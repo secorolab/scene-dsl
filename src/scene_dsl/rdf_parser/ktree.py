@@ -636,6 +636,27 @@ def _nested_trees(
     return {holder: tuple(trees) for holder, trees in nested.items()}
 
 
+def _declaring_trees(
+    component: _ExpandedComponent, nested: dict[URIRef, tuple[URIRef, ...]], default: URIRef
+) -> dict[URIRef, URIRef]:
+    """What declares each joint and chain: the walk states a joint's tree, and a chain
+    belongs to the innermost tree holding both the bodies it runs between."""
+    holder = {sub: tree for tree, subs in nested.items() for sub in subs}
+    declaring = dict(component.declaring_tree_by_joint)
+    for chain in component.chains:
+        above = set()
+        tree = component.defining_tree_by_body[chain.root_body]
+        while tree is not None:
+            above.add(tree)
+            tree = holder.get(tree)
+
+        tree = component.defining_tree_by_body[chain.tip_body]
+        while tree is not None and tree not in above:
+            tree = holder.get(tree)
+        declaring[chain.id] = default if tree is None else tree
+    return declaring
+
+
 class KinematicTreeModel(ModelBase):
     """One directed kinematic component, including all composed trees."""
 
@@ -646,6 +667,7 @@ class KinematicTreeModel(ModelBase):
     parent: dict[URIRef, URIRef]
     parent_joint: dict[URIRef, URIRef]
     defining_tree_by_body: dict[URIRef, URIRef]
+    declaring_tree: dict[URIRef, URIRef]
     topological_order: tuple[URIRef, ...]
     chains: tuple[KinematicChainModel, ...]
     nested_trees: dict[URIRef, tuple[URIRef, ...]]
@@ -674,6 +696,7 @@ class KinematicTreeModel(ModelBase):
         self.defining_tree_by_body = dict(component.defining_tree_by_body)
         self.chains = tuple(component.chains)
         self.nested_trees = _nested_trees(component, index)
+        self.declaring_tree = _declaring_trees(component, self.nested_trees, default=self.id)
 
     def mass_properties(self, body: URIRef, graph: Graph) -> MassProperties:
         """Mass properties using the body's defining tree for mapped-model lookup."""

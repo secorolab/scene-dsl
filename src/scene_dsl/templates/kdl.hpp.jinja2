@@ -1,7 +1,3 @@
-{%- macro identifier(name) -%}
-{{ name | replace('/', '_') | replace('-', '_') }}
-{%- endmacro -%}
-
 {%- macro vector(values) -%}
 KDL::Vector({{ values[0] }}, {{ values[1] }}, {{ values[2] }})
 {%- endmacro -%}
@@ -44,7 +40,7 @@ KDL::Segment("{{ segment.name }}",
 #include <kdl/frames.hpp>
 #include <kdl/tree.hpp>
 
-namespace {{ identifier(data.name) }} {
+namespace {{ data.name }} {
 {% for tree in data.trees %}
 inline bool make_tree_{{ tree.cpp_name }}(KDL::Tree *tree)
 {
@@ -88,4 +84,4 @@ inline const std::unordered_map<std::string_view, std::string_view> kIris = {
 {%- endfor %}
 };
 
-}  // namespace {{ identifier(data.name) }}
+}  // namespace {{ data.name }}

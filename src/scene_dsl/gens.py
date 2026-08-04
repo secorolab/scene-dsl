@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any
 
 from jinja2 import Environment, FileSystemLoader
+from rdf_utils.naming import get_valid_var_name
 from rdflib import Graph
 from rdflib.plugin import PluginException
 
@@ -154,11 +155,9 @@ def scenex_kdl_gen(metamodel, model, output_path, overwrite, debug, **kwargs):
     )
     template = env.get_template("kdl.hpp.jinja2")
     source = basename(model._tx_filename) or "a scene model"
+    # The header holds one scene's kinematics, so that scene names its namespace -- as a
+    # C++ identifier, a file called `my.lab-v2.scenex` naming no namespace otherwise.
+    name = get_valid_var_name(splitext(source)[0] or "scene")
     with open(full_output_path, "w") as outfile:
-        outfile.write(
-            template.render(
-                # The header holds one scene's kinematics, so that scene names its namespace.
-                {"data": {"name": splitext(source)[0] or "scene", "source": source, "trees": trees}}
-            )
-        )
+        outfile.write(template.render({"data": {"name": name, "source": source, "trees": trees}}))
     print(f"... wrote {full_output_path}")

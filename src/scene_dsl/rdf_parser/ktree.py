@@ -81,6 +81,13 @@ def typed(nodes, node_type: URIRef, graph: Graph) -> set[URIRef]:
     return {node for node in uris(nodes) if (node, RDF.type, node_type) in graph}
 
 
+def only_tree(trees: set[URIRef], claim: str) -> URIRef:
+    """The one tree of a set. Which of several it is, is the model's to say, not a reader's."""
+    if len(trees) != 1:
+        raise ConstraintViolation("kinematics", f"{claim}: {sorted(trees, key=str)}")
+    return next(iter(trees))
+
+
 def body_of_frame(frame: URIRef, graph: Graph) -> URIRef:
     """The body a frame is a simplex of. A frame sits on one body, or on none."""
     bodies = typed(graph.subjects(URI_GEOM_PRED_SIMPLICES, frame), URI_GEOM_TYPE_RIGID_BODY, graph)
@@ -447,7 +454,11 @@ class _KinematicIndex:
         candidates = {
             tree_id for tree_id in rooted_trees if self.joints_by_tree[tree_id] & touching
         }
-        return min(candidates or rooted_trees, key=str)
+        return only_tree(
+            candidates or rooted_trees,
+            f"body '{body}' is the root of several trees whose joints touch it, so which "
+            f"one describes it cannot be told",
+        )
 
 
 @dataclass
@@ -563,8 +574,15 @@ def _assign_chains(index: _KinematicIndex, components: list[_ExpandedComponent])
 
     for chain in index.chains:
         component = component_by_body.get(chain.root_body)
+        # A chain runs through joints, so both its ends hang from one root or it runs
+        # through nothing. Dropping it would leave the model claiming a chain and the
+        # picture, the header and every solver reading them showing none.
         if component is None or component_by_body.get(chain.tip_body) is not component:
-            continue
+            raise ConstraintViolation(
+                "kinematics",
+                f"{chain} runs from body '{chain.root_body}' to body '{chain.tip_body}', but "
+                f"no joints lead from the one to the other: a chain is a path through a tree",
+            )
         if chain.root_frame != component.bodies[chain.root_body].root_frame.id:
             raise ConstraintViolation(
                 "kinematics",
@@ -598,15 +616,26 @@ def _trees_held(tree: URIRef, component: _ExpandedComponent, index: _KinematicIn
 def _top_level_tree(component: _ExpandedComponent, index: _KinematicIndex) -> URIRef | None:
     """Outermost tree naming a component; the graph itself where it articulates bodies of
     its own, and nothing for a body it only places."""
-    rooted = index.trees_by_root_body[component.root_body]
+    root = component.root_body
+    rooted = index.trees_by_root_body[root]
     candidates = rooted - index.kgraphs
     if not candidates:
-        return min(rooted, key=str) if component.parent_joint_by_body else None
+        if not component.parent_joint_by_body:
+            return None
+        return only_tree(
+            rooted,
+            f"body '{root}' is joined to others, and is the root of several graphs, so "
+            f"which of them the kinematics under it belongs to cannot be told",
+        )
     if len(candidates) == 1:
         return next(iter(candidates))
 
     composed = {held for tree in candidates for held in _trees_held(tree, component, index)}
-    return min(candidates - composed or candidates, key=str)
+    return only_tree(
+        candidates - composed or candidates,
+        f"several trees are rooted at body '{root}' and none of them holds the others, so "
+        f"which one names the kinematics under it cannot be told",
+    )
 
 
 def _nested_trees(
@@ -617,9 +646,18 @@ def _nested_trees(
     parent: dict[URIRef, URIRef] = {}
     for body in component.body_order:
         rooted = index.trees_by_root_body.get(body, set()) - index.kgraphs
-        order = sorted(
-            rooted, key=lambda tree: (len(_trees_held(tree, component, index) & rooted), str(tree))
-        )
+        held = {tree: len(_trees_held(tree, component, index) & rooted) for tree in rooted}
+        if len(set(held.values())) != len(rooted):
+            counts = ", ".join(f"'{tree}' holds {count}" for tree, count in sorted(held.items()))
+            raise ConstraintViolation(
+                "kinematics",
+                f"several trees are rooted at body '{body}' and each holds as many other "
+                f"trees as the next, so which of them composes the other cannot be told "
+                f"({counts}). An assembly is the tree whose joints reach into the ones it "
+                f"holds together",
+            )
+
+        order = sorted(rooted, key=lambda tree: held[tree])
         for inner, outer in pairwise(order):
             parent[inner] = outer
 

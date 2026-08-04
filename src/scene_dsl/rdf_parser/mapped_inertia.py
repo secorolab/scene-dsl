@@ -52,25 +52,26 @@ def mapped_model(
 def model_path(model: URIRef, graph: Graph, base_dir: Path | None) -> Path:
     """Where a model's path lands.
 
-    A relative path is written either against the model declaring it or against the
-    workspace the scene's assets are named from, so try both and take what exists.
+    A relative path is read against the model declaring it, and against nothing else: the
+    directory a generator happens to run from is no part of what a scene states, and a
+    scene that resolves from one place and not another is not a model of anything.
     """
     literal = get_path_of_node(graph=graph, node_id=model)
     path = Path(literal).expanduser()
-    if path.is_absolute():
-        candidates = [path]
-    else:
-        candidates = [base for base in (base_dir, Path.cwd()) if base is not None]
-        candidates = [base / path for base in candidates]
+    if not path.is_absolute():
+        if base_dir is None:
+            raise ConstraintViolation(
+                "model file",
+                f"model '{model}' points at '{literal}', which is relative, and the caller "
+                f"named no directory to read it against",
+            )
+        path = base_dir / path
 
-    for candidate in candidates:
-        if candidate.is_file():
-            return candidate
-    raise ConstraintViolation(
-        "model file",
-        f"model '{model}' points at '{literal}', which is no file: tried "
-        f"{', '.join(str(candidate) for candidate in candidates)}",
-    )
+    if not path.is_file():
+        raise ConstraintViolation(
+            "model file", f"model '{model}' points at '{literal}', which is no file: '{path}'"
+        )
+    return path
 
 
 def _floats(text: str, count: int) -> np.ndarray:

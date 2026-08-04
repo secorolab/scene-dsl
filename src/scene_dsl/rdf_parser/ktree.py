@@ -81,8 +81,9 @@ def typed(nodes, node_type: URIRef, graph: Graph) -> set[URIRef]:
     return {node for node in uris(nodes) if (node, RDF.type, node_type) in graph}
 
 
-def only_tree(trees: set[URIRef], claim: str) -> URIRef:
-    """The one tree of a set. Which of several it is, is the model's to say, not a reader's."""
+def _ensure_one_tree(trees: set[URIRef], claim: str) -> URIRef:
+    """The tree a narrowing left, once it left one. Which of several it is, if it left
+    several, is the model's to say and not a reader's."""
     if len(trees) != 1:
         raise ConstraintViolation("kinematics", f"{claim}: {sorted(trees, key=str)}")
     return next(iter(trees))
@@ -454,7 +455,7 @@ class _KinematicIndex:
         candidates = {
             tree_id for tree_id in rooted_trees if self.joints_by_tree[tree_id] & touching
         }
-        return only_tree(
+        return _ensure_one_tree(
             candidates or rooted_trees,
             f"body '{body}' is the root of several trees whose joints touch it, so which "
             f"one describes it cannot be told",
@@ -622,7 +623,7 @@ def _top_level_tree(component: _ExpandedComponent, index: _KinematicIndex) -> UR
     if not candidates:
         if not component.parent_joint_by_body:
             return None
-        return only_tree(
+        return _ensure_one_tree(
             rooted,
             f"body '{root}' is joined to others, and is the root of several graphs, so "
             f"which of them the kinematics under it belongs to cannot be told",
@@ -631,7 +632,7 @@ def _top_level_tree(component: _ExpandedComponent, index: _KinematicIndex) -> UR
         return next(iter(candidates))
 
     composed = {held for tree in candidates for held in _trees_held(tree, component, index)}
-    return only_tree(
+    return _ensure_one_tree(
         candidates - composed or candidates,
         f"several trees are rooted at body '{root}' and none of them holds the others, so "
         f"which one names the kinematics under it cannot be told",

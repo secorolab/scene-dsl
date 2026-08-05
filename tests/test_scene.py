@@ -191,6 +191,29 @@ def test_scene_parser_loads_modelled_objects_and_agents():
     assert get_ros_pkg_path(ros_model) == ("test_pkg", "assets/table.xml")
 
 
+def test_scene_instance_resolves_modelled_elements_and_workspace_targets(monkeypatch):
+    parsed = _parse_example_scene()
+    object_id = next(iter(parsed.object_models))
+    agent_id = next(iter(parsed.agent_models))
+    workspace_id = next(iter(parsed.scene_model.workspaces))
+
+    assert parsed.resolve_modelled_element_id(object_id) == object_id
+    assert parsed.resolve_modelled_element_id(agent_id) == agent_id
+    assert parsed.resolve_modelled_element_id(URIRef("urn:test:missing")) is None
+
+    monkeypatch.setattr(parsed.scene_model, "iter_workspace_objects", lambda _: iter([object_id]))
+    assert parsed.resolve_modelled_element_id(workspace_id) == object_id
+
+    other_object_id = next(obj_id for obj_id in parsed.object_models if obj_id != object_id)
+    monkeypatch.setattr(
+        parsed.scene_model,
+        "iter_workspace_objects",
+        lambda _: iter([object_id, other_object_id]),
+    )
+    with pytest.raises(ValueError, match="2 modelled objects"):
+        parsed.resolve_modelled_element_id(workspace_id)
+
+
 def test_element_configuration_stays_on_its_resource():
     model = scenex_metamodel().model_from_file(MODELS_DIR / "lab.scenex")
     scene_instance = model.scene_insts[0]

@@ -1,4 +1,5 @@
 import numpy as np
+from rdf_utils.models.common import ModelBase
 from rdf_utils.models.vocab import (
     URI_EXEC_PRED_HAS_KINEMATICS,
     URI_GEOM_TYPE_KTREE,
@@ -6,7 +7,7 @@ from rdf_utils.models.vocab import (
     URI_KC_TYPE_REVOLUTE_JOINT,
     URI_QUDT_TYPE_QUANTITY,
 )
-from rdflib import RDF, XSD, Literal, URIRef
+from rdflib import RDF, XSD, Graph, Literal, URIRef
 
 from scene_dsl.langs import scenex_metamodel
 from scene_dsl.rdf.scenex import create_scenex_model_graph
@@ -26,6 +27,7 @@ from scene_dsl.rdf.sensors import (
     URI_SOSA_TYPE_PLATFORM,
     URI_SOSA_TYPE_SENSOR,
 )
+from scene_dsl.rdf_parser.sensors import get_update_rate
 
 from .test_common import MODELS_DIR
 
@@ -68,6 +70,9 @@ def test_lab_scenex_agent_tree_link_and_sensors_emit_rdf():
             URI_QUDT_PRED_VALUE,
             Literal(platform_sensor.update_rate, datatype=XSD.double),
         ) in graph
+        assert get_update_rate(graph, ModelBase(platform_sensor.uri, graph=graph)) == (
+            platform_sensor.update_rate
+        )
 
     assert (sensor.uri, RDF.type, URI_SENS_TYPE_CAMERA) in graph
     assert (sensor.uri, URI_SENS_PRED_CAMERA_KIND, CAMERA_TYPES[sensor.cam_type]) in graph
@@ -86,6 +91,14 @@ def test_lab_scenex_agent_tree_link_and_sensors_emit_rdf():
                 URI_SOSA_PRED_OBSERVES,
                 OBSERVED_QUANTITIES[observed],
             ) in graph
+
+
+def test_get_update_rate_accepts_direct_literal_without_model_type():
+    graph = Graph()
+    model = ModelBase(URIRef("urn:test:provider"), types={URIRef("urn:test:unrelated-type")})
+    graph.add((model.id, URI_SENS_PRED_UPDATE_RATE, Literal(5.0)))
+
+    assert get_update_rate(graph, model) == 5.0
 
 
 def test_two_agents_may_each_carry_a_wrist_camera(tmp_path):

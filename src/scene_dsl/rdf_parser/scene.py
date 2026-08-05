@@ -105,7 +105,9 @@ class SceneModel(ModelBase):
                     self.objects.add(element_id)
                 elif predicate == URI_ENV_PRED_HAS_WS:
                     if (element_id, RDF.type, URI_ENV_TYPE_WS) in graph:
-                        self.workspaces[element_id] = WorkspaceModel(ws_id=element_id, graph=graph)
+                        self.workspaces.setdefault(
+                            element_id, WorkspaceModel(ws_id=element_id, graph=graph)
+                        )
                     else:
                         # assume this is a workspace compositions
                         self._load_ws_comp_re(ws_comp_id=element_id, graph=graph)

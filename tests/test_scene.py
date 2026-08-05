@@ -74,6 +74,9 @@ def test_scene_parser_resolves_nested_workspace_compositions():
         assert parsed.workspaces[child_comp.ws.uri].objects == {
             obj.uri for obj in child_comp.objects
         }
+        assert set(parsed.iter_workspace_objects(child_comp.ws.uri)) == {
+            obj.uri for obj in child_comp.objects
+        }
 
 
 def test_scenex_references_scene_and_generates_rdf():

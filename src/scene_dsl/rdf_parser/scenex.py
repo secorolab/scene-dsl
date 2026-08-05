@@ -148,6 +148,25 @@ class SceneInstanceModel(ModelBase):
 
         return RigidBodyModel(body_id=matched_ids[0], graph=graph)
 
+    def resolve_modelled_element_id(self, element_id: URIRef) -> URIRef | None:
+        """Resolve an explicit element or a workspace containing one modelled object."""
+        if element_id in self.object_models or element_id in self.agent_models:
+            return element_id
+        if element_id not in self.scene_model.workspaces:
+            return None
+
+        targets = [
+            obj_id
+            for obj_id in self.scene_model.iter_workspace_objects(element_id)
+            if obj_id in self.object_models
+        ]
+        if len(targets) != 1:
+            raise ValueError(
+                f"workspace target '{element_id.n3(self._ns_manager)}' has "
+                f"{len(targets)} modelled objects; use an explicit object target"
+            )
+        return targets[0]
+
     def resolve_element_root_frame(
         self,
         element_id: URIRef,

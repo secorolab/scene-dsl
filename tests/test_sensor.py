@@ -7,8 +7,8 @@ from rdf_utils.models.vocab import (
     URI_KC_TYPE_REVOLUTE_JOINT,
     URI_QUDT_TYPE_QUANTITY,
 )
-from rdflib.namespace import SOSA
 from rdflib import RDF, XSD, Graph, Literal, URIRef
+from rdflib.namespace import SOSA
 
 from scene_dsl.langs import scenex_metamodel
 from scene_dsl.rdf.scenex import create_scenex_model_graph

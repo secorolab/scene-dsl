@@ -14,12 +14,12 @@ from rdf_utils.models.vocab import (
 )
 from rdf_utils.namespace import NS_MM_QUDT_UNIT, URL_SECORO_MM
 from rdflib import RDF, XSD, Graph, Literal, Namespace, URIRef
+from rdflib.namespace import SOSA
 
 from scene_dsl.classes.sensors import CameraSensorSpec, ForceTorqueSensorSpec, ImuSensorSpec
 from scene_dsl.rdf.geom import ANGLE_UNITS
 
 NS_MM_SENS = Namespace(f"{URL_SECORO_MM}/robot/sensors#")
-NS_SOSA = Namespace("http://www.w3.org/ns/sosa/")
 
 URI_SENS_PRED_CAMERA_KIND = NS_MM_SENS["camera-kind"]
 URI_SENS_PRED_FIELD_OF_VIEW = NS_MM_SENS["field-of-view"]
@@ -30,10 +30,6 @@ URI_SENS_PRED_UPDATE_RATE = NS_MM_SENS["update-rate"]
 URI_SENS_TYPE_CAMERA = NS_MM_SENS["Camera"]
 URI_SENS_TYPE_FORCE_TORQUE_SENSOR = NS_MM_SENS["ForceTorqueSensor"]
 URI_SENS_TYPE_IMU = NS_MM_SENS["IMU"]
-URI_SOSA_PRED_HOSTS = NS_SOSA["hosts"]
-URI_SOSA_PRED_OBSERVES = NS_SOSA["observes"]
-URI_SOSA_TYPE_PLATFORM = NS_SOSA["Platform"]
-URI_SOSA_TYPE_SENSOR = NS_SOSA["Sensor"]
 
 CAMERA_TYPES = {"rgb": NS_MM_SENS["rgb"], "depth": NS_MM_SENS["depth"], "rgbd": NS_MM_SENS["rgbd"]}
 OBSERVED_QUANTITIES = {
@@ -55,11 +51,11 @@ def _add_quantity(
 
 
 def add_sensors(graph: Graph, agn_model) -> None:
-    graph.add((agn_model.modelled_uri, RDF.type, URI_SOSA_TYPE_PLATFORM))
+    graph.add((agn_model.modelled_uri, RDF.type, SOSA.Platform))
     for sensor in agn_model.sensors:
         update_rate_uri = URIRef(f"{sensor.uri}/update-rate")
-        graph.add((sensor.uri, RDF.type, URI_SOSA_TYPE_SENSOR))
-        graph.add((agn_model.modelled_uri, URI_SOSA_PRED_HOSTS, sensor.uri))
+        graph.add((sensor.uri, RDF.type, SOSA.Sensor))
+        graph.add((agn_model.modelled_uri, SOSA.hosts, sensor.uri))
         graph.add((sensor.uri, URI_EXEC_PRED_HAS_KINEMATICS, sensor.frame.uri))
         graph.add((sensor.uri, URI_SENS_PRED_FRAME, sensor.frame.uri))
         graph.add((sensor.uri, URI_SENS_PRED_UPDATE_RATE, update_rate_uri))
@@ -100,4 +96,4 @@ def add_sensors(graph: Graph, agn_model) -> None:
             raise TypeError(f"Unsupported sensor type: {sensor}")
 
         for observed in sensor.observes:
-            graph.add((sensor.uri, URI_SOSA_PRED_OBSERVES, OBSERVED_QUANTITIES[observed]))
+            graph.add((sensor.uri, SOSA.observes, OBSERVED_QUANTITIES[observed]))

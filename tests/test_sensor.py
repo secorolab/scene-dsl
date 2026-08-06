@@ -7,6 +7,7 @@ from rdf_utils.models.vocab import (
     URI_KC_TYPE_REVOLUTE_JOINT,
     URI_QUDT_TYPE_QUANTITY,
 )
+from rdflib.namespace import SOSA
 from rdflib import RDF, XSD, Graph, Literal, URIRef
 
 from scene_dsl.langs import scenex_metamodel
@@ -22,10 +23,6 @@ from scene_dsl.rdf.sensors import (
     URI_SENS_TYPE_CAMERA,
     URI_SENS_TYPE_FORCE_TORQUE_SENSOR,
     URI_SENS_TYPE_IMU,
-    URI_SOSA_PRED_HOSTS,
-    URI_SOSA_PRED_OBSERVES,
-    URI_SOSA_TYPE_PLATFORM,
-    URI_SOSA_TYPE_SENSOR,
 )
 from scene_dsl.rdf_parser.sensors import get_update_rate
 
@@ -52,10 +49,10 @@ def test_lab_scenex_agent_tree_link_and_sensors_emit_rdf():
     assert (tree.uri, RDF.type, URI_GEOM_TYPE_KTREE) in graph
     assert (joint.uri, RDF.type, URI_KC_TYPE_REVOLUTE_JOINT) in graph
     assert (tree.uri, URI_KC_PRED_JOINTS, joint.uri) in graph
-    assert (panda.modelled_uri, RDF.type, URI_SOSA_TYPE_PLATFORM) in graph
+    assert (panda.modelled_uri, RDF.type, SOSA.Platform) in graph
     for platform_sensor in (sensor, ft_sensor, imu_sensor):
-        assert (platform_sensor.uri, RDF.type, URI_SOSA_TYPE_SENSOR) in graph
-        assert (panda.modelled_uri, URI_SOSA_PRED_HOSTS, platform_sensor.uri) in graph
+        assert (platform_sensor.uri, RDF.type, SOSA.Sensor) in graph
+        assert (panda.modelled_uri, SOSA.hosts, platform_sensor.uri) in graph
         assert (
             platform_sensor.uri,
             URI_EXEC_PRED_HAS_KINEMATICS,
@@ -88,7 +85,7 @@ def test_lab_scenex_agent_tree_link_and_sensors_emit_rdf():
         for observed in platform_sensor.observes:
             assert (
                 platform_sensor.uri,
-                URI_SOSA_PRED_OBSERVES,
+                SOSA.observes,
                 OBSERVED_QUANTITIES[observed],
             ) in graph
 

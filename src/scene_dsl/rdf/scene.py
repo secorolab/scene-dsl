@@ -13,6 +13,7 @@ from rdf_utils.models.vocab import (
     URI_ENV_TYPE_WS_WS,
 )
 from rdflib import RDF, Graph, URIRef
+from rdflib.namespace import SOSA, SSN
 
 from scene_dsl.classes.scene import (
     AgentSet,
@@ -68,6 +69,7 @@ def add_ws_set(
 
     for ws in ws_set.workspaces:
         graph.add(triple=(ws.uri, RDF.type, URI_ENV_TYPE_WS))
+        graph.add(triple=(ws.uri, RDF.type, SOSA.Platform))
         graph.add(triple=(ws_set.uri, URI_BDD_PRED_ELEMS, ws.uri))
         if scn_comp_uri is not None:
             graph.add(triple=(scn_comp_uri, URI_ENV_PRED_HAS_WS, ws.uri))
@@ -83,6 +85,7 @@ def add_agn_set(
 
     for agn in agn_set.agents:
         graph.add(triple=(agn.uri, RDF.type, URI_AGN_TYPE_AGN))
+        graph.add(triple=(agn.uri, RDF.type, SSN.System))
         graph.add(triple=(agn_set.uri, URI_BDD_PRED_ELEMS, agn.uri))
         if scn_comp_uri is not None:
             graph.add(triple=(scn_comp_uri, URI_AGN_PRED_HAS_AGN, agn.uri))
@@ -117,6 +120,7 @@ def add_ws_comp(
     seen_ws_comp_uris.add(ws_comp.uri)
 
     graph.add(triple=(ws_comp.ws.uri, RDF.type, URI_ENV_TYPE_WS))
+    graph.add(triple=(ws_comp.ws.uri, RDF.type, SOSA.Platform))
 
     graph.add(triple=(ws_comp.uri, URI_ENV_PRED_OF_WS, ws_comp.ws.uri))
     if len(ws_comp.objects) > 0:

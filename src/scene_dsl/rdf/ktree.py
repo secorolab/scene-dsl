@@ -63,7 +63,6 @@ from rdf_utils.models.vocab import (
     URI_QUDT_UNIT_N_M,
     URI_QUDT_UNIT_RAD_PER_SEC,
     URI_QUDT_UNIT_RAD_PER_SEC2,
-    URI_QUDT_UNIT_DEG,
     URI_QUDT_PRED_QUANTITY_KIND,
     URI_QUDT_PRED_UNIT,
     URI_QUDT_PRED_VALUE,
@@ -88,6 +87,7 @@ from scene_dsl.classes.ktree import (
     SerialJoints,
 )
 from scene_dsl.rdf.geom import (
+    ANGLE_UNITS,
     add_frame,
     add_position_coord,
 )
@@ -102,18 +102,20 @@ ACTUATION_INTERFACE_TYPES = {
 MASS_UNITS = {"kg": URI_QUDT_UNIT_KG, "g": URI_QUDT_UNIT_G}
 INERTIA_UNITS = {"kg*m^2": URI_QUDT_UNIT_KG_M2}
 
-# The joint-limit kinds kc-ext:JointLimitShape admits: which state the bound constrains, the
-# quantity kind its values carry, and the units it may be authored in. Revolute joints only --
-# a prismatic kind would add Length/LinearVelocity rows here.
-JOINT_LIMIT_KINDS = (
-    ("position", URI_KC_STAT_JNT_POSITION, URI_QUDT_QK_ANGLE,
-     {"rad": URI_QUDT_UNIT_RAD, "deg": URI_QUDT_UNIT_DEG}),
-    ("velocity", URI_KC_STAT_JNT_VEL, URI_QUDT_QK_ANG_VEL,
-     {"rad/s": URI_QUDT_UNIT_RAD_PER_SEC, "deg/s": URI_QUDT_UNIT_DEG_PER_SEC}),
-    ("acceleration", URI_KC_STAT_JNT_ACC, URI_QUDT_QK_ANG_ACCEL,
-     {"rad/s^2": URI_QUDT_UNIT_RAD_PER_SEC2, "deg/s^2": URI_QUDT_UNIT_DEG_PER_SEC2}),
-    ("effort", URI_KC_STAT_JNT_FORCE, URI_QUDT_QK_TORQUE, {"N*m": URI_QUDT_UNIT_N_M}),
-)
+ANGULAR_VELOCITY_UNITS = {"rad/s": URI_QUDT_UNIT_RAD_PER_SEC, "deg/s": URI_QUDT_UNIT_DEG_PER_SEC}
+ANGULAR_ACCELERATION_UNITS = {
+    "rad/s^2": URI_QUDT_UNIT_RAD_PER_SEC2,
+    "deg/s^2": URI_QUDT_UNIT_DEG_PER_SEC2,
+}
+EFFORT_UNITS = {"N*m": URI_QUDT_UNIT_N_M}
+
+# Revolute joints only -- a prismatic kind would add Length/LinearVelocity rows.
+JOINT_LIMIT_KINDS = {
+    "position": (URI_KC_STAT_JNT_POSITION, URI_QUDT_QK_ANGLE, ANGLE_UNITS),
+    "velocity": (URI_KC_STAT_JNT_VEL, URI_QUDT_QK_ANG_VEL, ANGULAR_VELOCITY_UNITS),
+    "acceleration": (URI_KC_STAT_JNT_ACC, URI_QUDT_QK_ANG_ACCEL, ANGULAR_ACCELERATION_UNITS),
+    "effort": (URI_KC_STAT_JNT_FORCE, URI_QUDT_QK_TORQUE, EFFORT_UNITS),
+}
 
 
 def add_body(graph: Graph, body) -> None:
@@ -207,11 +209,10 @@ def add_revolute_joint(graph: Graph, joint: RevoluteJoint) -> None:
 
 
 def add_joint_limits(graph: Graph, joint, limits: JointLimits) -> None:
-    """One kc-ext:JointLimit per authored bound: what it limits, on which joint, between which
-    values. A revolute joint that authors no position bound is continuous -- consumers read that
-    from the absence, so nothing is emitted to say it.
+    """One kc-ext:JointLimit per authored bound. A revolute joint with no position bound is
+    continuous: consumers read that from the absence, so nothing is emitted to say it.
     """
-    for field, limit_type, quantity_kind, units in JOINT_LIMIT_KINDS:
+    for field, (limit_type, quantity_kind, units) in JOINT_LIMIT_KINDS.items():
         bounds = getattr(limits, field, None)
         if bounds is None:
             continue

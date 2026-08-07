@@ -33,7 +33,10 @@ from rdf_utils.models.vocab import (
     URI_KC_EXT_PRED_DEPENDENT_JOINT,
     URI_KC_EXT_PRED_INDEPENDENT_JOINT,
     URI_KC_EXT_PRED_MULTIPLIER,
+    URI_KC_EXT_PRED_LOWER,
     URI_KC_EXT_PRED_OFFSET,
+    URI_KC_EXT_PRED_OF_JOINT,
+    URI_KC_EXT_PRED_UPPER,
     URI_KC_EXT_PRED_ROOT,
     URI_KC_EXT_PRED_TIP,
     URI_KC_EXT_TYPE_JOINT_COUPLING,
@@ -50,6 +53,17 @@ from rdf_utils.models.vocab import (
     URI_KC_TYPE_REVOLUTE_JOINT,
     URI_KC_TYPE_REVOLUTE_JOINT_ORIENTED_AXIS,
     URI_KC_TYPE_SERIAL,
+    URI_KC_EXT_TYPE_JOINT_LIMIT,
+    URI_KC_STAT_JNT_ACC,
+    URI_QUDT_QK_ANG_ACCEL,
+    URI_QUDT_QK_ANG_VEL,
+    URI_QUDT_QK_TORQUE,
+    URI_QUDT_UNIT_DEG_PER_SEC,
+    URI_QUDT_UNIT_DEG_PER_SEC2,
+    URI_QUDT_UNIT_N_M,
+    URI_QUDT_UNIT_RAD_PER_SEC,
+    URI_QUDT_UNIT_RAD_PER_SEC2,
+    URI_QUDT_UNIT_DEG,
     URI_QUDT_PRED_QUANTITY_KIND,
     URI_QUDT_PRED_UNIT,
     URI_QUDT_PRED_VALUE,
@@ -60,8 +74,7 @@ from rdf_utils.models.vocab import (
     URI_QUDT_UNIT_KG_M2,
     URI_QUDT_UNIT_RAD,
 )
-from rdf_utils.namespace import NS_MM_KC_EXT, NS_MM_QUDT_UNIT
-from rdflib import RDF, XSD, Graph, Literal, Namespace, URIRef
+from rdflib import RDF, XSD, Graph, Literal, URIRef
 
 from scene_dsl.classes.ktree import (
     JointLimits,
@@ -88,6 +101,19 @@ ACTUATION_INTERFACE_TYPES = {
 
 MASS_UNITS = {"kg": URI_QUDT_UNIT_KG, "g": URI_QUDT_UNIT_G}
 INERTIA_UNITS = {"kg*m^2": URI_QUDT_UNIT_KG_M2}
+
+# The joint-limit kinds kc-ext:JointLimitShape admits: which state the bound constrains, the
+# quantity kind its values carry, and the units it may be authored in. Revolute joints only --
+# a prismatic kind would add Length/LinearVelocity rows here.
+JOINT_LIMIT_KINDS = (
+    ("position", URI_KC_STAT_JNT_POSITION, URI_QUDT_QK_ANGLE,
+     {"rad": URI_QUDT_UNIT_RAD, "deg": URI_QUDT_UNIT_DEG}),
+    ("velocity", URI_KC_STAT_JNT_VEL, URI_QUDT_QK_ANG_VEL,
+     {"rad/s": URI_QUDT_UNIT_RAD_PER_SEC, "deg/s": URI_QUDT_UNIT_DEG_PER_SEC}),
+    ("acceleration", URI_KC_STAT_JNT_ACC, URI_QUDT_QK_ANG_ACCEL,
+     {"rad/s^2": URI_QUDT_UNIT_RAD_PER_SEC2, "deg/s^2": URI_QUDT_UNIT_DEG_PER_SEC2}),
+    ("effort", URI_KC_STAT_JNT_FORCE, URI_QUDT_QK_TORQUE, {"N*m": URI_QUDT_UNIT_N_M}),
+)
 
 
 def add_body(graph: Graph, body) -> None:
@@ -178,29 +204,6 @@ def add_revolute_joint(graph: Graph, joint: RevoluteJoint) -> None:
         )
     if joint.limits is not None:
         add_joint_limits(graph=graph, joint=joint, limits=joint.limits)
-
-
-# The four limit kinds kc-ext:JointLimitShape admits, each with the unit its bound is authored in.
-# Kept local to scene-dsl: these are the only terms the ktree lowering needs from the state
-# vocabulary, and `kc-ext:JointLimit` already carries the shape, so nothing new is minted here.
-NS_KC_STAT = Namespace("https://comp-rob2b.github.io/metamodels/kinematic-chain/state#")
-NS_QUDT_QK = Namespace("http://qudt.org/vocab/quantitykind/")
-
-URI_KC_EXT_TYPE_JOINT_LIMIT = NS_MM_KC_EXT["JointLimit"]
-URI_KC_EXT_PRED_OF_JOINT = NS_MM_KC_EXT["of-joint"]
-URI_KC_EXT_PRED_LOWER = NS_MM_KC_EXT["lower"]
-URI_KC_EXT_PRED_UPPER = NS_MM_KC_EXT["upper"]
-
-JOINT_LIMIT_KINDS = (
-    ("position", NS_KC_STAT["JointPosition"], NS_QUDT_QK["Angle"],
-     {"rad": NS_MM_QUDT_UNIT["RAD"], "deg": NS_MM_QUDT_UNIT["DEG"]}),
-    ("velocity", NS_KC_STAT["JointVelocity"], NS_QUDT_QK["AngularVelocity"],
-     {"rad/s": NS_MM_QUDT_UNIT["RAD-PER-SEC"], "deg/s": NS_MM_QUDT_UNIT["DEG-PER-SEC"]}),
-    ("acceleration", NS_KC_STAT["JointAcceleration"], NS_QUDT_QK["AngularAcceleration"],
-     {"rad/s^2": NS_MM_QUDT_UNIT["RAD-PER-SEC2"], "deg/s^2": NS_MM_QUDT_UNIT["DEG-PER-SEC2"]}),
-    ("effort", NS_KC_STAT["JointForce"], NS_QUDT_QK["Torque"],
-     {"N*m": NS_MM_QUDT_UNIT["N-M"]}),
-)
 
 
 def add_joint_limits(graph: Graph, joint, limits: JointLimits) -> None:

@@ -33,7 +33,10 @@ from rdf_utils.models.vocab import (
     URI_KC_EXT_PRED_DEPENDENT_JOINT,
     URI_KC_EXT_PRED_INDEPENDENT_JOINT,
     URI_KC_EXT_PRED_MULTIPLIER,
+    URI_KC_EXT_PRED_LOWER,
     URI_KC_EXT_PRED_OFFSET,
+    URI_KC_EXT_PRED_OF_JOINT,
+    URI_KC_EXT_PRED_UPPER,
     URI_KC_EXT_PRED_ROOT,
     URI_KC_EXT_PRED_TIP,
     URI_KC_EXT_TYPE_JOINT_COUPLING,
@@ -50,6 +53,16 @@ from rdf_utils.models.vocab import (
     URI_KC_TYPE_REVOLUTE_JOINT,
     URI_KC_TYPE_REVOLUTE_JOINT_ORIENTED_AXIS,
     URI_KC_TYPE_SERIAL,
+    URI_KC_EXT_TYPE_JOINT_LIMIT,
+    URI_KC_STAT_JNT_ACC,
+    URI_QUDT_QK_ANG_ACCEL,
+    URI_QUDT_QK_ANG_VEL,
+    URI_QUDT_QK_TORQUE,
+    URI_QUDT_UNIT_DEG_PER_SEC,
+    URI_QUDT_UNIT_DEG_PER_SEC2,
+    URI_QUDT_UNIT_N_M,
+    URI_QUDT_UNIT_RAD_PER_SEC,
+    URI_QUDT_UNIT_RAD_PER_SEC2,
     URI_QUDT_PRED_QUANTITY_KIND,
     URI_QUDT_PRED_UNIT,
     URI_QUDT_PRED_VALUE,
@@ -63,6 +76,7 @@ from rdf_utils.models.vocab import (
 from rdflib import RDF, XSD, Graph, Literal, URIRef
 
 from scene_dsl.classes.ktree import (
+    JointLimits,
     Actuation,
     FixedJoint,
     JointBase,
@@ -73,6 +87,7 @@ from scene_dsl.classes.ktree import (
     SerialJoints,
 )
 from scene_dsl.rdf.geom import (
+    ANGLE_UNITS,
     add_frame,
     add_position_coord,
 )
@@ -86,6 +101,21 @@ ACTUATION_INTERFACE_TYPES = {
 
 MASS_UNITS = {"kg": URI_QUDT_UNIT_KG, "g": URI_QUDT_UNIT_G}
 INERTIA_UNITS = {"kg*m^2": URI_QUDT_UNIT_KG_M2}
+
+ANGULAR_VELOCITY_UNITS = {"rad/s": URI_QUDT_UNIT_RAD_PER_SEC, "deg/s": URI_QUDT_UNIT_DEG_PER_SEC}
+ANGULAR_ACCELERATION_UNITS = {
+    "rad/s^2": URI_QUDT_UNIT_RAD_PER_SEC2,
+    "deg/s^2": URI_QUDT_UNIT_DEG_PER_SEC2,
+}
+EFFORT_UNITS = {"N*m": URI_QUDT_UNIT_N_M}
+
+# Revolute joints only -- a prismatic kind would add Length/LinearVelocity rows.
+JOINT_LIMIT_KINDS = {
+    "position": (URI_KC_STAT_JNT_POSITION, URI_QUDT_QK_ANGLE, ANGLE_UNITS),
+    "velocity": (URI_KC_STAT_JNT_VEL, URI_QUDT_QK_ANG_VEL, ANGULAR_VELOCITY_UNITS),
+    "acceleration": (URI_KC_STAT_JNT_ACC, URI_QUDT_QK_ANG_ACCEL, ANGULAR_ACCELERATION_UNITS),
+    "effort": (URI_KC_STAT_JNT_FORCE, URI_QUDT_QK_TORQUE, EFFORT_UNITS),
+}
 
 
 def add_body(graph: Graph, body) -> None:
@@ -174,7 +204,45 @@ def add_revolute_joint(graph: Graph, joint: RevoluteJoint) -> None:
             offset_uri=joint.mimic_offset_uri,
             mimic=joint.mimic,
         )
-    # TODO(minhnh): add_joint_limits() with polarity
+    if joint.limits is not None:
+        add_joint_limits(graph=graph, joint=joint, limits=joint.limits)
+
+
+def add_joint_limits(graph: Graph, joint, limits: JointLimits) -> None:
+    """One kc-ext:JointLimit per authored bound. A revolute joint with no position bound is
+    continuous: consumers read that from the absence, so nothing is emitted to say it.
+    """
+    for field, (limit_type, quantity_kind, units) in JOINT_LIMIT_KINDS.items():
+        bounds = getattr(limits, field, None)
+        if bounds is None:
+            continue
+        unit_name = getattr(limits, f"{field}_unit", None)
+        unit = units.get(unit_name)
+        if unit is None:
+            raise ValueError(
+                f"joint '{joint.name}': {field} limit has unit '{unit_name}',"
+                f" expected one of {sorted(units)}"
+            )
+        lower_value, upper_value = bounds
+        if lower_value > upper_value:
+            raise ValueError(
+                f"joint '{joint.name}': {field} limit lower {lower_value}"
+                f" exceeds upper {upper_value}"
+            )
+        limit_uri = joint.namespace[joint.scoped(f"-limit-{field}")]
+        graph.add((limit_uri, RDF.type, URI_KC_EXT_TYPE_JOINT_LIMIT))
+        graph.add((limit_uri, RDF.type, limit_type))
+        graph.add((limit_uri, URI_KC_EXT_PRED_OF_JOINT, joint.uri))
+        for pred, value in (
+            (URI_KC_EXT_PRED_LOWER, lower_value),
+            (URI_KC_EXT_PRED_UPPER, upper_value),
+        ):
+            bound_uri = joint.namespace[joint.scoped(f"-limit-{field}-{'lower' if pred == URI_KC_EXT_PRED_LOWER else 'upper'}")]
+            graph.add((bound_uri, RDF.type, URI_QUDT_TYPE_QUANTITY))
+            graph.add((bound_uri, URI_QUDT_PRED_VALUE, Literal(value, datatype=XSD.double)))
+            graph.add((bound_uri, URI_QUDT_PRED_UNIT, unit))
+            graph.add((bound_uri, URI_QUDT_PRED_QUANTITY_KIND, quantity_kind))
+            graph.add((limit_uri, pred, bound_uri))
 
 
 def add_actuation(

@@ -165,7 +165,7 @@ def _chain_segment_order(segments: list[dict], root: str, tip: str) -> list[str]
 
 
 def _chain_frames(
-    tree: KinematicTreeModel, root: str, order: list[str], graph: Graph
+    tree: KinematicTreeModel, root: str, order: list[str], segments: list[dict], graph: Graph
 ) -> tuple[dict[str, dict], dict[str, int]]:
     """Every frame and body reachable on a chain, as the index of the segment standing for it
     and, for a frame, its pose on that segment.
@@ -195,6 +195,12 @@ def _chain_frames(
                 "index": index,
                 "offset": None if np.allclose(pose, np.eye(4)) else _transform_data(pose),
             }
+    # A chain endpoint is a segment in its own right, and the transform to it is already that
+    # segment's. Naming it directly is exact, so it wins over reaching it from its body.
+    for index, name in enumerate([root, *order]):
+        for segment in segments:
+            if segment["name"] == name and segment["iri"] in frames:
+                frames[segment["iri"]] = {"index": index, "offset": None}
     return frames, bodies
 
 
@@ -206,9 +212,19 @@ def _reachable(tree, chain, segments: list[dict], endpoint_names: dict, graph: G
         _chain_segment_order(
             segments, endpoint_names[chain.root_frame], endpoint_names[chain.tip_frame]
         ),
+        segments,
         graph,
     )
-    return {"frames": frames, "bodies": bodies}
+    return {
+        "frames": frames,
+        "bodies": bodies,
+        # What the chain ends at, for a consumer that means "the tip" without naming a frame.
+        "tip_index": len(
+            _chain_segment_order(
+                segments, endpoint_names[chain.root_frame], endpoint_names[chain.tip_frame]
+            )
+        ),
+    }
 
 
 def build_kdl_trees(graph: Graph, base_dir: Path | None = None) -> list[dict]:

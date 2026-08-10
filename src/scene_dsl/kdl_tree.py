@@ -166,9 +166,9 @@ def _chain_segment_order(segments: list[dict], root: str, tip: str) -> list[str]
 
 def _chain_frames(
     tree: KinematicTreeModel, root: str, order: list[str], graph: Graph
-) -> dict[str, dict]:
-    """Every frame reachable on a chain, as the index of the segment carrying it and its pose
-    on that segment.
+) -> tuple[dict[str, dict], dict[str, int]]:
+    """Every frame and body reachable on a chain, as the index of the segment standing for it
+    and, for a frame, its pose on that segment.
 
     A body carries as many frames as the scene declares, and only a chain endpoint is ever a
     segment of its own, so a frame is found through the body it belongs to rather than by
@@ -177,10 +177,12 @@ def _chain_frames(
     """
     body_by_segment = {_body_name(tree, body): body for body in tree.bodies}
     frames: dict[str, dict] = {}
+    bodies: dict[str, int] = {}
     for index, name in enumerate([root, *order]):
         body = body_by_segment.get(name)
         if body is None:
             continue
+        bodies[str(body)] = index
         for frame in tree.bodies[body].frames:
             placed = get_transform_between_frames(frame, tree.bodies[body].root_frame.id, graph)
             # A frame the scene never places -- a joint anchor's derived origin, say -- sits
@@ -193,11 +195,24 @@ def _chain_frames(
                 "index": index,
                 "offset": None if np.allclose(pose, np.eye(4)) else _transform_data(pose),
             }
-    return frames
+    return frames, bodies
+
+
+def _reachable(tree, chain, segments: list[dict], endpoint_names: dict, graph: Graph) -> dict:
+    """The chain's `frames` and `bodies` lookups, keyed by IRI."""
+    frames, bodies = _chain_frames(
+        tree,
+        endpoint_names[chain.root_frame],
+        _chain_segment_order(
+            segments, endpoint_names[chain.root_frame], endpoint_names[chain.tip_frame]
+        ),
+        graph,
+    )
+    return {"frames": frames, "bodies": bodies}
 
 
 def build_kdl_trees(graph: Graph, base_dir: Path | None = None) -> list[dict]:
-    """Read scene kinematics into a JSON-serializable representation."""
+    """Read plain-data scene kinematics into a JSON-serializable representation."""
     result = []
     for tree in kinematic_trees(graph, base_dir):
         segments = []
@@ -232,16 +247,7 @@ def build_kdl_trees(graph: Graph, base_dir: Path | None = None) -> list[dict]:
                         "iri": str(chain.id),
                         "root": endpoint_names[chain.root_frame],
                         "tip": endpoint_names[chain.tip_frame],
-                        "frames": _chain_frames(
-                            tree,
-                            endpoint_names[chain.root_frame],
-                            _chain_segment_order(
-                                segments,
-                                endpoint_names[chain.root_frame],
-                                endpoint_names[chain.tip_frame],
-                            ),
-                            graph,
-                        ),
+                        **_reachable(tree, chain, segments, endpoint_names, graph),
                         "joints": [
                             {
                                 "name": _declared_name(tree, joint_id),

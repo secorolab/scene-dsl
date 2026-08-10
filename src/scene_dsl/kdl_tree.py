@@ -145,10 +145,12 @@ def _endpoint_segments(
 
 
 def _chain_segment_order(segments: list[dict], root: str, tip: str) -> list[str]:
-    """The segment names KDL's getChain(root, tip) yields, in its order.
+    """The segments `getChain(root, tip)` yields, in its order.
 
-    Walk parents from the tip up to the root, the way the chain is sliced, so a caller can
-    number a frame exactly as the built chain does instead of searching it by name.
+    Not the tree's joint path: `_endpoint_segments` adds a fixed leaf for an endpoint that
+    names a body-local frame, so a slice holds segments the graph has no joint for and the
+    numbering can only be recovered by walking what this target built. Walk parents from the
+    tip up to the root, the way the chain is sliced.
     """
     parent_of = {segment["name"]: segment["parent"] for segment in segments}
     walked: list[str] = []
@@ -170,10 +172,12 @@ def _chain_frames(
     """Every frame and body reachable on a chain, as the index of the segment standing for it
     and, for a frame, its pose on that segment.
 
-    A body carries as many frames as the scene declares, and only a chain endpoint is ever a
-    segment of its own, so a frame is found through the body it belongs to rather than by
-    matching a segment name. Index 0 is the chain root, matching KDL: segment i of the sliced
-    chain is i + 1.
+    Which body a frame sits on and where it sits are the graph's answers, read here through
+    the body model: a body carries as many frames as the scene declares and none of them need
+    be a segment, so a frame is reached through its body rather than by matching a segment
+    name. Only the numbering is this target's -- the built chain counts its root as 0, so
+    segment i of the slice is i + 1, and a consumer can emit the index instead of searching
+    the chain by name.
     """
     body_by_segment = {_body_name(tree, body): body for body in tree.bodies}
     frames: dict[str, dict] = {}

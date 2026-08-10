@@ -6,7 +6,7 @@ from pathlib import Path
 
 import numpy as np
 from rdf_utils.constraints import ConstraintViolation
-from rdf_utils.models.geom_coord import get_transform_between_frames, get_translation_between_points
+from rdf_utils.models.geom_coord import get_translation_between_points
 from rdf_utils.models.vocab import URI_GEOM_PRED_ORIGIN
 from rdf_utils.naming import get_valid_var_name
 from rdflib import Graph, URIRef
@@ -147,10 +147,7 @@ def _endpoint_segments(
 def _chain_segment_order(segments: list[dict], root: str, tip: str) -> list[str]:
     """The segments `getChain(root, tip)` yields, in its order.
 
-    Not the tree's joint path: `_endpoint_segments` adds a fixed leaf for an endpoint that
-    names a body-local frame, so a slice holds segments the graph has no joint for and the
-    numbering can only be recovered by walking what this target built. Walk parents from the
-    tip up to the root, the way the chain is sliced.
+    Not the tree's joint path: `_endpoint_segments` adds leaves the graph has no joint for.
     """
     parent_of = {segment["name"]: segment["parent"] for segment in segments}
     walked: list[str] = []
@@ -169,15 +166,8 @@ def _chain_segment_order(segments: list[dict], root: str, tip: str) -> list[str]
 def _chain_frames(
     tree: KinematicTreeModel, root: str, order: list[str], segments: list[dict], graph: Graph
 ) -> tuple[dict[str, dict], dict[str, int]]:
-    """Every frame and body reachable on a chain, as the index of the segment standing for it
-    and, for a frame, its pose on that segment.
-
-    Which body a frame sits on and where it sits are the graph's answers, read here through
-    the body model: a body carries as many frames as the scene declares and none of them need
-    be a segment, so a frame is reached through its body rather than by matching a segment
-    name. Only the numbering is this target's -- the built chain counts its root as 0, so
-    segment i of the slice is i + 1, and a consumer can emit the index instead of searching
-    the chain by name.
+    """Numbering for what the graph placed: the segment each frame and body sits on, and for
+    a frame its pose there. The chain counts its root as 0, so slice segment i is i + 1.
     """
     body_by_segment = {_body_name(tree, body): body for body in tree.bodies}
     frames: dict[str, dict] = {}
@@ -187,20 +177,13 @@ def _chain_frames(
         if body is None:
             continue
         bodies[str(body)] = index
-        for frame in tree.bodies[body].frames:
-            placed = get_transform_between_frames(frame, tree.bodies[body].root_frame.id, graph)
-            # A frame the scene never places -- a joint anchor's derived origin, say -- sits
-            # nowhere on the body, so it is not somewhere a pose can be asked for. Leaving it
-            # out is what makes a model that names it fail where it names it.
-            if placed is None and frame != tree.bodies[body].root_frame.id:
-                continue
-            pose = _pose_matrix(tree.bodies[body].pose_of(frame, graph))
+        for frame, placed in tree.bodies[body].placed_frames(graph).items():
+            pose = _pose_matrix(placed)
             frames[str(frame)] = {
                 "index": index,
                 "offset": None if np.allclose(pose, np.eye(4)) else _transform_data(pose),
             }
-    # A chain endpoint is a segment in its own right, and the transform to it is already that
-    # segment's. Naming it directly is exact, so it wins over reaching it from its body.
+    # An endpoint is a segment itself, so its own transform beats reaching it from its body.
     index_by_segment = {name: index for index, name in enumerate([root, *order])}
     for segment in segments:
         index = index_by_segment.get(segment["name"])

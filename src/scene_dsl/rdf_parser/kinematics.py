@@ -314,6 +314,19 @@ class RigidBodyModel(ModelBase):
             )
         return pose
 
+    def placed_frames(self, graph: Graph) -> dict[URIRef, RigidTransform]:
+        """The body's frames the scene places, each as its pose on the body.
+
+        A frame the scene never places -- a joint anchor's derived origin -- sits nowhere on
+        the body, so it is left out rather than assumed to coincide with the root.
+        """
+        placed = {self.root_frame.id: RigidTransform.identity()}
+        for frame in sorted(self.frames - {self.root_frame.id}, key=str):
+            pose = get_transform_between_frames(frame, self.root_frame.id, graph)
+            if pose is not None:
+                placed[frame] = pose
+        return placed
+
     def mass_properties(
         self, graph: Graph, owner: URIRef | None = None, base_dir: Path | None = None
     ) -> MassProperties:

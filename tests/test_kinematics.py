@@ -427,3 +427,31 @@ def test_the_generated_header_compiles(tmp_path):
     )
     assert built.returncode == 0, built.stderr
     assert subprocess.run([str(tmp_path / "main")], cwd=tmp_path, check=False).returncode == 0
+
+
+def test_a_chain_places_every_frame_it_reaches(tmp_path):
+    """A consumer resolves a frame while generating, so the chain says where each one sits.
+
+    Only an endpoint is a segment of its own; any other frame a body carries is reached through
+    that body, which is what lets a model name one without it having to be a segment.
+    """
+    trees = build_kdl_trees(_graph(tmp_path), tmp_path)
+    chain = next(c for c in trees[0]["chains"] if c["name"] == "arm/chain")
+
+    anchor = "https://example.test/arm/base/j1_anchor"
+    assert chain["frames"][anchor]["index"] == 0
+    assert chain["frames"][anchor]["offset"]["translation"] == pytest.approx((0.0, 0.0, 0.15))
+    # The body's own root frame is where the segment already is.
+    assert chain["frames"]["https://example.test/arm/base/base_origin"]["offset"] is None
+    assert chain["bodies"]["https://example.test/arm/base"] == 0
+    assert chain["tip_index"] == len(_chain_segment_names(trees[0], chain))
+
+
+def _chain_segment_names(tree, chain) -> list:
+    """The segments between the chain's root and its tip, walked the way KDL slices them."""
+    parent = {segment["name"]: segment["parent"] for segment in tree["segments"]}
+    walked, current = [], chain["tip"]
+    while current != chain["root"]:
+        walked.append(current)
+        current = parent[current]
+    return walked

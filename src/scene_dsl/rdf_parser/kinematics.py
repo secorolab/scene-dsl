@@ -314,6 +314,21 @@ class RigidBodyModel(ModelBase):
             )
         return pose
 
+    def pose_by_frame(self, graph: Graph) -> dict[URIRef, RigidTransform]:
+        """Every frame of the body that has a pose, with that pose on the body.
+
+        The root frame is where the body is, so it needs no pose and comes back as identity.
+        Every other frame needs one to be somewhere. A frame the scene declares without ever
+        saying where on the body it sits is left out, rather than placed at the body's origin,
+        which would invent a position.
+        """
+        poses = {self.root_frame.id: RigidTransform.identity()}
+        for frame in sorted(self.frames - {self.root_frame.id}, key=str):
+            pose = get_transform_between_frames(frame, self.root_frame.id, graph)
+            if pose is not None:
+                poses[frame] = pose
+        return poses
+
     def mass_properties(
         self, graph: Graph, owner: URIRef | None = None, base_dir: Path | None = None
     ) -> MassProperties:

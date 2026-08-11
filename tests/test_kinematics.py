@@ -273,8 +273,12 @@ def test_a_frame_needs_a_pose_to_be_placed_on_its_body(tmp_path):
         base.pose_of(URIRef("https://example.test/arm/base/nowhere"), graph)
 
 
-def test_kdl_ir_is_json_and_keeps_chain_endpoint_frames(tmp_path):
-    """A KDL chain reaches its named tool frame, rather than stopping at its body root."""
+def test_kdl_ir_is_json_and_holds_every_placed_frame(tmp_path):
+    """Every frame the scene places on a body is a segment, so KDL can reach it by name.
+
+    A frame no chain runs to -- the joint anchor here -- is a fixed leaf of the body that
+    carries it, which is what lets a solver ask for its pose at all.
+    """
     graph = _graph(tmp_path)
     trees = build_kdl_trees(graph, tmp_path)
 
@@ -283,6 +287,7 @@ def test_kdl_ir_is_json_and_keeps_chain_endpoint_frames(tmp_path):
     assert tree["root"] == "arm/base"
     assert tree["cpp_name"] == "arm_tool"
     assert {segment["name"] for segment in tree["segments"]} == {
+        "arm/base/j1_anchor",
         "arm/link1",
         "arm/link1/tcp",
         "tool/tool_base",
@@ -290,6 +295,10 @@ def test_kdl_ir_is_json_and_keeps_chain_endpoint_frames(tmp_path):
     }
     link1 = next(segment for segment in tree["segments"] if segment["name"] == "arm/link1")
     assert link1["transform"]["translation"] == pytest.approx((0.0, 0.0, 0.15))
+    anchor = next(s for s in tree["segments"] if s["name"] == "arm/base/j1_anchor")
+    assert anchor["transform"]["translation"] == pytest.approx((0.0, 0.0, 0.15))
+    assert anchor["transform"]["rotation"] == pytest.approx((1.0, 0.0, 0.0, 0.0), abs=1e-9)
+    assert anchor["joint"] is None and anchor["inertia"] is None
     assert {
         chain["name"]: (chain["root"], chain["tip"], chain["joints"]) for chain in tree["chains"]
     } == {
@@ -378,8 +387,10 @@ def test_the_generated_header_compiles(tmp_path):
     compiler = shutil.which("g++") or shutil.which("clang++")
     includes = [Path(base) for base in ("/usr/include", "/usr/local/include")]
     kdl = next((base for base in includes if (base / "kdl" / "tree.hpp").is_file()), None)
-    if compiler is None or kdl is None:
-        pytest.skip("needs a C++ compiler and the KDL headers")
+    # KDL's solver headers include Eigen by its own name, which is not on the default path.
+    eigen = next((base / "eigen3" for base in includes if (base / "eigen3").is_dir()), None)
+    if compiler is None or kdl is None or eigen is None:
+        pytest.skip("needs a C++ compiler, the KDL headers and Eigen")
 
     graph = _graph(tmp_path)
     env = Environment(
@@ -401,12 +412,21 @@ def test_the_generated_header_compiles(tmp_path):
     main.write_text(
         '#include "scene.kdl.hpp"\n'
         '#include "scene.kdl.hpp"\n'
+        "#include <cmath>\n"
+        "#include <kdl/jntarray.hpp>\n"
+        "#include <kdl/treefksolverpos_recursive.hpp>\n"
         "int main() {\n"
         "  KDL::Tree tree;\n"
         "  KDL::Chain chain;\n"
-        "  return scene::make_tree_arm_tool(&tree) &&\n"
-        "         scene::make_chain_arm_tool_chain(tree, &chain) &&\n"
-        "         scene::kIris.size() > 0 ? 0 : 1;\n"
+        "  if (!(scene::make_tree_arm_tool(&tree) &&\n"
+        "        scene::make_chain_arm_tool_chain(tree, &chain) &&\n"
+        "        scene::kIris.size() > 0)) return 1;\n"
+        "  KDL::TreeFkSolverPos_recursive fk(tree);\n"
+        "  KDL::JntArray q(tree.getNrOfJoints());\n"
+        "  KDL::Frame anchor;\n"
+        '  if (fk.JntToCart(q, anchor, "arm/base/j1_anchor") < 0) return 1;\n'
+        "  if (std::abs(anchor.p.z() - 0.15) > 1e-9) return 1;\n"
+        "  return 0;\n"
         "}\n"
     )
     built = subprocess.run(
@@ -415,6 +435,8 @@ def test_the_generated_header_compiles(tmp_path):
             "-std=c++17",
             "-I",
             str(kdl),
+            "-I",
+            str(eigen),
             str(main),
             "-o",
             str(tmp_path / "main"),
@@ -432,8 +454,8 @@ def test_the_generated_header_compiles(tmp_path):
 def test_a_chain_places_every_frame_it_reaches(tmp_path):
     """A consumer resolves a frame while generating, so the chain says where each one sits.
 
-    Only an endpoint is a segment of its own; any other frame a body carries is reached through
-    that body, which is what lets a model name one without it having to be a segment.
+    Every placed frame is a segment of the tree; this table is the chain's own numbering of
+    the ones it reaches, since a solver taking segment indices cannot take a name.
     """
     trees = build_kdl_trees(_graph(tmp_path), tmp_path)
     chain = next(c for c in trees[0]["chains"] if c["name"] == "arm/chain")
@@ -445,6 +467,20 @@ def test_a_chain_places_every_frame_it_reaches(tmp_path):
     assert chain["frames"]["https://example.test/arm/base/base_origin"]["offset"] is None
     assert chain["bodies"]["https://example.test/arm/base"] == 0
     assert chain["tip_index"] == len(_chain_segment_names(trees[0], chain))
+
+
+def test_a_frames_offset_is_the_leaf_the_tree_holds_for_it(tmp_path):
+    """One representation: the chain's offset for a frame is the transform of that
+    frame's own segment, not a second reading of the graph."""
+    [tree] = build_kdl_trees(_graph(tmp_path), tmp_path)
+    transforms = {segment["name"]: segment["transform"] for segment in tree["segments"]}
+    chain = next(c for c in tree["chains"] if c["name"] == "arm_tool/chain")
+
+    tcp = "https://example.test/arm/link1/tcp"
+    assert chain["frames"][tcp]["offset"] == transforms["arm/link1/tcp"]
+    # The same frame is that chain's tip, so there it is a segment and carries no offset.
+    arm = next(c for c in tree["chains"] if c["name"] == "arm/chain")
+    assert arm["frames"][tcp] == {"index": arm["tip_index"], "offset": None}
 
 
 def _chain_segment_names(tree, chain) -> list:

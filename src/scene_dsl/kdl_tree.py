@@ -127,7 +127,7 @@ def _frame_segments(tree: KinematicTreeModel, graph: Graph) -> tuple[list[dict],
     segments = []
     for body, model in sorted(tree.bodies.items(), key=lambda item: str(item[0])):
         body_name = _body_name(tree, body)
-        for frame, placed in model.placed_frames(graph).items():
+        for frame, pose in model.pose_by_frame(graph).items():
             if frame == model.root_frame.id:
                 names[frame] = body_name
                 continue
@@ -138,7 +138,7 @@ def _frame_segments(tree: KinematicTreeModel, graph: Graph) -> tuple[list[dict],
                     "iri": str(frame),
                     "parent": body_name,
                     "joint": None,
-                    "transform": _transform_data(_pose_matrix(placed)),
+                    "transform": _transform_data(_pose_matrix(pose)),
                     "inertia": None,
                 }
             )

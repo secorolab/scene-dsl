@@ -82,10 +82,7 @@ class InstancedRefScopeProvider(scoping_providers.FQNImportURI):
 
     def __call__(self, obj, attr, obj_ref):
         head, _, path = obj_ref.obj_name.partition(".")
-        model = get_model(obj)
-        # Duplicate tree names collide on their IRI, and are reported there.
-        trees = getattr(model, "ktrees", [])
-        tree = next((t for t in trees if t.name == head and getattr(t, "template", None)), None)
+        tree = _find_instanced_tree(get_model(obj), head)
         if tree is None or not path:
             return super().__call__(obj, attr, obj_ref)
         if not isinstance(tree.template, KinematicTreeTemplate):
@@ -97,10 +94,28 @@ class InstancedRefScopeProvider(scoping_providers.FQNImportURI):
             obj_ref.scope_provider,
             obj_ref.match_rule_name,
         )
-        target = super().__call__(obj, attr, in_template)
+        # Resolve from the tree's own model: its template is only imported there.
+        target = super().__call__(tree, attr, in_template)
         if target is not None:
-            _pending_refs(model).append((obj, attr.name, tree, target))
+            _pending_refs(get_model(obj)).append((obj, attr.name, tree, target))
         return target
+
+
+def _loaded_models(model) -> list:
+    """This model and every model loaded alongside it, imports included."""
+    repo = getattr(model, "_tx_model_repository", None)
+    return [model, *(m for m in repo.all_models if m is not model)] if repo is not None else [model]
+
+
+def _find_instanced_tree(model, name):
+    """The instanced tree called `name`, declared here or in any model loaded with this one."""
+    # Duplicate tree names collide on their IRI, and are reported there.
+    for m in _loaded_models(model):
+        for tree in getattr(m, "ktrees", []):
+            # By type, not by a resolved template: an imported model resolves after this one.
+            if tree.name == name and isinstance(tree, KinematicTreeInstance):
+                return tree
+    return None
 
 
 def _pending_refs(model) -> list:
@@ -141,17 +156,25 @@ def check_self_contained(template) -> None:
 def build_instance_trees(model, metamodel):
     """Fill each instanced tree from its template, then land the refs written into it.
 
-    An imported model can reach this processor before its template reference resolves;
-    leave that instance for the caller's later resolution pass.
+    An imported model reaches this processor before its template reference resolves, so
+    fill the imports from here too -- by then every model in the set is resolved.
     """
-    for tree in get_children_of_type(KinematicTreeInstance, model):
-        if tree.template is None or tree.bodies:
-            continue
-        check_self_contained(tree.template)
-        tree.copy_template()
+    models = _loaded_models(model)
+    for m in models:
+        for tree in get_children_of_type(KinematicTreeInstance, m):
+            _fill_from_template(tree)
 
-    for obj, attr_name, tree, target in _pending_refs(model):
-        setattr(obj, attr_name, tree.copies[id(target)])
+    for m in models:
+        # Landing twice is harmless: the recorded target stays the template's element.
+        for obj, attr_name, tree, target in _pending_refs(m):
+            setattr(obj, attr_name, tree.copies[id(target)])
+
+
+def _fill_from_template(tree) -> None:
+    if tree.template is None or tree.bodies:
+        return
+    check_self_contained(tree.template)
+    tree.copy_template()
 
 
 def check_tree_composition(model, metamodel):

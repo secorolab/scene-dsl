@@ -20,12 +20,14 @@ class KinematicTreeTemplate(IHasParent):
     """A device described without being any particular one: it mints no IRI."""
 
     name: str
+    root_frame: Frame
     bodies: list[RigidBody]
     joints_spec: JointsSpec
 
-    def __init__(self, parent, name, bodies, joints_spec) -> None:
+    def __init__(self, parent, name, root_frame, bodies, joints_spec) -> None:
         super().__init__(parent=parent)
         self.name = name
+        self.root_frame = root_frame
         self.bodies = bodies
         self.joints_spec = joints_spec
 
@@ -39,20 +41,30 @@ class KinematicGraph(IHasNamespaceDeclare, IDefaultFrame):
 
     name: str
     trees: list[KinematicTreeModel]
-    bodies: list[RigidBody]
+    _bodies: list[RigidBody]
     joints_spec: JointsSpec | None
+    # The frame the graph stands on: where its ground meets the body everything else is
+    # placed against. A tree hangs from its root instead, so it declares none.
+    anchor: Frame | None
 
-    def __init__(self, parent, ns, name, trees, bodies, joints_spec) -> None:
+    def __init__(self, parent, ns, name, trees, bodies, joints_spec, anchor) -> None:
         super().__init__(parent=parent, ns=ns, name=name)
         self.trees = trees
-        self.bodies = bodies
-        self.joints_spec = joints_spec
+        self._bodies = bodies
+        self._joints_spec = joints_spec
+        self.anchor = anchor
+
+    @property
+    def bodies(self) -> list[RigidBody]:
+        if self._bodies is None:
+            raise RuntimeError(f"bodies not initialized for {self}")
+        return self._bodies
 
     @property
     def subtrees(self) -> dict[int, KinematicGraph]:
         """This graph and every tree composed below it, keyed by identity."""
         found: dict[int, KinematicGraph] = {}
-        stack = [self]
+        stack: list[KinematicGraph] = [self]
         while stack:
             tree = stack.pop()
             # A tree may be composed by two others, or -- nothing forbids it -- by itself.
@@ -93,8 +105,22 @@ class KinematicGraph(IHasNamespaceDeclare, IDefaultFrame):
 class KinematicTreeModel(KinematicGraph):
     """A graph with one root -- the body no joint attaches -- and no loops."""
 
-    def __init__(self, parent, ns, name, trees, bodies, joints_spec) -> None:
-        super().__init__(parent, ns, name, trees, bodies, joints_spec)
+    _root_frame: Frame | None
+
+    def __init__(self, parent, ns, name, root_frame, trees, bodies, joints_spec) -> None:
+        # A tree hangs from its root, so it declares no anchor: only a graph stands on one.
+        super().__init__(parent, ns, name, trees, bodies, joints_spec, anchor=None)
+        self._root_frame = root_frame
+
+    @property
+    def root_frame(self) -> Frame:
+        if self._root_frame is None:
+            raise RuntimeError(f"root frame not initialized for {self}")
+        return self._root_frame
+
+    @root_frame.setter
+    def root_frame(self, value: Frame | None) -> None:
+        self._root_frame = value
 
     def composition_cycle(self) -> list[KinematicTreeModel]:
         """The chain of composed trees leading from this tree back to itself, if any."""
@@ -118,7 +144,9 @@ class KinematicTreeInstance(KinematicTreeModel):
     """A concrete tree copied from a namespace-less template."""
 
     def __init__(self, parent, ns, name, template) -> None:
-        super().__init__(parent, ns, name, trees=[], bodies=[], joints_spec=None)
+        # The template's structure is copied in by copy_template, which is what fills the root
+        # frame: an instance cannot name it before its own copy of that frame exists.
+        super().__init__(parent, ns, name, root_frame=None, trees=[], bodies=[], joints_spec=None)
         self.template = template
 
     def copy_template(self) -> None:
@@ -129,8 +157,10 @@ class KinematicTreeInstance(KinematicTreeModel):
         internal references follow onto the copies.
         """
         memo: dict[int, Any] = {id(self.template): self}
-        self.bodies = deepcopy(self.template.bodies, memo)
+        self._bodies = deepcopy(self.template.bodies, memo)
         self.joints_spec = deepcopy(self.template.joints_spec, memo)
+        # After the bodies, so this lands on the copied frame rather than a second copy.
+        self._root_frame = deepcopy(self.template.root_frame, memo)
         self.copies = memo
 
 

@@ -8,6 +8,7 @@ Polarity: 'PositivePolarity' | 'NegativePolarity' ;
 
 KinematicGraph:
 'kgraph' '(' 'ns' '=' ns=[NamespaceDeclare|FQN] ')' name=IRI_TRUNK '{'
+    'anchor' ':' '<' anchor=[Frame|FQN] '>'
     ( 'tree' '<' trees+=[KinematicTreeModel|FQN] '>' )*
     bodies*=RigidBody
     (joints_spec=JointsSpec)?
@@ -16,6 +17,7 @@ KinematicGraph:
 
 KinematicTreeTemplate:
 'ktree' name=IRI_TRUNK '{'
+    'root' ':' '<' root_frame=[Frame|FQN] '>'
     bodies*=RigidBody
     joints_spec=JointsSpec
 '}'
@@ -30,6 +32,7 @@ KinematicTreeInstance:
 
 KinematicTreeModel:
 'ktree' '(' 'ns' '=' ns=[NamespaceDeclare|FQN] ')' name=IRI_TRUNK '{'
+    'root' ':' '<' root_frame=[Frame|FQN] '>'
     ( 'tree' '<' trees+=[KinematicTreeModel|FQN] '>' )*
     bodies*=RigidBody
     joints_spec=JointsSpec

@@ -27,6 +27,7 @@ scene inst (ns=scene_lab_mjc) sampled_poses {
     scene: <pickplace_scene>
     // No joints: these bodies are placed, not attached, which is a graph's business.
     kgraph (ns=scene_lab_mjc) sampled_poses_graph {
+        anchor: <world.root>
         body world { frame root { } }
         body table {
             frame surface {

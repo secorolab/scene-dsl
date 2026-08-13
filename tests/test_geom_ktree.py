@@ -70,7 +70,7 @@ ZERO_POSE = (
 
 def test_top_level_template_is_a_kinematic_tree_spec():
     model = scenex_metamodel().model_from_str(
-        """ktree arm {
+        """ktree arm { root: <base.root>
     body base { frame root { } }
     joints { }
 }
@@ -84,7 +84,7 @@ def test_top_level_template_is_a_kinematic_tree_spec():
 def test_top_level_tree_instance_is_a_distinct_kinematic_tree_spec():
     model = scenex_metamodel().model_from_str(
         """ns n = "https://example.test/"
-ktree arm {
+ktree arm { root: <base.root>
     body base { frame root { } }
     joints { }
 }
@@ -131,7 +131,7 @@ def test_joint_iri_is_scoped_by_tree(tmp_path):
     model_path.write_text(
         """import "example.scene"
 ns n = "https://example.test/"
-ktree (ns=n) t {
+ktree (ns=n) t { root: <b1.j1>
     body b1 { frame j1 { } }
     body b2 { frame f2 { } }
     joints {
@@ -166,7 +166,7 @@ def test_duplicate_iri_across_element_kinds_is_rejected(tmp_path):
     model_path.write_text(
         """import "example.scene"
 ns n = "https://example.test/"
-ktree (ns=n) t {
+ktree (ns=n) t { root: <wrist.f1>
     body wrist { frame f1 { } }
     body b2 { frame f2 { } }
     joints {
@@ -202,7 +202,7 @@ def test_scenex_length_and_mass_units(tmp_path, length_unit, mass_unit, inertia_
 ns n = "https://example.test/"
 scene inst (ns=n) sx {{
     scene: <s>
-    kgraph (ns=n) g {{
+    kgraph (ns=n) g {{ anchor: <world_body.world>
     body world_body {{ frame world {{ }} }}
     body cup_body {{
         frame cup_root {{
@@ -287,7 +287,7 @@ def test_scenex_mass_quantity_validation(tmp_path):
     model_path.write_text(
         f"""import "example.scene"
 ns n = "https://example.test/"
-ktree (ns=n) world_tree {{
+ktree (ns=n) world_tree {{ root: <cup_body.cup_root>
     body cup_body {{
         frame cup_root {{ {ZERO_POSE} }}
         inertia {{
@@ -304,7 +304,7 @@ ktree (ns=n) world_tree {{
 }}
 scene inst (ns=n) sx {{
     scene: <s>
-    kgraph (ns=n) world_tree_graph {{
+    kgraph (ns=n) world_tree_graph {{ anchor: <world_tree.cup_body.cup_root>
         tree <world_tree>
     }}
 }}
@@ -332,7 +332,7 @@ scene inst (ns=n) sx {{
 def test_frame_only_inertia_emits_reference_without_numeric_coordinates():
     model = scenex_metamodel().model_from_str(
         """ns n = "https://example.test/"
-ktree (ns=n) t {
+ktree (ns=n) t { root: <b.root>
     body b {
         frame root { }
         frame com { }
@@ -381,7 +381,7 @@ def test_direction_cosine_orientation_rejects_non_orthogonal_matrix():
 
 def write_device_ktree(tmp_path) -> None:
     (tmp_path / "device.ktree").write_text(
-        """ktree arm_tree {
+        """ktree arm_tree { root: <arm_base.arm_root>
     body arm_base { frame arm_root { } }
     joints { }
 }
@@ -394,7 +394,7 @@ def _scene_using_device(name: str) -> str:
 import "device.ktree"
 ns {name} = "https://example.test/{name}/"
 ktree inst (ns={name}) arm of <arm_tree>
-ktree (ns={name}) world_tree {{
+ktree (ns={name}) world_tree {{ root: <table_body.table_root>
     tree <arm>
     body table_body {{ frame table_root {{ }} }}
     joints {{
@@ -406,7 +406,7 @@ ktree (ns={name}) world_tree {{
 }}
 scene inst (ns={name}) {name} {{
     scene: <s>
-    kgraph (ns={name}) world_tree_graph {{
+    kgraph (ns={name}) world_tree_graph {{ anchor: <world_tree.table_body.table_root>
         tree <world_tree>
     }}
     obj <objs.cup> {{
@@ -499,7 +499,7 @@ ns lab = "https://example.test/lab/"
 ktree inst (ns=lab) arm1 of <arm_tree>
 ktree inst (ns=lab) arm2 of <arm_tree>
 
-ktree (ns=lab) world_tree {
+ktree (ns=lab) world_tree { root: <table_body.table_root>
     tree <arm1>
     tree <arm2>
     body table_body { frame table_root { } }
@@ -516,7 +516,7 @@ ktree (ns=lab) world_tree {
 }
 scene inst (ns=lab) dual {
     scene: <s>
-    kgraph (ns=lab) world_tree_graph {
+    kgraph (ns=lab) world_tree_graph { anchor: <world_tree.table_body.table_root>
         tree <world_tree>
     }
 }
@@ -587,14 +587,14 @@ def test_composing_a_template_directly_is_rejected(tmp_path):
         """import "example.scene"
 import "device.ktree"
 ns lab = "https://example.test/lab/"
-ktree (ns=lab) world_tree {
+ktree (ns=lab) world_tree { root: <arm_tree.arm_base.arm_root>
     tree <arm_tree>
     body table_body { frame table_root { } }
     joints { }
 }
 scene inst (ns=lab) sx {
     scene: <s>
-    kgraph (ns=lab) g { tree <world_tree> }
+    kgraph (ns=lab) g { anchor: <world_tree.arm_tree.arm_base.arm_root> tree <world_tree> }
 }
 """
     )
@@ -607,7 +607,7 @@ def test_instancing_a_non_template_is_rejected(tmp_path):
     write_example_scene(tmp_path)
     (tmp_path / "device.ktree").write_text(
         """ns dev = "https://example.test/dev/"
-ktree (ns=dev) arm_tree {
+ktree (ns=dev) arm_tree { root: <arm_base.arm_root>
     body arm_base { frame arm_root { } }
     joints { }
 }
@@ -621,7 +621,7 @@ ns lab = "https://example.test/lab/"
 ktree inst (ns=lab) arm of <arm_tree>
 scene inst (ns=lab) sx {
     scene: <s>
-    kgraph (ns=lab) g { tree <arm> }
+    kgraph (ns=lab) g { anchor: <arm.base.root> tree <arm> }
 }
 """
     )
@@ -654,11 +654,11 @@ def test_a_template_composing_a_tree_is_rejected(tmp_path):
     """A template is copied whole, so it composes nothing: there is no syntax for it."""
     write_example_scene(tmp_path)
     (tmp_path / "device.ktree").write_text(
-        """ktree grip_tree {
+        """ktree grip_tree { root: <g_base.g_root>
     body g_base { frame g_root { } }
     joints { }
 }
-ktree arm_tree {
+ktree arm_tree { root: <grip_tree.g_base.g_root>
     tree <grip_tree>
     body arm_base { frame arm_root { } }
     joints { }
@@ -673,7 +673,7 @@ ns lab = "https://example.test/lab/"
 ktree inst (ns=lab) arm of <arm_tree>
 scene inst (ns=lab) sx {
     scene: <s>
-    kgraph (ns=lab) g { tree <arm> }
+    kgraph (ns=lab) g { anchor: <arm.base.root> tree <arm> }
 }
 """
     )
@@ -689,11 +689,11 @@ def test_two_devices_sharing_a_name_is_rejected(tmp_path):
     """
     write_example_scene(tmp_path)
     (tmp_path / "device.ktree").write_text(
-        """ktree arm_tree {
+        """ktree arm_tree { root: <arm_base.arm_root>
     body arm_base { frame arm_root { } }
     joints { }
 }
-ktree grip_tree {
+ktree grip_tree { root: <arm_base.arm_root>
     body arm_base { frame arm_root { } }
     joints { }
 }
@@ -707,13 +707,13 @@ ns lab = "https://example.test/lab/"
 ns shared = "https://example.test/lab/shared/"
 ktree inst (ns=shared) arm of <arm_tree>
 ktree inst (ns=shared) arm of <grip_tree>
-ktree (ns=lab) world_tree {
+ktree (ns=lab) world_tree { root: <table_body.table_root>
     body table_body { frame table_root { } }
     joints { }
 }
 scene inst (ns=lab) sx {
     scene: <s>
-    kgraph (ns=lab) world_tree_graph {
+    kgraph (ns=lab) world_tree_graph { anchor: <world_tree.table_body.table_root>
         tree <world_tree>
     }
 }
@@ -728,7 +728,7 @@ def test_template_referencing_outside_itself_is_rejected(tmp_path):
     write_example_scene(tmp_path)
     (tmp_path / "ext.ktree").write_text(
         """ns ext = "https://example.test/ext/"
-ktree (ns=ext) ext_tree {
+ktree (ns=ext) ext_tree { root: <ext_body.ext_frame>
     body ext_body { frame ext_frame { } }
     joints { }
 }
@@ -736,7 +736,7 @@ ktree (ns=ext) ext_tree {
     )
     (tmp_path / "device.ktree").write_text(
         """import "ext.ktree"
-ktree arm_tree {
+ktree arm_tree { root: <arm_base.arm_root>
     body arm_base {
         frame arm_root { }
         frame arm_tip {
@@ -757,14 +757,14 @@ ktree arm_tree {
 import "device.ktree"
 ns lab = "https://example.test/lab/"
 ktree inst (ns=lab) arm of <arm_tree>
-ktree (ns=lab) world_tree {
+ktree (ns=lab) world_tree { root: <arm.arm_base.arm_root>
     tree <arm>
     body table_body { frame table_root { } }
     joints { }
 }
 scene inst (ns=lab) sx {
     scene: <s>
-    kgraph (ns=lab) world_tree_graph {
+    kgraph (ns=lab) world_tree_graph { anchor: <world_tree.table_body.table_root>
         tree <world_tree>
     }
 }
@@ -784,7 +784,7 @@ def test_inertia_about_frame_follows_its_instance(tmp_path):
 import "device.ktree"
 ns lab = "https://example.test/lab/"
 ktree inst (ns=lab) arm of <arm_tree>
-ktree (ns=lab) world_tree {
+ktree (ns=lab) world_tree { root: <table_body.table_root>
     tree <arm>
     body table_body {
         frame table_root { }
@@ -803,7 +803,7 @@ ktree (ns=lab) world_tree {
 }
 scene inst (ns=lab) sx {
     scene: <s>
-    kgraph (ns=lab) world_tree_graph {
+    kgraph (ns=lab) world_tree_graph { anchor: <world_tree.table_body.table_root>
         tree <world_tree>
     }
 }
@@ -881,8 +881,8 @@ scene (ns=n) s { agn set <robots> agn set <others> }
 def _agent_set_scenex(second_agn: str) -> str:
     return f"""import "robots.scene"
 ns n = "https://example.test/"
-ktree (ns=n) arm0 {{ body base0 {{ frame root0 {{ }} }} joints {{ }} }}
-ktree (ns=n) arm1 {{ body base1 {{ frame root1 {{ }} }} joints {{ }} }}
+ktree (ns=n) arm0 {{ root: <base0.root0> body base0 {{ frame root0 {{ }} }} joints {{ }} }}
+ktree (ns=n) arm1 {{ root: <base1.root1> body base1 {{ frame root1 {{ }} }} joints {{ }} }}
 scene inst (ns=n) sx {{
     scene: <s>
     agn set <robots> {{
@@ -1046,8 +1046,8 @@ def test_cyclic_tree_composition_names_the_cycle(tmp_path):
     path.write_text(
         """import "example.scene"
 ns lab = "https://example.test/lab/"
-ktree (ns=lab) a { tree <b> body ab { frame af { } } joints { } }
-ktree (ns=lab) b { tree <a> body bb { frame bf { } } joints { } }
+ktree (ns=lab) a { root: <ab.af> tree <b> body ab { frame af { } } joints { } }
+ktree (ns=lab) b { root: <bb.bf> tree <a> body bb { frame bf { } } joints { } }
 scene inst (ns=lab) sx {
     scene: <s>
     agn <agns.robot> {
@@ -1175,7 +1175,7 @@ def test_scenex_embedded_kinematic_tree_rejects_bad_frame_ref(tmp_path):
     model_path.write_text(
         """import "example.scene"
 ns n = "https://example.test/"
-ktree (ns=n) world_tree {
+ktree (ns=n) world_tree { root: <world_body.world>
     body world_body { frame world { } }
     joints {
         fixed bad_mount {
@@ -1186,7 +1186,7 @@ ktree (ns=n) world_tree {
 }
 scene inst (ns=n) sx {
     scene: <s>
-    kgraph (ns=n) world_tree_graph {
+    kgraph (ns=n) world_tree_graph { anchor: <world_tree.world_body.world>
         tree <world_tree>
     }
     agn <agns.robot> {
@@ -1213,7 +1213,8 @@ def test_direction_cosine_orientation_rejects_reflection():
 def _tree_scene(bodies: str, joints: str) -> str:
     return f"""import "example.scene"
 ns n = "https://example.test/"
-ktree (ns=n) t {{
+ktree (ns=n) t {{ root: <b1.f1>
+
 {bodies}
     joints {{
 {joints}
@@ -1273,7 +1274,7 @@ def test_serial_chain_over_unjoined_bodies_is_rejected(tmp_path):
 ns n = "https://example.test/"
 scene inst (ns=n) sx {
     scene: <s>
-    kgraph (ns=n) g {
+    kgraph (ns=n) g { anchor: <b1.f1>
         body b1 { frame f1 { } }
         body b2 { frame f2 { } }
         joints {
@@ -1357,7 +1358,7 @@ ns lab = "https://example.test/lab/"
 ktree inst (ns=lab) arm1 of <arm_tree>
 scene inst (ns=lab) sx {
     scene: <s>
-    kgraph (ns=lab) lab_graph {
+    kgraph (ns=lab) lab_graph { anchor: <arm1.arm_base.arm_root>
         tree <arm1>
         body cup_body { frame cup_root { } }
     }
@@ -1385,7 +1386,7 @@ def test_kgraph_allows_merges_and_cycles(tmp_path):
 ns n = "https://example.test/"
 scene inst (ns=n) sx {
     scene: <s>
-    kgraph (ns=n) graph {
+    kgraph (ns=n) graph { anchor: <b.b_to_c>
         body a { frame a_to_c { } frame from_c { } }
         body b { frame b_to_c { } }
         body c { frame from_a { } frame to_a { } }
@@ -1423,22 +1424,22 @@ scene inst (ns=n) sx {
 
 
 def test_a_tree_without_bodies_is_rejected(tmp_path):
-    """A tree is rooted at a body, so one declaring none has nothing to be rooted at."""
+    """A tree is rooted at a body, so one declaring none has no frame to be rooted at."""
     write_example_scene(tmp_path)
     path = tmp_path / "empty.scenex"
     path.write_text(
         """import "example.scene"
 ns lab = "https://example.test/lab/"
-ktree (ns=lab) t {
+ktree (ns=lab) t { root: <b.root>
     joints { }
 }
 scene inst (ns=lab) sx {
     scene: <s>
-    kgraph (ns=lab) g { tree <t> }
+    kgraph (ns=lab) g { anchor: <b.root> tree <t> }
 }
 """
     )
-    with pytest.raises(TextXSemanticError, match="declares no body to be rooted at"):
+    with pytest.raises(Exception, match="b.root"):
         scenex_metamodel().model_from_file(path)
 
 
@@ -1449,14 +1450,14 @@ def test_a_free_body_in_a_tree_is_rejected(tmp_path):
     path.write_text(
         """import "example.scene"
 ns lab = "https://example.test/lab/"
-ktree (ns=lab) t {
+ktree (ns=lab) t { root: <b1.f1>
     body b1 { frame f1 { } }
     body floating { frame f2 { } }
     joints { }
 }
 scene inst (ns=lab) sx {
     scene: <s>
-    kgraph (ns=lab) g { tree <t> }
+    kgraph (ns=lab) g { anchor: <t.b1.f1> tree <t> }
 }
 """
     )

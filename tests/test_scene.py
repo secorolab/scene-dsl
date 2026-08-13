@@ -113,7 +113,7 @@ def test_scene_parser_resolves_scene_entity_body_by_name():
         """import "lab.scene"
 scene inst (ns=scene_lab_mjc) usd_scene {
     scene: <pickplace_scene>
-    kgraph (ns=scene_lab_mjc) g { body world { frame root { } } }
+    kgraph (ns=scene_lab_mjc) g { anchor: <world.root> body world { frame root { } } }
     model usd_stage as usd { sys path = "/tmp/scene.usda"
         map body <g.world> to "sim-world"
     }
@@ -425,8 +425,8 @@ scene (ns=n) lab { agn set <agents> }
         """import "robot.scene"
 
 ns nx = "https://example.test/x/"
-ktree (ns=nx) arm { body arm_base { frame arm_root { } } joints { } }
-ktree (ns=nx) gripper { body grip_base { frame grip_root { } } joints { } }
+ktree (ns=nx) arm { root: <arm_base.arm_root> body arm_base { frame arm_root { } } joints { } }
+ktree (ns=nx) gripper { root: <grip_base.grip_root> body grip_base { frame grip_root { } } joints { } }
 
 scene inst (ns=nx) si {
     scene: <lab>

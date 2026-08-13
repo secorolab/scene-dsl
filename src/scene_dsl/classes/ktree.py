@@ -47,7 +47,7 @@ class KinematicGraph(IHasNamespaceDeclare, IDefaultFrame):
     # placed against. A tree hangs from its root instead, so it declares none.
     anchor: Frame | None
 
-    def __init__(self, parent, ns, name, trees, bodies, joints_spec, anchor=None) -> None:
+    def __init__(self, parent, ns, name, trees, bodies, joints_spec, anchor) -> None:
         super().__init__(parent=parent, ns=ns, name=name)
         self.trees = trees
         self.bodies = bodies
@@ -102,7 +102,8 @@ class KinematicTreeModel(KinematicGraph):
     root_frame: Frame
 
     def __init__(self, parent, ns, name, root_frame, trees, bodies, joints_spec) -> None:
-        super().__init__(parent, ns, name, trees, bodies, joints_spec)
+        # A tree hangs from its root, so it declares no anchor: only a graph stands on one.
+        super().__init__(parent, ns, name, trees, bodies, joints_spec, anchor=None)
         self.root_frame = root_frame
 
     def composition_cycle(self) -> list[KinematicTreeModel]:
@@ -127,6 +128,8 @@ class KinematicTreeInstance(KinematicTreeModel):
     """A concrete tree copied from a namespace-less template."""
 
     def __init__(self, parent, ns, name, template) -> None:
+        # The template's structure is copied in by copy_template, which is what fills the root
+        # frame: an instance cannot name it before its own copy of that frame exists.
         super().__init__(parent, ns, name, root_frame=None, trees=[], bodies=[], joints_spec=None)
         self.template = template
 

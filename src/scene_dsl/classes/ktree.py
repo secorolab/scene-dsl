@@ -41,7 +41,7 @@ class KinematicGraph(IHasNamespaceDeclare, IDefaultFrame):
 
     name: str
     trees: list[KinematicTreeModel]
-    bodies: list[RigidBody]
+    _bodies: list[RigidBody]
     joints_spec: JointsSpec | None
     # The frame the graph stands on: where its ground meets the body everything else is
     # placed against. A tree hangs from its root instead, so it declares none.
@@ -50,15 +50,21 @@ class KinematicGraph(IHasNamespaceDeclare, IDefaultFrame):
     def __init__(self, parent, ns, name, trees, bodies, joints_spec, anchor) -> None:
         super().__init__(parent=parent, ns=ns, name=name)
         self.trees = trees
-        self.bodies = bodies
-        self.joints_spec = joints_spec
+        self._bodies = bodies
+        self._joints_spec = joints_spec
         self.anchor = anchor
+
+    @property
+    def bodies(self) -> list[RigidBody]:
+        if self._bodies is None:
+            raise RuntimeError(f"bodies not initialized for {self}")
+        return self._bodies
 
     @property
     def subtrees(self) -> dict[int, KinematicGraph]:
         """This graph and every tree composed below it, keyed by identity."""
         found: dict[int, KinematicGraph] = {}
-        stack = [self]
+        stack: list[KinematicGraph] = [self]
         while stack:
             tree = stack.pop()
             # A tree may be composed by two others, or -- nothing forbids it -- by itself.
@@ -99,12 +105,22 @@ class KinematicGraph(IHasNamespaceDeclare, IDefaultFrame):
 class KinematicTreeModel(KinematicGraph):
     """A graph with one root -- the body no joint attaches -- and no loops."""
 
-    root_frame: Frame
+    _root_frame: Frame | None
 
     def __init__(self, parent, ns, name, root_frame, trees, bodies, joints_spec) -> None:
         # A tree hangs from its root, so it declares no anchor: only a graph stands on one.
         super().__init__(parent, ns, name, trees, bodies, joints_spec, anchor=None)
-        self.root_frame = root_frame
+        self._root_frame = root_frame
+
+    @property
+    def root_frame(self) -> Frame:
+        if self._root_frame is None:
+            raise RuntimeError(f"root frame not initialized for {self}")
+        return self._root_frame
+
+    @root_frame.setter
+    def root_frame(self, value: Frame | None) -> None:
+        self._root_frame = value
 
     def composition_cycle(self) -> list[KinematicTreeModel]:
         """The chain of composed trees leading from this tree back to itself, if any."""
@@ -141,10 +157,10 @@ class KinematicTreeInstance(KinematicTreeModel):
         internal references follow onto the copies.
         """
         memo: dict[int, Any] = {id(self.template): self}
-        self.bodies = deepcopy(self.template.bodies, memo)
+        self._bodies = deepcopy(self.template.bodies, memo)
         self.joints_spec = deepcopy(self.template.joints_spec, memo)
         # After the bodies, so this lands on the copied frame rather than a second copy.
-        self.root_frame = deepcopy(self.template.root_frame, memo)
+        self._root_frame = deepcopy(self.template.root_frame, memo)
         self.copies = memo
 
 

@@ -271,6 +271,20 @@ class InertiaModel(ModelBase):
         )
 
 
+def pose_between(of_frame: URIRef, wrt_frame: URIRef, graph: Graph) -> RigidTransform | None:
+    """The transform between two frames, from a pose written either way round.
+
+    A Pose relates both of its frames, so which one a scene wrote it `of` is a matter of what
+    the author found natural -- a table placed against its own corner says where that corner
+    is just as well as the other way round.
+    """
+    forward = get_transform_between_frames(of_frame, wrt_frame, graph)
+    if forward is not None:
+        return forward
+    reverse = get_transform_between_frames(wrt_frame, of_frame, graph)
+    return reverse.inv() if reverse is not None else None
+
+
 class RigidBodyModel(ModelBase):
     """A body: the frames it carries, the one it is at, and what it weighs."""
 
@@ -305,7 +319,7 @@ class RigidBodyModel(ModelBase):
         if frame == self.root_frame.id:
             return RigidTransform.identity()
 
-        pose = get_transform_between_frames(frame, self.root_frame.id, graph)
+        pose = pose_between(frame, self.root_frame.id, graph)
         if pose is None:
             raise ConstraintViolation(
                 "kinematics",
@@ -324,7 +338,7 @@ class RigidBodyModel(ModelBase):
         """
         poses = {self.root_frame.id: RigidTransform.identity()}
         for frame in sorted(self.frames - {self.root_frame.id}, key=str):
-            pose = get_transform_between_frames(frame, self.root_frame.id, graph)
+            pose = pose_between(frame, self.root_frame.id, graph)
             if pose is not None:
                 poses[frame] = pose
         return poses
@@ -748,7 +762,9 @@ def _nested_trees(
         rooted = index.trees_by_root_body.get(body, set()) - index.kgraphs
         holds = {tree: _trees_held(tree, component, index) & rooted for tree in rooted}
         if len({len(held) for held in holds.values()}) != len(rooted):
-            counts = ", ".join(f"'{tree}' holds {len(held)}" for tree, held in sorted(holds.items()))
+            counts = ", ".join(
+                f"'{tree}' holds {len(held)}" for tree, held in sorted(holds.items())
+            )
             raise ConstraintViolation(
                 "kinematics",
                 f"several trees are rooted at body '{body}' and each holds as many other "

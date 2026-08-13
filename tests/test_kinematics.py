@@ -32,7 +32,7 @@ SCENEX = """import "example.scene"
 
 ns n = "https://example.test/"
 
-ktree (ns=n) arm {{
+ktree (ns=n) arm {{ root: <base.base_origin>
     body base {{
         frame base_origin {{ }}
         frame j1_anchor {{
@@ -63,7 +63,7 @@ ktree (ns=n) arm {{
     }}
 }}
 
-ktree (ns=n) tool {{
+ktree (ns=n) tool {{ root: <tool_base.tool_origin>
     body tool_base {{
         frame tool_origin {{ }}
         inertia {{
@@ -94,7 +94,7 @@ ktree (ns=n) tool {{
     }}
 }}
 
-ktree (ns=n) arm_tool {{
+ktree (ns=n) arm_tool {{ root: <arm.base.base_origin>
     tree <arm>
     tree <tool>
     joints {{
@@ -109,7 +109,7 @@ ktree (ns=n) arm_tool {{
 scene inst (ns=n) sx {{
     scene: <s>
 
-    kgraph (ns=n) lab {{ tree <arm_tool> }}
+    kgraph (ns=n) lab {{ anchor: <arm_tool.arm.base.base_origin> tree <arm_tool> }}
 
     model arm_model as {kind} {{
         sys path = 'arm.model'
@@ -351,7 +351,7 @@ ns n = "https://example.test/"
 
 scene inst (ns=n) sx {
     scene: <s>
-    kgraph (ns=n) g {
+    kgraph (ns=n) g { anchor: <a.a_out>
         body a { frame a_out { } }
         body b { frame b_in { } }
         body placed { frame placed_root { } }

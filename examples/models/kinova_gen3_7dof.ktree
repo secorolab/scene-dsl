@@ -9,6 +9,7 @@
 //   <joint_i>       anchors joint i on its *parent* body -- a revolute joint is the
 //                   collinearity of two z axes, coincident at q=0
 ktree kinova_tree {
+    root: <base_link.base_link_origin>
     body base_link {
         frame base_link_origin { }
         frame joint_1_anchor {

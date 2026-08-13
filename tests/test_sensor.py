@@ -112,8 +112,8 @@ scene (ns=n) s { obj set <objs> ws set <wss> agn set <agns> }
     path.write_text(
         """import "two.scene"
 ns n = "https://example.test/"
-ktree (ns=n) r_tree { body r_body { frame r_wrist { } } joints { } }
-ktree (ns=n) h_tree { body h_body { frame h_wrist { } } joints { } }
+ktree (ns=n) r_tree { root: <r_body.r_wrist> body r_body { frame r_wrist { } } joints { } }
+ktree (ns=n) h_tree { root: <h_body.h_wrist> body h_body { frame h_wrist { } } joints { } }
 scene inst (ns=n) sx {
     scene: <s>
     agn <agns.robot> {

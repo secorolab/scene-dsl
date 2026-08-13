@@ -9,6 +9,7 @@ ktree inst (ns=lab_rob) arm2 of <kinova_tree>
 ktree inst (ns=lab_rob) gripper of <gripper_tree>
 
 ktree (ns=lab_rob) arm1_gripper {
+    root: <arm1.base_link.base_link_origin>
     tree <arm1>
     tree <gripper>
 
@@ -25,6 +26,7 @@ ktree (ns=lab_rob) arm1_gripper {
 }
 
 ktree (ns=scene_lab_mjc) panda_tree {
+    root: <panda_base_body.base_link>
     body panda_base_body {
         frame base_link {
             pose panda_on_table {
@@ -155,6 +157,7 @@ ktree (ns=scene_lab_mjc) panda_tree {
 }
 
 ktree (ns=scene_lab_mjc) ur10_tree {
+    root: <ur10_body.ur10_base_link>
     body ur10_body {
         frame ur10_base_link { }
         // As ur10e.xml states it for the body it calls 'base'.
@@ -172,6 +175,7 @@ ktree (ns=scene_lab_mjc) ur10_tree {
 }
 
 ktree (ns=scene_lab_mjc) world_tree {
+    root: <world_body.world>
     tree <panda_tree>
     tree <ur10_tree>
     tree <arm1_gripper>
@@ -233,6 +237,7 @@ scene inst (ns=scene_lab_mjc) pickplace_scene_mjc {
     scene: <pickplace_scene>
 
     kgraph (ns=scene_lab_mjc) lab_graph {
+        anchor: <world_tree.world_body.world>
         tree <world_tree>
 
         // a free body

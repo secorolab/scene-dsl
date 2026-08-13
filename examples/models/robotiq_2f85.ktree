@@ -3,6 +3,7 @@
 // The 2F-85 is attached with the "g_" prefix in the assembled MJCF, so its elements
 // carry it here. Transforms and inertias are generated from 2f85.xml.
 ktree gripper_tree {
+    root: <g_base_mount.g_base_mount_origin>
     // Partial: only the mount, the palm carrying the TCP, and the actuated driver.
     // The 4-bar linkage (couplers, followers, pads) and the `split` tendon stay in
     // the MJCF -- scenex has no closed-loop or tendon construct.

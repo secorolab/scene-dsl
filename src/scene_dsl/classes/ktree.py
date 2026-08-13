@@ -20,12 +20,14 @@ class KinematicTreeTemplate(IHasParent):
     """A device described without being any particular one: it mints no IRI."""
 
     name: str
+    root_frame: Frame
     bodies: list[RigidBody]
     joints_spec: JointsSpec
 
-    def __init__(self, parent, name, bodies, joints_spec) -> None:
+    def __init__(self, parent, name, root_frame, bodies, joints_spec) -> None:
         super().__init__(parent=parent)
         self.name = name
+        self.root_frame = root_frame
         self.bodies = bodies
         self.joints_spec = joints_spec
 
@@ -41,12 +43,16 @@ class KinematicGraph(IHasNamespaceDeclare, IDefaultFrame):
     trees: list[KinematicTreeModel]
     bodies: list[RigidBody]
     joints_spec: JointsSpec | None
+    # The frame the graph stands on: where its ground meets the body everything else is
+    # placed against. A tree hangs from its root instead, so it declares none.
+    anchor: Frame | None
 
-    def __init__(self, parent, ns, name, trees, bodies, joints_spec) -> None:
+    def __init__(self, parent, ns, name, trees, bodies, joints_spec, anchor=None) -> None:
         super().__init__(parent=parent, ns=ns, name=name)
         self.trees = trees
         self.bodies = bodies
         self.joints_spec = joints_spec
+        self.anchor = anchor
 
     @property
     def subtrees(self) -> dict[int, KinematicGraph]:
@@ -93,8 +99,11 @@ class KinematicGraph(IHasNamespaceDeclare, IDefaultFrame):
 class KinematicTreeModel(KinematicGraph):
     """A graph with one root -- the body no joint attaches -- and no loops."""
 
-    def __init__(self, parent, ns, name, trees, bodies, joints_spec) -> None:
+    root_frame: Frame
+
+    def __init__(self, parent, ns, name, root_frame, trees, bodies, joints_spec) -> None:
         super().__init__(parent, ns, name, trees, bodies, joints_spec)
+        self.root_frame = root_frame
 
     def composition_cycle(self) -> list[KinematicTreeModel]:
         """The chain of composed trees leading from this tree back to itself, if any."""
@@ -118,7 +127,7 @@ class KinematicTreeInstance(KinematicTreeModel):
     """A concrete tree copied from a namespace-less template."""
 
     def __init__(self, parent, ns, name, template) -> None:
-        super().__init__(parent, ns, name, trees=[], bodies=[], joints_spec=None)
+        super().__init__(parent, ns, name, root_frame=None, trees=[], bodies=[], joints_spec=None)
         self.template = template
 
     def copy_template(self) -> None:
@@ -131,6 +140,8 @@ class KinematicTreeInstance(KinematicTreeModel):
         memo: dict[int, Any] = {id(self.template): self}
         self.bodies = deepcopy(self.template.bodies, memo)
         self.joints_spec = deepcopy(self.template.joints_spec, memo)
+        # After the bodies, so this lands on the copied frame rather than a second copy.
+        self.root_frame = deepcopy(self.template.root_frame, memo)
         self.copies = memo
 
 

@@ -277,6 +277,17 @@ def check_tree_topology(model, metamodel):
                     **get_location(tree),
                 )
 
+        declared = tree.root_frame if isinstance(tree, KinematicTreeModel) else tree.anchor
+        if declared is not None and declared.parent not in tree.roots:
+            hangs = "root" if isinstance(tree, KinematicTreeModel) else "anchor"
+            raise TextXSemanticError(
+                f"'{tree.name}' declares {hangs} '{declared.name}' on body "
+                f"'{declared.parent.name}', which a joint attaches -- "
+                f"{hangs} must name a body the graph hangs from "
+                f"({', '.join(sorted(b.name for b in tree.roots))})",
+                **get_location(tree),
+            )
+
         comp = tree.joints_spec.joint_comp if tree.joints_spec is not None else None
         if not isinstance(comp, SerialJoints):
             continue

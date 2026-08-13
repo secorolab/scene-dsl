@@ -30,6 +30,7 @@ from rdf_utils.models.vocab import (
     URI_GEOM_TYPE_KTREE,
     URI_GEOM_TYPE_RIGID_BODY,
     URI_GEOM_TYPE_SIMPLICIAL_COMPLEX,
+    URI_KC_EXT_PRED_ANCHOR,
     URI_KC_EXT_PRED_DEPENDENT_JOINT,
     URI_KC_EXT_PRED_INDEPENDENT_JOINT,
     URI_KC_EXT_PRED_LOWER,
@@ -237,7 +238,11 @@ def add_joint_limits(graph: Graph, joint, limits: JointLimits) -> None:
             (URI_KC_EXT_PRED_LOWER, lower_value),
             (URI_KC_EXT_PRED_UPPER, upper_value),
         ):
-            bound_uri = joint.namespace[joint.scoped(f"-limit-{field}-{'lower' if pred == URI_KC_EXT_PRED_LOWER else 'upper'}")]
+            bound_uri = joint.namespace[
+                joint.scoped(
+                    f"-limit-{field}-{'lower' if pred == URI_KC_EXT_PRED_LOWER else 'upper'}"
+                )
+            ]
             graph.add((bound_uri, RDF.type, URI_QUDT_TYPE_QUANTITY))
             graph.add((bound_uri, URI_QUDT_PRED_VALUE, Literal(value, datatype=XSD.double)))
             graph.add((bound_uri, URI_QUDT_PRED_UNIT, unit))
@@ -339,8 +344,8 @@ def add_kinematic_tree(graph: Graph, tree: KinematicTreeModel, seen_trees: set[U
     for body in tree.bodies:
         add_body(graph=graph, body=body)
 
-    # Derived from the joints, so a tree has a root with or without a chain over it.
-    graph.add(triple=(tree.uri, URI_KC_EXT_PRED_ROOT, tree.roots[0].default_frame.uri))
+    # Declared, so a tree has a root with or without a chain over it.
+    graph.add(triple=(tree.uri, URI_KC_EXT_PRED_ROOT, tree.root_frame.uri))
 
     add_joints_spec(graph=graph, owner=tree)
 
@@ -357,5 +362,9 @@ def add_kinematic_graph(graph: Graph, kgraph: KinematicGraph, seen_trees: set[UR
     # is what says the bodies and the trees standing on them are this graph's.
     for root in kgraph.roots:
         graph.add(triple=(kgraph.uri, URI_KC_EXT_PRED_ROOT, root.default_frame.uri))
+
+    # Which of those roots the scene stands on, and where its ground is: the two things a
+    # consumer would otherwise have to guess from the shape of the graph.
+    graph.add(triple=(kgraph.uri, URI_KC_EXT_PRED_ANCHOR, kgraph.anchor.uri))
 
     add_joints_spec(graph=graph, owner=kgraph)

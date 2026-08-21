@@ -152,12 +152,25 @@ def add_body(graph: Graph, body) -> None:
             )
             graph.add((body.inertia_coord_uri, RDF.type, URI_DYN_TYPE_MOMENT_OF_INERTIA_XYZ))
             graph.add((body.inertia_coord_uri, RDF.type, URI_DYN_TYPE_PRODUCT_OF_INERTIA_XYZ))
-            graph.add((body.inertia_coord_uri, URI_DYN_PRED_IXX, Literal(inertia.matrix[0][0])))
-            graph.add((body.inertia_coord_uri, URI_DYN_PRED_IXY, Literal(inertia.matrix[0][1])))
-            graph.add((body.inertia_coord_uri, URI_DYN_PRED_IXZ, Literal(inertia.matrix[0][2])))
-            graph.add((body.inertia_coord_uri, URI_DYN_PRED_IYY, Literal(inertia.matrix[1][1])))
-            graph.add((body.inertia_coord_uri, URI_DYN_PRED_IYZ, Literal(inertia.matrix[1][2])))
-            graph.add((body.inertia_coord_uri, URI_DYN_PRED_IZZ, Literal(inertia.matrix[2][2])))
+            # float(): numpy scalars are not JSON-LD serializable
+            graph.add(
+                (body.inertia_coord_uri, URI_DYN_PRED_IXX, Literal(float(inertia.matrix[0][0])))
+            )
+            graph.add(
+                (body.inertia_coord_uri, URI_DYN_PRED_IXY, Literal(float(inertia.matrix[0][1])))
+            )
+            graph.add(
+                (body.inertia_coord_uri, URI_DYN_PRED_IXZ, Literal(float(inertia.matrix[0][2])))
+            )
+            graph.add(
+                (body.inertia_coord_uri, URI_DYN_PRED_IYY, Literal(float(inertia.matrix[1][1])))
+            )
+            graph.add(
+                (body.inertia_coord_uri, URI_DYN_PRED_IYZ, Literal(float(inertia.matrix[1][2])))
+            )
+            graph.add(
+                (body.inertia_coord_uri, URI_DYN_PRED_IZZ, Literal(float(inertia.matrix[2][2])))
+            )
 
 
 def add_revolute_joint(graph: Graph, joint: RevoluteJoint) -> None:

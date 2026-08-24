@@ -2,6 +2,7 @@ import pytest
 from rdf_utils.models.common import ModelBase
 from rdf_utils.models.execution import load_attr_path
 from rdf_utils.models.vocab import (
+    URI_ENV_TYPE_OBJ_MODEL,
     URI_EXEC_PRED_HAS_CONFIG,
     URI_EXEC_PRED_HAS_MAPPING,
     URI_EXEC_PRED_MAPS,
@@ -10,6 +11,7 @@ from rdf_utils.models.vocab import (
     URI_GEOM_TYPE_RIGID_BODY,
 )
 from rdflib import RDF, Literal, Namespace, URIRef
+from textx.exceptions import TextXSemanticError
 
 from scene_dsl.classes.common import IHasNamespace
 from scene_dsl.langs import scene_metamodel, scenex_metamodel
@@ -303,6 +305,69 @@ def test_scene_parser_loads_mappings_and_resolves_element_roots():
     )
     with pytest.raises(ValueError, match="ambiguous compatible resources"):
         parsed.resolve_element_root_frame(arm_gripper.uri, {URI_MJCF_MUJOCO}, graph)
+
+
+def test_modelled_object_references_one_body_in_scene_model(tmp_path):
+    scene_path = tmp_path / "shared.scene"
+    scene_path.write_text(
+        'ns n="https://example.test/"\n'
+        "obj set (ns=n) objects { object container }\n"
+        "ws set (ns=n) workspaces { workspace container-ws }\n"
+        "agn set (ns=n) agents { agent robot }\n"
+        "comp (ns=n) container-comp of ws <workspaces.container-ws> { "
+        "obj <objects.container> }\n"
+        "scene (ns=n) shared-scene { ws comp <container-comp> agn set <agents> }\n"
+    )
+    model_path = tmp_path / "shared.scenex"
+    model_path.write_text(
+        'import "shared.scene"\n'
+        'ns x="https://example.test/instance/"\n'
+        "scene inst (ns=x) shared-instance {\n"
+        "  scene: <shared-scene>\n"
+        "  kgraph (ns=x) graph { anchor: <world.root> "
+        "body world { frame root {} } body container { frame root {} } }\n"
+        '  model stage as usd { sys path = "world.usd" '
+        'map body <graph.world> to "world" }\n'
+        "  obj <objects.container> { "
+        'model <stage> map body <graph.container> to "/World/container" }\n'
+        "}\n"
+    )
+
+    model = scenex_metamodel().model_from_file(model_path)
+    graph = create_scenex_model_graph(model)
+    parsed = SceneInstanceModel(model.scene_insts[0].uri, graph)
+    workspace_id = model.scene_insts[0].scene.ws_comps[0].ws.uri
+    object_id = model.scene_insts[0].modelled_objs[0].obj.uri
+
+    assert parsed.resolve_modelled_element_id(workspace_id) == object_id
+    resource, mapping, _ = parsed.resolve_element_root_frame(object_id, {URI_USD_STAGE}, graph)
+    assert resource.id == model.scene_insts[0].models[0].uri
+    assert (resource.id, RDF.type, URI_ENV_TYPE_OBJ_MODEL) in graph
+    assert mapping.entity == "/World/container"
+
+
+def test_modelled_object_reference_rejects_duplicate_body_mapping(tmp_path):
+    scene_path = tmp_path / "shared.scene"
+    scene_path.write_text(
+        'ns n="https://example.test/" '
+        "obj set (ns=n) objects { object container } "
+        "agn set (ns=n) agents { agent robot } "
+        "scene (ns=n) shared-scene { obj set <objects> agn set <agents> }"
+    )
+    model_path = tmp_path / "shared.scenex"
+    model_path.write_text(
+        'import "shared.scene" ns x="https://example.test/instance/" '
+        "scene inst (ns=x) shared-instance { scene: <shared-scene> "
+        "kgraph (ns=x) graph { anchor: <world.root> "
+        "body world { frame root {} } body container { frame root {} } } "
+        'model stage as usd { sys path = "world.usd" '
+        'map body <graph.world> to "world" '
+        'map body <graph.container> to "/World/container" } '
+        "obj <objects.container> { model <stage> map body <graph.container> } }"
+    )
+
+    with pytest.raises(TextXSemanticError, match="maps 'container' twice"):
+        scenex_metamodel().model_from_file(model_path)
 
 
 def test_scene_parser_rejects_mapping_without_target():

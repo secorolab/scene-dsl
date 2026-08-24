@@ -12,6 +12,7 @@ from rdf_utils.models.vocab import (
     URI_ENV_PRED_OF_OBJ,
     URI_ENV_TYPE_MOD_OBJ,
     URI_EXEC_PRED_HAS_CONFIG,
+    URI_EXEC_PRED_HAS_MAPPING,
     URI_EXEC_PRED_HAS_MODELLED_AGN,
     URI_EXEC_PRED_HAS_MODELLED_OBJ,
     URI_EXEC_PRED_MODEL,
@@ -26,6 +27,7 @@ from scene_dsl.rdf_parser.kinematics import (
     MAPPABLE_TYPES,
     KinematicMapping,
     RigidBodyModel,
+    get_kinematic_mapping,
     get_kinematic_mappings,
     load_attr_kinematic_mappings,
     root_frame_of,
@@ -249,6 +251,7 @@ class SceneInstanceModel(ModelBase):
                 )
 
             elem_models = elements.setdefault(element_id, {})
+            selected_mapping_ids = set(graph.objects(modelled_id, URI_EXEC_PRED_HAS_MAPPING))
             for model_id in graph.objects(modelled_id, has_model_pred):
                 if not isinstance(model_id, URIRef):
                     raise TypeError(f"{modelled_type_rep} '{modelled_id}' has a non-URI model")
@@ -257,6 +260,14 @@ class SceneInstanceModel(ModelBase):
 
                 model = ModelBase(node_id=model_id, graph=graph)
                 model_loader.load_attributes(graph=graph, model=model)
+                selected = selected_mapping_ids & set(
+                    graph.objects(model_id, URI_EXEC_PRED_HAS_MAPPING)
+                )
+                if selected:
+                    model.set_attr(
+                        URI_EXEC_PRED_HAS_MAPPING,
+                        tuple(get_kinematic_mapping(mapping_id, graph) for mapping_id in selected),
+                    )
                 if model.has_attr(URI_EXEC_PRED_HAS_CONFIG):
                     previous = configured.get(element_id)
                     if previous is not None:

@@ -33,6 +33,7 @@ from rdflib import RDF, Graph, Literal, URIRef
 
 from scene_dsl.classes.scenex import (
     ElementModel,
+    ElementModelRef,
     ModelledAgent,
     ModelledAgentSet,
     ModelledObject,
@@ -150,10 +151,19 @@ def add_modelled_obj(
     graph.add((scene_inst.uri, URI_EXEC_PRED_HAS_MODELLED_OBJ, obj_model.modelled_uri))
 
     for model in obj_model.models:
-        add_element_model(
-            graph, scene_inst, model, URI_ENV_TYPE_OBJ_MODEL, seen_model_uris, seen_ktrees
-        )
-        graph.add((obj_model.modelled_uri, URI_ENV_PRED_HAS_OBJ_MODEL, model.uri))
+        if isinstance(model, ElementModelRef):
+            graph.add((model.model.uri, RDF.type, URI_ENV_TYPE_OBJ_MODEL))
+            graph.add((obj_model.modelled_uri, URI_ENV_PRED_HAS_OBJ_MODEL, model.model.uri))
+            graph.add((model.model.uri, URI_EXEC_PRED_HAS_MAPPING, model.mapping_uri))
+            graph.add((model.mapping_uri, URI_EXEC_PRED_MAPS, model.body.uri))
+            if model.entity is not None:
+                graph.add((model.mapping_uri, URI_EXEC_PRED_MODEL_ENTITY, Literal(model.entity)))
+            graph.add((obj_model.modelled_uri, URI_EXEC_PRED_HAS_MAPPING, model.mapping_uri))
+        else:
+            add_element_model(
+                graph, scene_inst, model, URI_ENV_TYPE_OBJ_MODEL, seen_model_uris, seen_ktrees
+            )
+            graph.add((obj_model.modelled_uri, URI_ENV_PRED_HAS_OBJ_MODEL, model.uri))
 
 
 def add_modelled_agn(

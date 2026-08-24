@@ -52,7 +52,8 @@ def _stands_for(graph: Graph) -> dict[URIRef, str]:
     for modelled in typed(graph.subjects(URI_ENV_PRED_OF_OBJ, None), URI_ENV_TYPE_MOD_OBJ, graph):
         obj = ensure_one_obj_uri(graph=graph, subject=modelled, predicate=URI_ENV_PRED_OF_OBJ)
         for model in uris(graph.objects(modelled, URI_ENV_PRED_HAS_OBJ_MODEL)):
-            for mapping in uris(graph.objects(model, URI_EXEC_PRED_HAS_MAPPING)):
+            mappings = tuple(uris(graph.objects(modelled, URI_EXEC_PRED_HAS_MAPPING)))
+            for mapping in mappings or uris(graph.objects(model, URI_EXEC_PRED_HAS_MAPPING)):
                 for body in uris(graph.objects(mapping, URI_EXEC_PRED_MAPS)):
                     if obj is not None:
                         labels[body] = split_uri(obj)[1]

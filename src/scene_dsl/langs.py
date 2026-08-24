@@ -60,6 +60,7 @@ from scene_dsl.classes.scene import (
 from scene_dsl.classes.scenex import (
     BodyMapping,
     ElementModel,
+    ElementModelRef,
     ModelledAgent,
     ModelledAgentSet,
     ModelledObject,
@@ -323,6 +324,30 @@ def check_model_mappings(model, metamodel):
                     )
                 described[id(target)] = elem_model
 
+        for ref in get_children_of_type(ElementModelRef, scene_inst):
+            if ref.model is None or ref.body is None:
+                continue
+            first = described.get(id(ref.body))
+            if first is not None:
+                raise TextXSemanticError(
+                    f"model '{ref.model.name}' maps '{ref.body.name}' twice",
+                    **get_location(ref),
+                )
+            described[id(ref.body)] = ref.model
+
+
+def check_element_model_refs(model, metamodel):
+    """Shared object models must select a body mapped by this scene's stage model."""
+    for ref in get_children_of_type(ElementModelRef, model):
+        if ref.model is None or ref.body is None:
+            continue  # Imported models can reach this processor before references resolve.
+        scene_inst = ref.parent.parent
+        if ref.model not in scene_inst.models:
+            raise TextXSemanticError(
+                f"referenced model '{ref.model.name}' is not a scene-level model",
+                **get_location(ref),
+            )
+
 
 def check_agent_set_membership(model, metamodel):
     """Grouping agents under a set claims they belong to it, so hold the claim to it."""
@@ -409,6 +434,7 @@ def scenex_metamodel():
             UniformRotationDistribution,
             BodyMapping,
             ElementModel,
+            ElementModelRef,
             TreeMapping,
             ModelledObject,
             ModelledObjectSet,
@@ -456,6 +482,7 @@ def scenex_metamodel():
     mm_scenex.register_model_processor(build_instance_trees)
     mm_scenex.register_model_processor(check_tree_topology)
     mm_scenex.register_model_processor(check_model_mappings)
+    mm_scenex.register_model_processor(check_element_model_refs)
     mm_scenex.register_model_processor(check_agent_set_membership)
     mm_scenex.register_model_processor(check_unique_uris)
     return mm_scenex

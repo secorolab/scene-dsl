@@ -32,9 +32,16 @@ ModelSpecification: SystemPath | RosPath | PyModuleAttr ;
 SystemPath: 'sys' 'path' '=' path=STRING ;
 RosPath: 'ros' 'pkg' '=' pkg=STRING ',' 'path' '=' path=STRING ;
 
+ElementModelRef:
+'model' '<' model=[ElementModel|FQN] '>'
+'map' 'body' '<' body=[RigidBody|FQN] '>' ('to' entity=STRING)?
+;
+
+ModelledObjectModel: ElementModel | ElementModelRef ;
+
 ModelledObject:
 'obj' '<' obj=[Object|FQN] '>' '{'
-    models+=ElementModel+
+    models+=ModelledObjectModel+
 '}'
 ;
 

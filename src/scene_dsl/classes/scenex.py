@@ -99,9 +99,32 @@ class BodyMapping(ElementMapping):
         return self.body
 
 
+class ElementModelRef:
+    """A logical object backed by one body in an already-loaded scene model."""
+
+    model: ElementModel
+    body: RigidBody
+    entity: str | None
+    _mapping_uri: URIRef | None
+
+    def __init__(self, parent, model, body, entity=None) -> None:
+        self.parent = parent
+        self.model = model
+        self.body = body
+        self.entity = entity or None
+        self._mapping_uri = None
+
+    @property
+    def mapping_uri(self) -> URIRef:
+        if self._mapping_uri is None:
+            local = str(self.body.uri).removeprefix(str(self.body.namespace))
+            self._mapping_uri = self.model.namespace[f"{self.model.scoped()}/maps/{local}"]
+        return self._mapping_uri
+
+
 class ModelledObject(IHasNamespace):
     obj: Object
-    models: list[ElementModel]
+    models: list[ElementModel | ElementModelRef]
     _modelled_uri: URIRef | None
 
     def __init__(self, parent, obj, models) -> None:

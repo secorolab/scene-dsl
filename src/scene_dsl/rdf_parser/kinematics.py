@@ -735,7 +735,9 @@ def _top_level_tree(component: _ExpandedComponent, index: _KinematicIndex) -> UR
     candidates = rooted - index.kgraphs
     if not candidates:
         if not component.parent_joint_by_body:
-            return None
+            # A body no joint holds is still a tree: one body, no articulation. The graph that
+            # roots it names it, so nothing new is minted and the body keeps its own IRI.
+            return next(iter(sorted(rooted, key=str)), None)
         return _ensure_one_tree(
             rooted,
             f"body '{root}' is joined to others, and is the root of several graphs, so "

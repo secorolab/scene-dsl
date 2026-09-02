@@ -244,10 +244,13 @@ def build_kdl_trees(graph: Graph, base_dir: Path | None = None) -> list[dict]:
 
         frame_segments, frame_names = _frame_segments(tree, graph)
         segments.extend(frame_segments)
+        # A free body is named after itself: several of them share the graph that roots them,
+        # so the graph's name would not tell one from another.
+        named_by = tree.root if len(tree.bodies) == 1 and not tree.joints else tree.id
         result.append(
             {
-                "name": split_uri(tree.id)[1],
-                "cpp_name": get_valid_var_name(split_uri(tree.id)[1]),
+                "name": split_uri(named_by)[1],
+                "cpp_name": get_valid_var_name(split_uri(named_by)[1]),
                 "iri": str(tree.id),
                 "root": _body_name(tree, tree.root),
                 "root_iri": str(tree.root),

@@ -17,6 +17,7 @@ from scene_dsl.rdf_parser.kinematics import (
     KinematicTreeModel,
     RevoluteJointModel,
     kinematic_trees,
+    pose_between,
 )
 
 
@@ -85,11 +86,15 @@ def _joint_data(
     child_attachment = _pose_matrix(tree.bodies[child].pose_of(child_frame, graph))
 
     if not isinstance(joint, RevoluteJointModel):
+        # A weld holds its frames where the scene poses them against each other; coincident
+        # only when it poses them nowhere.
+        across = pose_between(child_frame, parent_frame, graph)
+        joint_pose = _pose_matrix(across) if across is not None else np.eye(4)
         return {
             "name": _declared_name(tree, joint.id),
             "iri": str(joint.id),
             "axis": None,
-        }, _transform_data(parent_attachment @ _inverse_pose(child_attachment))
+        }, _transform_data(parent_attachment @ joint_pose @ _inverse_pose(child_attachment))
 
     offset_pose = np.eye(4)
     if joint.offset is not None:

@@ -14,9 +14,13 @@ from rdflib.namespace import split_uri
 from scipy.spatial.transform import Rotation
 
 from scene_dsl.rdf_parser.kinematics import (
+    KinematicGraphModel,
     KinematicTreeModel,
     RevoluteJointModel,
+    RigidBodyModel,
+    kinematic_graphs,
     kinematic_trees,
+    pose_between,
 )
 
 
@@ -85,11 +89,14 @@ def _joint_data(
     child_attachment = _pose_matrix(tree.bodies[child].pose_of(child_frame, graph))
 
     if not isinstance(joint, RevoluteJointModel):
+        # A fixed joint holds its frames at the pose between them, coincident only without one.
+        across = pose_between(child_frame, parent_frame, graph)
+        joint_pose = _pose_matrix(across) if across is not None else np.eye(4)
         return {
             "name": _declared_name(tree, joint.id),
             "iri": str(joint.id),
             "axis": None,
-        }, _transform_data(parent_attachment @ _inverse_pose(child_attachment))
+        }, _transform_data(parent_attachment @ joint_pose @ _inverse_pose(child_attachment))
 
     offset_pose = np.eye(4)
     if joint.offset is not None:
@@ -116,8 +123,10 @@ def _joint_data(
     )
 
 
-def _frame_segments(tree: KinematicTreeModel, graph: Graph) -> tuple[list[dict], dict[URIRef, str]]:
-    """A fixed KDL leaf for every frame the scene places on a body of this tree.
+def _body_frame_segments(
+    body_name: str, model: RigidBodyModel, graph: Graph
+) -> tuple[list[dict], dict[URIRef, str]]:
+    """A fixed KDL leaf for every frame the scene places on one body, and the name each got.
 
     A frame is where something is, so the tree has to hold it: a solver reaches one by name
     only if a segment stands for it. The body's root frame is where the body's own segment
@@ -125,23 +134,32 @@ def _frame_segments(tree: KinematicTreeModel, graph: Graph) -> tuple[list[dict],
     """
     names: dict[URIRef, str] = {}
     segments = []
+    for frame, pose in model.pose_by_frame(graph).items():
+        if frame == model.root_frame.id:
+            names[frame] = body_name
+            continue
+        names[frame] = f"{body_name}/{split_uri(frame)[1]}"
+        segments.append(
+            {
+                "name": names[frame],
+                "iri": str(frame),
+                "parent": body_name,
+                "joint": None,
+                "transform": _transform_data(_pose_matrix(pose)),
+                "inertia": None,
+            }
+        )
+    return segments, names
+
+
+def _frame_segments(tree: KinematicTreeModel, graph: Graph) -> tuple[list[dict], dict[URIRef, str]]:
+    """The frame leaves of every body of this tree, and the frame a chain end names."""
+    names: dict[URIRef, str] = {}
+    segments = []
     for body, model in sorted(tree.bodies.items(), key=lambda item: str(item[0])):
-        body_name = _body_name(tree, body)
-        for frame, pose in model.pose_by_frame(graph).items():
-            if frame == model.root_frame.id:
-                names[frame] = body_name
-                continue
-            names[frame] = f"{body_name}/{split_uri(frame)[1]}"
-            segments.append(
-                {
-                    "name": names[frame],
-                    "iri": str(frame),
-                    "parent": body_name,
-                    "joint": None,
-                    "transform": _transform_data(_pose_matrix(pose)),
-                    "inertia": None,
-                }
-            )
+        body_segments, body_names = _body_frame_segments(_body_name(tree, body), model, graph)
+        segments.extend(body_segments)
+        names.update(body_names)
     for chain in tree.chains:
         for frame in (chain.root_frame, chain.tip_frame):
             if frame not in names:
@@ -218,6 +236,27 @@ def _reachable(tree, chain, segments: list[dict], frame_names: dict) -> dict:
     }
 
 
+def _placed_body_tree(kgraph: KinematicGraphModel, body: RigidBodyModel, graph: Graph) -> dict:
+    """The one-body tree a body no joint articulates stands as in the world model.
+
+    KDL reaches a segment only through the tree that holds it, so a body the scene merely
+    places needs one of its own to be posed and read back at all. It is named after the body,
+    since every placed body of a graph would otherwise carry the graph's name.
+    """
+    local = split_uri(body.id)[1]
+    root = f"{split_uri(kgraph.id)[1]}/{local}"
+    segments, _ = _body_frame_segments(root, body, graph)
+    return {
+        "name": local,
+        "cpp_name": get_valid_var_name(local),
+        "iri": str(body.id),
+        "root": root,
+        "root_iri": str(body.id),
+        "segments": segments,
+        "chains": [],
+    }
+
+
 def build_kdl_trees(graph: Graph, base_dir: Path | None = None) -> list[dict]:
     """Read scene kinematics into a JSON-serializable representation."""
     result = []
@@ -268,6 +307,10 @@ def build_kdl_trees(graph: Graph, base_dir: Path | None = None) -> list[dict]:
                 ],
             }
         )
+
+    for kgraph in kinematic_graphs(graph, base_dir):
+        for body in kgraph.free_bodies.values():
+            result.append(_placed_body_tree(kgraph, body, graph))
     _ensure_names_are_distinct(result)
     return result
 

@@ -287,7 +287,8 @@ def pose_between(
     reverse = get_transform_between_frames(wrt_frame, of_frame, graph)
     if reverse is not None:
         return reverse.inv()
-    # Stated against a frame that is itself placed: where that frame is, plus the offset.
+    # No pose between the two frames: find of_frame's reference frame in wrt_frame, then apply the
+    # pose of_frame is written with.
     for stated_wrt, _pose in relation_neighbors(of_frame, URI_GEOM_TYPE_POSE, graph, reverse=False):
         if stated_wrt == wrt_frame or stated_wrt in _seen:
             continue

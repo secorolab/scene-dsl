@@ -21,7 +21,7 @@ import numpy as np
 from rdf_utils.constraints import ConstraintViolation
 from rdf_utils.models.common import ModelBase, get_node_types
 from rdf_utils.models.geom_coord import get_transform_between_frames
-from rdf_utils.models.geom_rel import FrameModel
+from rdf_utils.models.geom_rel import FrameModel, relation_neighbors
 from rdf_utils.models.vocab import (
     URI_DYN_PRED_ABOUT,
     URI_DYN_PRED_IXX,
@@ -46,6 +46,7 @@ from rdf_utils.models.vocab import (
     URI_GEOM_TYPE_FRAME,
     URI_GEOM_TYPE_KGRAPH,
     URI_GEOM_TYPE_KTREE,
+    URI_GEOM_TYPE_POSE,
     URI_GEOM_TYPE_RIGID_BODY,
     URI_KC_EXT_PRED_ROOT,
     URI_KC_EXT_PRED_TIP,
@@ -271,7 +272,9 @@ class InertiaModel(ModelBase):
         )
 
 
-def pose_between(of_frame: URIRef, wrt_frame: URIRef, graph: Graph) -> RigidTransform | None:
+def pose_between(
+    of_frame: URIRef, wrt_frame: URIRef, graph: Graph, _seen: frozenset = frozenset()
+) -> RigidTransform | None:
     """The transform between two frames, from a pose written either way round.
 
     A Pose relates both of its frames, so which one a scene wrote it `of` is a matter of what
@@ -282,7 +285,17 @@ def pose_between(of_frame: URIRef, wrt_frame: URIRef, graph: Graph) -> RigidTran
     if forward is not None:
         return forward
     reverse = get_transform_between_frames(wrt_frame, of_frame, graph)
-    return reverse.inv() if reverse is not None else None
+    if reverse is not None:
+        return reverse.inv()
+    # No pose between the two frames: find of_frame's reference frame in wrt_frame, then apply the
+    # pose of_frame is written with.
+    for stated_wrt, _pose in relation_neighbors(of_frame, URI_GEOM_TYPE_POSE, graph, reverse=False):
+        if stated_wrt == wrt_frame or stated_wrt in _seen:
+            continue
+        base = pose_between(stated_wrt, wrt_frame, graph, _seen | {of_frame})
+        if base is not None:
+            return base * get_transform_between_frames(of_frame, stated_wrt, graph)
+    return None
 
 
 class RigidBodyModel(ModelBase):

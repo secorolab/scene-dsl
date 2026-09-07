@@ -310,7 +310,7 @@ scene inst (ns=scene_lab_mjc) pickplace_scene_mjc {
 
     agn <isaac_agents.arm1_gripper> {
         model arm1-mjc as mjcf {
-            sys path = '~/.cache/mj_kdl_wrapper/menagerie/kinova_gen3/gen3.xml'
+            sys path = '~/.cache/mj_kdl_wrapper/assets/kinova_gen3/gen3.xml'
             map tree <arm1> to "gen3"
         }
         model gripper-mjc as mjcf {
@@ -321,7 +321,7 @@ scene inst (ns=scene_lab_mjc) pickplace_scene_mjc {
 
     agn <isaac_agents.kinova2> {
         model kinova2-mjc as mjcf {
-            sys path = '~/.cache/mj_kdl_wrapper/menagerie/kinova_gen3/gen3.xml'
+            sys path = '~/.cache/mj_kdl_wrapper/assets/kinova_gen3/gen3.xml'
             map tree <arm2> to "gen3"
         }
     }

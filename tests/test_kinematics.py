@@ -469,6 +469,59 @@ def test_a_chain_places_every_frame_it_reaches(tmp_path):
     assert chain["tip_index"] == len(_chain_segment_names(trees[0], chain))
 
 
+DRAWN_SCENEX = """import "example.scene"
+
+ns n = "https://example.test/"
+
+distrib (ns=n) spot-xyz {
+    uniform { dimension: 3 lower: (0.0, 0.0, 0.0) upper: (0.1, 0.2, 0.3) }
+}
+
+scene inst (ns=n) drawn {
+    scene: <s>
+
+    kgraph (ns=n) lab {
+        anchor: <world.root>
+        body world { frame root { } }
+        body table {
+            frame anchor {
+                pose anchor_in_world {
+                    wrt: <world.root> xyz: (0.0, 0.0, 0.72) m
+                    orientation: euler { angles: (0.0, 0.0, 0.0) unit: deg }
+                }
+            }
+            frame spot {
+                pose spot_on_anchor {
+                    wrt: <table.anchor> xyz: sample <spot-xyz> m
+                    orientation: euler { angles: (0.0, 0.0, 90.0) unit: deg }
+                }
+            }
+        }
+    }
+}
+"""
+
+
+def test_a_frame_whose_position_is_drawn_is_not_a_segment(tmp_path):
+    """A run draws the position, so generation has no transform to render for the frame.
+
+    It comes back on its own, with the frame it is written against and the orientation as
+    authored, for the controller to add as a segment once it has the draw.
+    """
+    write_example_scene(tmp_path)
+    (tmp_path / "drawn.scenex").write_text(DRAWN_SCENEX)
+    model = scenex_metamodel().model_from_file(str(tmp_path / "drawn.scenex"))
+    trees = build_kdl_trees(create_scenex_model_graph(model=model), tmp_path)
+
+    [table] = [tree for tree in trees if tree["name"] == "table"]
+    assert [segment["name"] for segment in table["segments"]] == []
+    [spot] = table["sampled_frames"]
+    assert spot["name"] == "lab/table/spot"
+    assert spot["parent"] == "lab/table"
+    assert spot["iri"] == "https://example.test/lab/table/spot"
+    assert spot["rotation"] == pytest.approx((np.sqrt(0.5), 0.0, 0.0, np.sqrt(0.5)))
+
+
 def test_a_frames_offset_is_the_leaf_the_tree_holds_for_it(tmp_path):
     """One representation: the chain's offset for a frame is the transform of that
     frame's own segment, not a second reading of the graph."""

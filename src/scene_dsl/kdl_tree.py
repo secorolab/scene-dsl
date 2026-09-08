@@ -6,8 +6,18 @@ from pathlib import Path
 
 import numpy as np
 from rdf_utils.constraints import ConstraintViolation
-from rdf_utils.models.geom_coord import get_translation_between_points
-from rdf_utils.models.vocab import URI_GEOM_PRED_ORIGIN
+from rdf_utils.models.common import get_node_types
+from rdf_utils.models.geom_coord import (
+    get_orientation_coord_vals,
+    get_pose_coords,
+    get_translation_between_points,
+)
+from rdf_utils.models.geom_rel import PoseModel, relation_neighbors
+from rdf_utils.models.vocab import (
+    URI_DISTRIB_TYPE_SAMPLED_QUANTITY,
+    URI_GEOM_PRED_ORIGIN,
+    URI_GEOM_TYPE_POSE,
+)
 from rdf_utils.naming import get_valid_var_name
 from rdflib import Graph, URIRef
 from rdflib.namespace import split_uri
@@ -74,6 +84,32 @@ def _origin(frame: URIRef, graph: Graph) -> URIRef:
     return origin
 
 
+def drawn_pose(frame: URIRef, graph: Graph) -> tuple[URIRef, str, list[float]] | None:
+    """The frame the pose is written against, the position coordinate a run draws, and the
+    authored rotation as a quaternion; None when the frame's poses are all numeric."""
+    for wrt, pose in relation_neighbors(frame, URI_GEOM_TYPE_POSE, graph, reverse=False):
+        for _, coords in get_pose_coords(graph, [PoseModel(pose_id=pose, graph=graph)]):
+            for coord in coords:
+                if URI_DISTRIB_TYPE_SAMPLED_QUANTITY in get_node_types(
+                    graph, coord.orientation_coord.id
+                ):
+                    raise ConstraintViolation(
+                        "kinematics", f"frame '{frame}': a drawn orientation is not supported"
+                    )
+                if URI_DISTRIB_TYPE_SAMPLED_QUANTITY not in get_node_types(
+                    graph, coord.position_coord.id
+                ):
+                    continue
+                rotation = get_orientation_coord_vals(coord.orientation_coord, graph)
+                if rotation is None:
+                    raise ConstraintViolation(
+                        "kinematics",
+                        f"frame '{frame}': a drawn position needs an authored orientation",
+                    )
+                return wrt, str(coord.position_coord.id), [float(v) for v in rotation.as_quat()]
+    return None
+
+
 def _joint_data(
     tree: KinematicTreeModel,
     parent: URIRef,
@@ -125,18 +161,25 @@ def _joint_data(
 
 def _body_frame_segments(
     body_name: str, model: RigidBodyModel, graph: Graph
-) -> tuple[list[dict], dict[URIRef, str]]:
+) -> tuple[list[dict], dict[URIRef, str], list[dict]]:
     """A fixed KDL leaf for every frame the scene places on one body, and the name each got.
 
     A frame is where something is, so the tree has to hold it: a solver reaches one by name
     only if a segment stands for it. The body's root frame is where the body's own segment
-    already is, so it names that rather than a leaf of its own.
+    already is, so it names that rather than a leaf of its own. A frame whose position a run
+    draws has no transform yet; it is listed apart, with the segment it hangs off, for the
+    controller to add once it has drawn.
     """
-    names: dict[URIRef, str] = {}
+    names: dict[URIRef, str] = {model.root_frame.id: body_name}
     segments = []
-    for frame, pose in model.pose_by_frame(graph).items():
-        if frame == model.root_frame.id:
-            names[frame] = body_name
+    drawn = {}
+    for frame in sorted(model.frames - {model.root_frame.id}, key=str):
+        if (sample := drawn_pose(frame, graph)) is not None:
+            drawn[frame] = sample
+            continue
+        # A frame the scene never places is left out rather than put at the body's origin.
+        pose = pose_between(frame, model.root_frame.id, graph)
+        if pose is None:
             continue
         names[frame] = f"{body_name}/{split_uri(frame)[1]}"
         segments.append(
@@ -149,17 +192,42 @@ def _body_frame_segments(
                 "inertia": None,
             }
         )
-    return segments, names
+    sampled = []
+    for frame, (wrt, coord, rotation) in drawn.items():
+        if wrt not in names:
+            raise ConstraintViolation(
+                "kinematics",
+                f"the drawn pose of frame '{frame}' is written against '{wrt}', which is not a "
+                f"placed frame of body '{model.id}'",
+            )
+        names[frame] = f"{body_name}/{split_uri(frame)[1]}"
+        sampled.append(
+            {
+                "name": names[frame],
+                "iri": str(frame),
+                "parent": names[wrt],
+                "body": body_name,
+                "rotation": rotation,
+                "coord_iri": coord,
+            }
+        )
+    return segments, names, sampled
 
 
-def _frame_segments(tree: KinematicTreeModel, graph: Graph) -> tuple[list[dict], dict[URIRef, str]]:
+def _frame_segments(
+    tree: KinematicTreeModel, graph: Graph
+) -> tuple[list[dict], dict[URIRef, str], list[dict]]:
     """The frame leaves of every body of this tree, and the frame a chain end names."""
     names: dict[URIRef, str] = {}
     segments = []
+    sampled = []
     for body, model in sorted(tree.bodies.items(), key=lambda item: str(item[0])):
-        body_segments, body_names = _body_frame_segments(_body_name(tree, body), model, graph)
+        body_segments, body_names, body_sampled = _body_frame_segments(
+            _body_name(tree, body), model, graph
+        )
         segments.extend(body_segments)
         names.update(body_names)
+        sampled.extend(body_sampled)
     for chain in tree.chains:
         for frame in (chain.root_frame, chain.tip_frame):
             if frame not in names:
@@ -168,7 +236,7 @@ def _frame_segments(tree: KinematicTreeModel, graph: Graph) -> tuple[list[dict],
                     f"chain '{chain.id}' runs to frame '{frame}', which no pose places on a "
                     f"body of tree '{tree.id}'",
                 )
-    return segments, names
+    return segments, names, sampled
 
 
 def _chain_segment_order(segments: list[dict], root: str, tip: str) -> list[str]:
@@ -245,7 +313,7 @@ def _placed_body_tree(kgraph: KinematicGraphModel, body: RigidBodyModel, graph: 
     """
     local = split_uri(body.id)[1]
     root = f"{split_uri(kgraph.id)[1]}/{local}"
-    segments, _ = _body_frame_segments(root, body, graph)
+    segments, _, sampled = _body_frame_segments(root, body, graph)
     return {
         "name": local,
         "cpp_name": get_valid_var_name(local),
@@ -253,6 +321,7 @@ def _placed_body_tree(kgraph: KinematicGraphModel, body: RigidBodyModel, graph: 
         "root": root,
         "root_iri": str(body.id),
         "segments": segments,
+        "sampled_frames": sampled,
         "chains": [],
     }
 
@@ -276,7 +345,7 @@ def build_kdl_trees(graph: Graph, base_dir: Path | None = None) -> list[dict]:
                 }
             )
 
-        frame_segments, frame_names = _frame_segments(tree, graph)
+        frame_segments, frame_names, sampled = _frame_segments(tree, graph)
         segments.extend(frame_segments)
         result.append(
             {
@@ -286,6 +355,7 @@ def build_kdl_trees(graph: Graph, base_dir: Path | None = None) -> list[dict]:
                 "root": _body_name(tree, tree.root),
                 "root_iri": str(tree.root),
                 "segments": segments,
+                "sampled_frames": sampled,
                 "chains": [
                     {
                         "name": _declared_name(tree, chain.id),
@@ -329,6 +399,7 @@ def _ensure_names_are_distinct(trees: list[dict]) -> None:
             elements.append((segment["name"], segment["iri"]))
             if segment["joint"] is not None:
                 elements.append((segment["joint"]["name"], segment["joint"]["iri"]))
+        elements.extend((frame["name"], frame["iri"]) for frame in tree["sampled_frames"])
         elements.extend((chain["cpp_name"], chain["iri"]) for chain in tree["chains"])
 
         for name, iri in elements:

@@ -109,6 +109,9 @@ class FloatVector:
     def as_low_high(self, context: str = "FloatVector.as_low_high") -> tuple[float, float]:
         return tuple(_expect_size(values=self.values, size=2, context=context))
 
+    def as_channels(self, size: int, context: str = "FloatVector.as_channels") -> tuple[float, ...]:
+        return tuple(_expect_size(values=self.values, size=size, context=context))
+
 
 class IntVector:
     values: list[int]

@@ -8,6 +8,14 @@ NS_MJCF = Namespace("https://mujoco.readthedocs.io/en/stable/XMLreference.html#"
 NS_USD = Namespace("https://openusd.org/release/spec.html#")
 NS_MM_ROS = Namespace("https://index.ros.org/p/")
 NS_MM_BDD = Namespace(f"{URL_SECORO_MM}/acceptance-criteria/bdd#")
+NS_MM_COLOR = Namespace(f"{URL_SECORO_MM}/color#")
+
+URI_COLOR_TYPE_COLOR = NS_MM_COLOR["Color"]
+URI_COLOR_TYPE_RGB = NS_MM_COLOR["RGB"]
+URI_COLOR_TYPE_RGBA = NS_MM_COLOR["RGBA"]
+URI_COLOR_TYPE_HSV = NS_MM_COLOR["HSV"]
+URI_COLOR_PRED_HAS_COLOR = NS_MM_COLOR["has-color"]
+URI_COLOR_PRED_VALUE = NS_MM_COLOR["value"]
 
 URI_XML_DOCUMENT = NS_XML["document"]
 URI_URDF_ROBOT = NS_URDF["robot"]

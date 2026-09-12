@@ -19,13 +19,21 @@ from scene_dsl.rdf.scene import create_scene_model_graph
 from scene_dsl.rdf.scenex import URI_MJCF_MUJOCO, create_scenex_model_graph
 from scene_dsl.rdf_parser.scene import SceneModel
 from scene_dsl.rdf_parser.scenex import (
+    ColorValue,
     SceneInstanceModel,
+    get_color,
     get_kinematic_mappings,
     get_ros_pkg_path,
     load_ros_path,
 )
 from scene_dsl.rdf_parser.vocab import (
     URI_BDD_TYPE_SCENE,
+    URI_COLOR_PRED_HAS_COLOR,
+    URI_COLOR_PRED_VALUE,
+    URI_COLOR_TYPE_COLOR,
+    URI_COLOR_TYPE_HSV,
+    URI_COLOR_TYPE_RGB,
+    URI_COLOR_TYPE_RGBA,
     URI_ROS_TYPE_PACKAGE,
     URI_USD_STAGE,
 )
@@ -108,6 +116,116 @@ scene inst (ns=scene_lab_mjc) usd_scene {
     [resource] = parsed.models.values()
     assert URI_USD_STAGE in resource.types
     assert resource.get_attr(URI_EXEC_PRED_PATH) == "/tmp/scene.usda"
+
+
+def test_model_color_emits_a_node_stating_its_notation():
+    """A color is how the model is drawn, so it hangs off the model in the color vocabulary."""
+    model = scenex_metamodel().model_from_file(MODELS_DIR / "lab.scenex")
+    box = next(
+        obj_model
+        for scene_inst in model.scene_insts
+        for obj_model in scene_inst.modelled_objs
+        if obj_model.obj.name == "box1"
+    ).models[0]
+    graph = create_scenex_model_graph(model)
+
+    color = box.color.uri
+    assert color == URIRef(f"{box.uri}-color")
+    assert (box.uri, URI_COLOR_PRED_HAS_COLOR, color) in graph
+    # The notation is a class beside col:Color, so a reader asks for a color without listing them.
+    assert (color, RDF.type, URI_COLOR_TYPE_COLOR) in graph
+    assert (color, RDF.type, URI_COLOR_TYPE_RGBA) in graph
+    assert graph.value(color, URI_COLOR_PRED_VALUE).toPython() == "0.9 0.2 0.2 1.0"
+
+
+def test_model_color_reads_back_and_is_none_without_one():
+    model = scenex_metamodel().model_from_file(MODELS_DIR / "lab.scenex")
+    scene_instance = next(s for s in model.scene_insts if s.name == "pickplace_scene_mjc")
+    box = next(m for m in scene_instance.modelled_objs if m.obj.name == "box1")
+    table = next(m for m in scene_instance.modelled_objs if m.obj.name == "dining_table")
+    parsed = SceneInstanceModel(scene_instance.uri, create_scenex_model_graph(model))
+
+    assert get_color(parsed.object_models[box.obj.uri][box.models[0].uri]) == ColorValue(
+        notation="rgba", channels=(0.9, 0.2, 0.2, 1.0)
+    )
+    assert get_color(parsed.object_models[table.obj.uri][table.models[0].uri]) is None
+
+
+@pytest.mark.parametrize(
+    ("notation", "written", "type_uri", "channels"),
+    [
+        ("rgba", "(0.9, 0.2, 0.2, 0.5)", URI_COLOR_TYPE_RGBA, (0.9, 0.2, 0.2, 0.5)),
+        ("rgb", "(0.9, 0.2, 0.2)", URI_COLOR_TYPE_RGB, (0.9, 0.2, 0.2)),
+        ("hsv", "(210.5, 1.0, 0.9)", URI_COLOR_TYPE_HSV, (210.5, 1.0, 0.9)),
+    ],
+)
+def test_model_color_keeps_the_notation_it_was_written_in(notation, written, type_uri, channels):
+    """Each notation reaches the graph as its own class, and comes back unconverted."""
+    model = scenex_metamodel().model_from_str(
+        f"""import "lab.scene"
+scene inst (ns=scene_lab_mjc) painted_scene {{
+    scene: <pickplace_scene>
+    model cube as mjcf {{ sys path = "cube.xml" color {{ {notation}: {written} }} }}
+}}
+""",
+        file_name=str(MODELS_DIR / "painted_scene.scenex"),
+    )
+    scene_instance = model.scene_insts[0]
+    graph = create_scenex_model_graph(model)
+    color = scene_instance.models[0].color.uri
+
+    assert (color, RDF.type, URI_COLOR_TYPE_COLOR) in graph
+    assert (color, RDF.type, type_uri) in graph
+    parsed = SceneInstanceModel(scene_instance.uri, graph)
+    read = get_color(parsed.models[scene_instance.models[0].uri])
+    assert (read.notation, read.channels) == (notation, pytest.approx(channels))
+
+
+def test_model_color_channels_survive_the_round_trip():
+    """A channel is written out in full: what the scene states is what a reader gets back."""
+    channels = (0.1234567, 1e-07, 0.3, 1.0)
+    model = scenex_metamodel().model_from_str(
+        f"""import "lab.scene"
+scene inst (ns=scene_lab_mjc) precise_scene {{
+    scene: <pickplace_scene>
+    model cube as mjcf {{ sys path = "cube.xml" color {{ rgba: {channels} }} }}
+}}
+""",
+        file_name=str(MODELS_DIR / "precise_scene.scenex"),
+    )
+    scene_instance = model.scene_insts[0]
+    graph = create_scenex_model_graph(model)
+
+    value = graph.value(scene_instance.models[0].color.uri, URI_COLOR_PRED_VALUE)
+    assert str(value) == "0.1234567 0.0000001 0.3 1.0"
+    parsed = SceneInstanceModel(scene_instance.uri, graph)
+    assert get_color(parsed.models[scene_instance.models[0].uri]).channels == channels
+
+
+def test_model_color_rejects_a_hue_outside_its_turn():
+    with pytest.raises(ValueError, match=r"Color.hsv hue must be within \[0, 360\)"):
+        scenex_metamodel().model_from_str(
+            """import "lab.scene"
+scene inst (ns=scene_lab_mjc) spun_scene {
+    scene: <pickplace_scene>
+    model cube as mjcf { sys path = "cube.xml" color { hsv: (360.0, 1.0, 1.0) } }
+}
+""",
+            file_name=str(MODELS_DIR / "spun_scene.scenex"),
+        )
+
+
+def test_model_color_rejects_a_channel_outside_unit_range():
+    with pytest.raises(ValueError, match=r"Color.rgba channels must be within \[0, 1\]"):
+        scenex_metamodel().model_from_str(
+            """import "lab.scene"
+scene inst (ns=scene_lab_mjc) bright_scene {
+    scene: <pickplace_scene>
+    model cube as mjcf { sys path = "cube.xml" color { rgba: (1.2, 0.0, 0.0, 1.0) } }
+}
+""",
+            file_name=str(MODELS_DIR / "bright_scene.scenex"),
+        )
 
 
 def test_scene_parser_resolves_scene_entity_body_by_name():

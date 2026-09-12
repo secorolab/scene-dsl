@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MPL-2.0
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, ClassVar
 
 from rdflib import Namespace, URIRef
 
@@ -20,14 +20,16 @@ from scene_dsl.classes.scene import (
 class ElementModel(IHasNamespace):
     model_spec: Any
     model_kind: str | None
+    color: Color | None
     mappings: list[ElementMapping]
     _uri: URIRef | None
 
-    def __init__(self, parent, name, model_kind, model_spec, mappings=None) -> None:
+    def __init__(self, parent, name, model_kind, model_spec, color=None, mappings=None) -> None:
         super().__init__(parent=parent)
         self.name = name
         self.model_kind = model_kind
         self.model_spec = model_spec
+        self.color = color
         self.mappings = mappings or []
         self._uri = None
 
@@ -41,6 +43,52 @@ class ElementModel(IHasNamespace):
     def uri(self) -> URIRef:
         if self._uri is None:
             self._uri = self.namespace[self.scoped()]
+        return self._uri
+
+
+class Color(IHasNamespace):
+    """The color a model is drawn in, in the notation it was written in.
+
+    rgb and rgba are sRGB channels in [0, 1]; hsv is hue in [0, 360) then saturation and
+    value in [0, 1]. The bounds are per notation, so each states its own.
+    """
+
+    # Channels each notation takes, and the range every channel after the first must hold.
+    NOTATIONS: ClassVar[dict[str, tuple[int, tuple[float, float]]]] = {
+        "rgb": (3, (0.0, 1.0)),
+        "rgba": (4, (0.0, 1.0)),
+        "hsv": (3, (0.0, 1.0)),
+    }
+    HUE_HIGH = 360.0
+
+    notation: str
+    channels: tuple[float, ...]
+    _uri: URIRef | None
+
+    def __init__(self, parent, notation, channels) -> None:
+        super().__init__(parent=parent)
+        self.notation = notation
+        count, (low, high) = self.NOTATIONS[notation]
+        self.channels = channels.as_channels(count, f"Color.{notation}")
+        bounded = self.channels[1:] if notation == "hsv" else self.channels
+        if any(not low <= channel <= high for channel in bounded):
+            raise ValueError(
+                f"Color.{notation} channels must be within [{low:g}, {high:g}], got {self.channels}"
+            )
+        if notation == "hsv" and not 0.0 <= self.channels[0] < self.HUE_HIGH:
+            raise ValueError(f"Color.hsv hue must be within [0, 360), got {self.channels[0]}")
+        self._uri = None
+
+    @property
+    def namespace(self) -> Namespace:
+        if not isinstance(self.parent, ElementModel):
+            raise TypeError(f"parent of Color is not an ElementModel: {self.parent}")
+        return self.parent.namespace
+
+    @property
+    def uri(self) -> URIRef:
+        if self._uri is None:
+            self._uri = self.namespace[self.parent.scoped("-color")]
         return self._uri
 
 

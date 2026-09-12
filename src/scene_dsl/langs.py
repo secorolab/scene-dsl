@@ -59,6 +59,7 @@ from scene_dsl.classes.scene import (
 )
 from scene_dsl.classes.scenex import (
     BodyMapping,
+    Color,
     ElementModel,
     ElementModelRef,
     ModelledAgent,
@@ -438,6 +439,7 @@ def scenex_metamodel():
             BodyMapping,
             ElementModel,
             ElementModelRef,
+            Color,
             TreeMapping,
             ModelledObject,
             ModelledObjectSet,

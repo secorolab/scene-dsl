@@ -19,9 +19,13 @@ scene_insts+=SceneInstance*
 ElementModel:
 'model' name=IRI_TRUNK ('as' model_kind=ModelKind)? '{'
     model_spec=ModelSpecification
+    color=Color?
     mappings*=ElementMapping
 '}'
 ;
+
+Color: 'color' '{' notation=ColorNotation ':' channels=FloatVector '}' ;
+ColorNotation: 'rgba' | 'rgb' | 'hsv' ;
 
 ElementMapping: TreeMapping | BodyMapping ;
 TreeMapping: 'map' 'tree' '<' tree=[KinematicTreeModel|FQN] '>' ('to' entity=STRING)? ;

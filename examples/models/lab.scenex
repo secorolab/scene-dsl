@@ -266,6 +266,7 @@ scene inst (ns=scene_lab_mjc) pickplace_scene_mjc {
 
     obj <pickplace_objects.box1> {
         model box1-mjc as mjcf { sys path = '~/.cache/mj_kdl_wrapper/assets/cube.xml'
+            color { rgba: (0.9, 0.2, 0.2, 1.0) }
             map body <lab_graph.box1_body> to "cube"
         }
     }

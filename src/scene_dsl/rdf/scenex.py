@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: MPL-2.0
+from decimal import Decimal
 from typing import Any
 
 from rdf_utils.models.vocab import (
@@ -48,10 +49,17 @@ from scene_dsl.rdf.scene import add_scene_model
 from scene_dsl.rdf.sensors import add_sensors
 from scene_dsl.rdf_parser.vocab import (
     NS_MJCF,
+    NS_MM_COLOR,
     NS_URDF,
     NS_USD,
     NS_XML,
     URI_BDD_PRED_OF_SCENE,
+    URI_COLOR_PRED_HAS_COLOR,
+    URI_COLOR_PRED_VALUE,
+    URI_COLOR_TYPE_COLOR,
+    URI_COLOR_TYPE_HSV,
+    URI_COLOR_TYPE_RGB,
+    URI_COLOR_TYPE_RGBA,
     URI_MJCF_MUJOCO,
     URI_ROS_PRED_PACKAGE_NAME,
     URI_ROS_TYPE_PACKAGE,
@@ -66,6 +74,7 @@ def _bind_model_kind_namespaces(graph: Graph) -> None:
     graph.bind(prefix="urdf", namespace=NS_URDF)
     graph.bind(prefix="mjcf", namespace=NS_MJCF)
     graph.bind(prefix="usd", namespace=NS_USD)
+    graph.bind(prefix="col", namespace=NS_MM_COLOR)
     graph.bind(prefix="geom", namespace=NS_MM_GEOM)
     graph.bind(prefix="geom-rel", namespace=NS_MM_GEOM_REL)
     graph.bind(prefix="geom-coord", namespace=NS_MM_GEOM_COORD)
@@ -102,6 +111,31 @@ def add_model_spec(graph: Graph, elem_model: ElementModel) -> None:
         raise ValueError(f"Unhandled model kind: {elem_model.model_kind}")
 
 
+def _channel(value: float) -> str:
+    """Every digit the float carries, written out: an exponent is no channel value."""
+    return format(Decimal(repr(value)), "f")
+
+
+NOTATION_TYPES = {
+    "rgb": URI_COLOR_TYPE_RGB,
+    "rgba": URI_COLOR_TYPE_RGBA,
+    "hsv": URI_COLOR_TYPE_HSV,
+}
+
+
+def add_color(graph: Graph, elem_model: ElementModel) -> None:
+    """The color a model is drawn in: a node carrying its notation and its channels."""
+    color = elem_model.color
+    if color is None:
+        return
+    graph.add((elem_model.uri, URI_COLOR_PRED_HAS_COLOR, color.uri))
+    # The color states the parent class beside its notation, so anything drawn can ask
+    # for a col:Color without enumerating the notations.
+    graph.add((color.uri, RDF.type, URI_COLOR_TYPE_COLOR))
+    graph.add((color.uri, RDF.type, NOTATION_TYPES[color.notation]))
+    graph.add((color.uri, URI_COLOR_PRED_VALUE, Literal(" ".join(map(_channel, color.channels)))))
+
+
 def _ensure_unique_scene_uri(
     node_uri: URIRef, scene_inst: SceneInstance, seen_uris: set[URIRef]
 ) -> None:
@@ -125,6 +159,7 @@ def add_element_model(
     _ensure_unique_scene_uri(elem_model.uri, scene_inst, seen_model_uris)
     graph.add((elem_model.uri, RDF.type, type_uri))
     add_model_spec(graph, elem_model)
+    add_color(graph, elem_model)
 
     # A node per mapping: one model may map several targets, so `entity` cannot hang off
     # the model itself. What it maps says its kind, so it needs no type of its own.

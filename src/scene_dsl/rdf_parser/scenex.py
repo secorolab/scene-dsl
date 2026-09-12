@@ -1,5 +1,7 @@
 # SPDX-License-Identifier: MPL-2.0
 
+from dataclasses import dataclass
+
 from rdf_utils.models.common import AttrLoaderProtocol, ModelBase, ModelLoader
 from rdf_utils.models.execution import load_attr_path
 from rdf_utils.models.geom_rel import FrameModel
@@ -35,9 +37,30 @@ from scene_dsl.rdf_parser.kinematics import (
 from scene_dsl.rdf_parser.scene import SceneModel
 from scene_dsl.rdf_parser.vocab import (
     URI_BDD_PRED_OF_SCENE,
+    URI_COLOR_PRED_HAS_COLOR,
+    URI_COLOR_PRED_VALUE,
+    URI_COLOR_TYPE_HSV,
+    URI_COLOR_TYPE_RGB,
+    URI_COLOR_TYPE_RGBA,
     URI_ROS_PRED_PACKAGE_NAME,
     URI_ROS_TYPE_PACKAGE,
 )
+
+
+@dataclass
+class ColorValue:
+    """A color as the scene states it. Converting notations is the reader's business, not ours."""
+
+    notation: str
+    channels: tuple[float, ...]
+
+
+# What each notation is called, and how many channels it writes.
+COLOR_NOTATIONS: dict[URIRef, tuple[str, int]] = {
+    URI_COLOR_TYPE_RGBA: ("rgba", 4),
+    URI_COLOR_TYPE_RGB: ("rgb", 3),
+    URI_COLOR_TYPE_HSV: ("hsv", 3),
+}
 
 
 def load_ros_path(graph: Graph, model: ModelBase, **kwargs: object) -> None:
@@ -51,13 +74,52 @@ def load_ros_path(graph: Graph, model: ModelBase, **kwargs: object) -> None:
     model.set_attr(key=URI_ROS_PRED_PACKAGE_NAME, val=str(package_name.toPython()))
 
 
+def read_color(graph: Graph, model_id: URIRef) -> ColorValue | None:
+    """The color a model node is drawn in, as written, or None when it states none."""
+    color = ensure_one_obj_uri(graph=graph, subject=model_id, predicate=URI_COLOR_PRED_HAS_COLOR)
+    if color is None:
+        return None
+
+    notations = [uri for uri in COLOR_NOTATIONS if (color, RDF.type, uri) in graph]
+    if len(notations) != 1:
+        raise ValueError(
+            f"color '{color}' of model '{model_id}' states {len(notations)} readable notations, "
+            f"one of {sorted(str(uri) for uri in COLOR_NOTATIONS)} is expected"
+        )
+    notation, count = COLOR_NOTATIONS[notations[0]]
+
+    value = graph.value(subject=color, predicate=URI_COLOR_PRED_VALUE, any=False)
+    if not isinstance(value, Literal):
+        raise TypeError(f"color '{color}' of model '{model_id}' has no literal value")
+    channels = tuple(float(channel) for channel in str(value.toPython()).split())
+    if len(channels) != count:
+        raise ValueError(
+            f"color '{color}' of model '{model_id}' writes {len(channels)} channels, "
+            f"but '{notations[0]}' takes {count}"
+        )
+    return ColorValue(notation=notation, channels=channels)
+
+
+def load_attr_color(graph: Graph, model: ModelBase, **kwargs: object) -> None:
+    """Load the color a model is drawn in, in its own notation, if it states one."""
+    color = read_color(graph, model.id)
+    if color is not None:
+        model.set_attr(key=URI_COLOR_PRED_HAS_COLOR, val=color)
+
+
 DEFAULT_MODEL_LOADERS: tuple[AttrLoaderProtocol, ...] = (
     load_attr_path,
     load_py_module_attr,
     load_ros_path,
     load_attr_has_config,
     load_attr_kinematic_mappings,
+    load_attr_color,
 )
+
+
+def get_color(model: ModelBase) -> ColorValue | None:
+    """The color a model is drawn in, as written, or None when its file is the only word on it."""
+    return model.get_attr(URI_COLOR_PRED_HAS_COLOR)
 
 
 def get_ros_pkg_path(model: ModelBase) -> tuple[str, str] | None:

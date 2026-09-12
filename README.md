@@ -6,8 +6,9 @@ textX languages for abstract scene models (`scene`) and executable scene instanc
 
 - `scene` (`*.scene`) describes abstract robotic scene content: objects,
   workspaces, agents, workspace compositions, and scene models.
-- `scenex` (`*.scenex`) describes executable scene instances: model files,
-  geometry, frames, poses, kinematics, attachments, bodies, and inertial mass.
+- `scenex` (`*.scenex`) describes executable scene instances: model files and
+  the color they are drawn in, geometry, frames, poses, kinematics,
+  attachments, bodies, and inertial mass.
 - `.ktree` files hold reusable device trees. They are parsed with the `scenex`
   metamodel, and imported like a `.scene` file.
 

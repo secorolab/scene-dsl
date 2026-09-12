@@ -1346,6 +1346,40 @@ def test_serial_chain_across_two_devices_is_accepted():
     assert len(assembled.all_joints) == 10
 
 
+def test_imported_tree_holding_only_a_chain_is_accepted(tmp_path):
+    """A wrapper with no body or joint of its own roots at what it holds, filled by the importer."""
+    write_example_scene(tmp_path)
+    (tmp_path / "arm.ktree").write_text(
+        """ktree arm_tree { root: <b1.f1>
+    body b1 { frame f1 { } }
+    body b2 { frame f2 { } }
+    joints { fixed j1 { parent: <b1.f1> child: <b2.f2> } }
+}
+"""
+    )
+    (tmp_path / "held.scenex").write_text(
+        """import "example.scene"
+import "arm.ktree"
+ns n = "https://example.test/"
+ktree inst (ns=n) arm of <arm_tree>
+ktree (ns=n) arm_chain { root: <arm.b1.f1>
+    tree <arm>
+    joints { serial { root: <arm.b1.f1> tip: <arm.b2.f2> } }
+}
+scene inst (ns=n) sx {
+    scene: <s>
+    kgraph (ns=n) g { anchor: <arm.b1.f1> tree <arm_chain> }
+}
+"""
+    )
+    path = tmp_path / "importer.scenex"
+    path.write_text('import "held.scenex"\nns w = "https://example.test/w/"\n')
+    model = scenex_metamodel().model_from_file(path)
+    held = next(m for m in model._tx_model_repository.all_models if m is not model)
+    chain = {t.name: t for t in held.ktrees}["arm_chain"].joints_spec.joint_comp
+    assert [j.name for j in chain.joints] == ["j1"]
+
+
 def test_kgraph_holds_a_body_attached_to_nothing(tmp_path):
     """A graph promises no shape, so a body hanging from nothing is at home in one."""
     write_example_scene(tmp_path)

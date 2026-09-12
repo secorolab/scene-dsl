@@ -249,6 +249,9 @@ def check_tree_topology(model, metamodel):
             continue
         if any(j.parent_frame is None or j.child_frame is None for j in tree.all_joints):
             continue
+        # Imported, and holding only trees whose bodies are not filled yet: nothing to root at.
+        if not any(getattr(sub, "bodies", None) for sub in tree.subtrees.values()):
+            continue
 
         if isinstance(tree, KinematicTreeModel):
             parent_joint = _parent_joints(tree)

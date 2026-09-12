@@ -16,7 +16,7 @@ from rdf_utils.models.vocab import (
 )
 from rdflib import RDF, URIRef
 
-from scene_dsl.kdl_tree import build_kdl_trees
+from scene_dsl.kdl_tree import build_kdl_trees, segment_names
 from scene_dsl.langs import scenex_metamodel
 from scene_dsl.rdf.scenex import create_scenex_model_graph
 from scene_dsl.rdf_parser.kinematics import (
@@ -324,6 +324,18 @@ def test_kdl_ir_is_json_and_holds_every_placed_frame(tmp_path):
     header = template.render(data={"name": "scene", "source": "scene.scenex", "trees": trees})
     assert 'KDL::Segment("arm/link1/tcp"' in header
     assert 'tree.getChain("arm/base", "arm/link1/tcp", *chain)' in header
+
+
+def test_segment_names_match_the_built_trees(tmp_path):
+    """The name a reader gets from the structure alone is the one the tree carries."""
+    graph = _graph(tmp_path)
+    names = segment_names(graph)
+    built = {}
+    for tree in build_kdl_trees(graph, tmp_path):
+        built[tree["root_iri"]] = tree["root"]
+        for segment in tree["segments"]:
+            built[segment["iri"]] = segment["name"]
+    assert {iri: names[iri] for iri in built} == built
 
 
 def test_a_second_path_to_a_body_is_rejected(tmp_path):

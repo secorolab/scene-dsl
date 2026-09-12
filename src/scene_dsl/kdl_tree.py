@@ -135,10 +135,11 @@ def _body_frame_segments(
     names: dict[URIRef, str] = {}
     segments = []
     for frame, pose in model.pose_by_frame(graph).items():
+        names[frame] = (
+            body_name if frame == model.root_frame.id else f"{body_name}/{split_uri(frame)[1]}"
+        )
         if frame == model.root_frame.id:
-            names[frame] = body_name
             continue
-        names[frame] = f"{body_name}/{split_uri(frame)[1]}"
         segments.append(
             {
                 "name": names[frame],
@@ -255,6 +256,32 @@ def _placed_body_tree(kgraph: KinematicGraphModel, body: RigidBodyModel, graph: 
         "segments": segments,
         "chains": [],
     }
+
+
+def segment_names(graph: Graph) -> dict[str, str]:
+    """Every body and frame the world model names, by IRI, as `build_kdl_trees` names them.
+
+    Read off the scene's structure alone, so a scene whose coordinates are still to be sampled
+    resolves too: a reader that only needs to say what a frame is called must not need where
+    it is.
+    """
+    names: dict[str, str] = {}
+
+    def name_frames(body_name: str, model: RigidBodyModel) -> None:
+        names[str(model.id)] = body_name
+        for frame in model.frames:
+            names[str(frame)] = (
+                body_name if frame == model.root_frame.id else f"{body_name}/{split_uri(frame)[1]}"
+            )
+
+    for tree in kinematic_trees(graph):
+        for body, model in tree.bodies.items():
+            name_frames(_body_name(tree, body), model)
+    for kgraph in kinematic_graphs(graph):
+        for body, model in kgraph.free_bodies.items():
+            name_frames(f"{split_uri(kgraph.id)[1]}/{split_uri(body)[1]}", model)
+
+    return names
 
 
 def build_kdl_trees(graph: Graph, base_dir: Path | None = None) -> list[dict]:

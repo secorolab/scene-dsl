@@ -6,8 +6,18 @@ from pathlib import Path
 
 import numpy as np
 from rdf_utils.constraints import ConstraintViolation
-from rdf_utils.models.geom_coord import get_translation_between_points
-from rdf_utils.models.vocab import URI_GEOM_PRED_ORIGIN
+from rdf_utils.models.geom_coord import (
+    get_coord_vectorxyz,
+    get_orientation_coord_vals,
+    get_pose_coords,
+    get_translation_between_points,
+)
+from rdf_utils.models.geom_rel import PoseModel, relation_neighbors
+from rdf_utils.models.vocab import (
+    URI_GEOM_PRED_ORIGIN,
+    URI_GEOM_TYPE_POSE,
+    URI_GEOM_TYPE_VECTOR_XYZ,
+)
 from rdf_utils.naming import get_valid_var_name
 from rdflib import Graph, URIRef
 from rdflib.namespace import split_uri
@@ -65,6 +75,29 @@ def _inertia_data(tree: KinematicTreeModel, body: URIRef, graph: Graph) -> dict:
         "com": [float(value) for value in inertia.com],
         "tensor": [[float(value) for value in row] for row in inertia.tensor],
     }
+
+
+def _unresolved_placement(frame: URIRef, graph: Graph) -> tuple[URIRef, str, list[float]] | None:
+    """The frame this one is posed against, its position coordinate, and its rotation.
+
+    None when the frame's poses all carry numbers, which is the usual case.
+    """
+    for wrt, pose in relation_neighbors(frame, URI_GEOM_TYPE_POSE, graph, reverse=False):
+        for _, coords in get_pose_coords(graph, [PoseModel(pose_id=pose, graph=graph)]):
+            for coord in coords:
+                if URI_GEOM_TYPE_VECTOR_XYZ not in coord.position_coord.types:
+                    continue
+                if get_coord_vectorxyz(coord.position_coord, graph) is not None:
+                    continue
+                rotation = get_orientation_coord_vals(coord.orientation_coord, graph)
+                if rotation is None:
+                    raise ConstraintViolation(
+                        "kinematics",
+                        f"frame '{frame}': its pose gives no position and no orientation, so "
+                        f"nothing says where it is",
+                    )
+                return wrt, str(coord.position_coord.id), [float(v) for v in rotation.as_quat()]
+    return None
 
 
 def _origin(frame: URIRef, graph: Graph) -> URIRef:
@@ -125,18 +158,24 @@ def _joint_data(
 
 def _body_frame_segments(
     body_name: str, model: RigidBodyModel, graph: Graph
-) -> tuple[list[dict], dict[URIRef, str]]:
+) -> tuple[list[dict], dict[URIRef, str], list[dict]]:
     """A fixed KDL leaf for every frame the scene places on one body, and the name each got.
 
     A frame is where something is, so the tree has to hold it: a solver reaches one by name
     only if a segment stands for it. The body's root frame is where the body's own segment
-    already is, so it names that rather than a leaf of its own.
+    already is, so it names that rather than a leaf of its own. A frame whose position holds
+    no numbers is returned unplaced instead, with the segment it would hang off.
     """
-    names: dict[URIRef, str] = {}
+    names: dict[URIRef, str] = {model.root_frame.id: body_name}
     segments = []
-    for frame, pose in model.pose_by_frame(graph).items():
-        if frame == model.root_frame.id:
-            names[frame] = body_name
+    unresolved = {}
+    for frame in sorted(model.frames - {model.root_frame.id}, key=str):
+        if (placement := _unresolved_placement(frame, graph)) is not None:
+            unresolved[frame] = placement
+            continue
+        # A frame the scene never places is left out rather than put at the body's origin.
+        pose = pose_between(frame, model.root_frame.id, graph)
+        if pose is None:
             continue
         names[frame] = f"{body_name}/{split_uri(frame)[1]}"
         segments.append(
@@ -149,17 +188,43 @@ def _body_frame_segments(
                 "inertia": None,
             }
         )
-    return segments, names
+    unplaced = []
+    for frame, (wrt, coord, rotation) in unresolved.items():
+        if wrt not in names:
+            raise ConstraintViolation(
+                "kinematics",
+                f"frame '{frame}' has no position and is posed against '{wrt}', which body "
+                f"'{model.id}' does not place: there is no segment to hang it off",
+            )
+        names[frame] = f"{body_name}/{split_uri(frame)[1]}"
+        unplaced.append(
+            {
+                "name": names[frame],
+                "iri": str(frame),
+                "parent": names[wrt],
+                "body": body_name,
+                # x, y, z, w, the order `KDL::Rotation::Quaternion` takes.
+                "rotation_xyzw": rotation,
+                "position_coord_iri": coord,
+            }
+        )
+    return segments, names, unplaced
 
 
-def _frame_segments(tree: KinematicTreeModel, graph: Graph) -> tuple[list[dict], dict[URIRef, str]]:
+def _frame_segments(
+    tree: KinematicTreeModel, graph: Graph
+) -> tuple[list[dict], dict[URIRef, str], list[dict]]:
     """The frame leaves of every body of this tree, and the frame a chain end names."""
     names: dict[URIRef, str] = {}
     segments = []
+    unplaced = []
     for body, model in sorted(tree.bodies.items(), key=lambda item: str(item[0])):
-        body_segments, body_names = _body_frame_segments(_body_name(tree, body), model, graph)
+        body_segments, body_names, body_unplaced = _body_frame_segments(
+            _body_name(tree, body), model, graph
+        )
         segments.extend(body_segments)
         names.update(body_names)
+        unplaced.extend(body_unplaced)
     for chain in tree.chains:
         for frame in (chain.root_frame, chain.tip_frame):
             if frame not in names:
@@ -168,7 +233,7 @@ def _frame_segments(tree: KinematicTreeModel, graph: Graph) -> tuple[list[dict],
                     f"chain '{chain.id}' runs to frame '{frame}', which no pose places on a "
                     f"body of tree '{tree.id}'",
                 )
-    return segments, names
+    return segments, names, unplaced
 
 
 def _chain_segment_order(segments: list[dict], root: str, tip: str) -> list[str]:
@@ -245,7 +310,7 @@ def _placed_body_tree(kgraph: KinematicGraphModel, body: RigidBodyModel, graph: 
     """
     local = split_uri(body.id)[1]
     root = f"{split_uri(kgraph.id)[1]}/{local}"
-    segments, _ = _body_frame_segments(root, body, graph)
+    segments, _, unplaced = _body_frame_segments(root, body, graph)
     return {
         "name": local,
         "cpp_name": get_valid_var_name(local),
@@ -253,6 +318,7 @@ def _placed_body_tree(kgraph: KinematicGraphModel, body: RigidBodyModel, graph: 
         "root": root,
         "root_iri": str(body.id),
         "segments": segments,
+        "unplaced_frames": unplaced,
         "chains": [],
     }
 
@@ -276,7 +342,7 @@ def build_kdl_trees(graph: Graph, base_dir: Path | None = None) -> list[dict]:
                 }
             )
 
-        frame_segments, frame_names = _frame_segments(tree, graph)
+        frame_segments, frame_names, unplaced = _frame_segments(tree, graph)
         segments.extend(frame_segments)
         result.append(
             {
@@ -286,6 +352,7 @@ def build_kdl_trees(graph: Graph, base_dir: Path | None = None) -> list[dict]:
                 "root": _body_name(tree, tree.root),
                 "root_iri": str(tree.root),
                 "segments": segments,
+                "unplaced_frames": unplaced,
                 "chains": [
                     {
                         "name": _declared_name(tree, chain.id),

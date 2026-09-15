@@ -10,6 +10,12 @@ from jinja2 import Environment, FileSystemLoader
 from rdf_utils.constraints import ConstraintViolation
 from rdf_utils.models.vocab import (
     URI_DYN_PRED_OF_BODY,
+    URI_GEOM_PRED_ALPHA,
+    URI_GEOM_PRED_BETA,
+    URI_GEOM_PRED_GAMMA,
+    URI_GEOM_PRED_X,
+    URI_GEOM_PRED_Y,
+    URI_GEOM_PRED_Z,
     URI_KC_PRED_BETWEEN_ATTACHMENTS,
     URI_KC_PRED_JOINTS,
     URI_KC_TYPE_JOINT,
@@ -49,6 +55,13 @@ ktree (ns=n) arm {{ root: <base.base_origin>
             pose tcp_in_link1 {{
                 wrt: <link1.link1_origin>
                 xyz: (0, 0, 0.4) m
+                orientation: euler {{ angles: (0, 0, 0) unit: rad }}
+            }}
+        }}
+        frame marker {{
+            pose marker_in_link1 {{
+                wrt: <link1.link1_origin>
+                xyz: (0.1, 0, 0) m
                 orientation: euler {{ angles: (0, 0, 0) unit: rad }}
             }}
         }}
@@ -273,6 +286,53 @@ def test_a_frame_needs_a_pose_to_be_placed_on_its_body(tmp_path):
         base.pose_of(URIRef("https://example.test/arm/base/nowhere"), graph)
 
 
+MARKER = URIRef("https://example.test/arm/link1/marker")
+MARKER_POSE = "https://example.test/arm/link1/marker/marker_in_link1"
+
+
+def _drop_values(graph, coord: str, predicates) -> None:
+    """Leave the coordinate and its frames in place, and take the numbers off it."""
+    for predicate in predicates:
+        graph.remove((URIRef(coord), predicate, None))
+
+
+def test_a_frame_with_no_position_is_reported_unplaced_rather_than_built(tmp_path):
+    """A segment needs a transform. Without one the tree reports the frame and what it waits on."""
+    graph = _graph(tmp_path)
+    _drop_values(
+        graph, f"{MARKER_POSE}-position-coord", (URI_GEOM_PRED_X, URI_GEOM_PRED_Y, URI_GEOM_PRED_Z)
+    )
+
+    [tree] = build_kdl_trees(graph, tmp_path)
+
+    assert "arm/link1/marker" not in {segment["name"] for segment in tree["segments"]}
+    [unplaced] = tree["unplaced_frames"]
+    assert unplaced["name"] == "arm/link1/marker"
+    assert unplaced["parent"] == "arm/link1"
+    assert unplaced["body"] == "arm/link1"
+    assert unplaced["iri"] == str(MARKER)
+    assert unplaced["position_coord_iri"] == f"{MARKER_POSE}-position-coord"
+    assert unplaced["rotation_xyzw"] == pytest.approx([0.0, 0.0, 0.0, 1.0], abs=1e-9)
+    # The tree is still the plain data every reader of it expects.
+    assert json.loads(json.dumps(tree)) == tree
+
+
+def test_a_frame_with_neither_position_nor_orientation_is_an_error(tmp_path):
+    """Nothing could ever place it, so it is not something a reader can be asked to finish."""
+    graph = _graph(tmp_path)
+    _drop_values(
+        graph, f"{MARKER_POSE}-position-coord", (URI_GEOM_PRED_X, URI_GEOM_PRED_Y, URI_GEOM_PRED_Z)
+    )
+    _drop_values(
+        graph,
+        f"{MARKER_POSE}-orientation-coord",
+        (URI_GEOM_PRED_ALPHA, URI_GEOM_PRED_BETA, URI_GEOM_PRED_GAMMA),
+    )
+
+    with pytest.raises(ConstraintViolation, match="nothing says where it is"):
+        build_kdl_trees(graph, tmp_path)
+
+
 def test_kdl_ir_is_json_and_holds_every_placed_frame(tmp_path):
     """Every frame the scene places on a body is a segment, so KDL can reach it by name.
 
@@ -289,6 +349,7 @@ def test_kdl_ir_is_json_and_holds_every_placed_frame(tmp_path):
     assert {segment["name"] for segment in tree["segments"]} == {
         "arm/base/j1_anchor",
         "arm/link1",
+        "arm/link1/marker",
         "arm/link1/tcp",
         "tool/tool_base",
         "tool/tool_tip",

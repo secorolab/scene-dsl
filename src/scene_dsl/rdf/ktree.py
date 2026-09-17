@@ -152,12 +152,16 @@ def add_body(graph: Graph, body) -> None:
             )
             graph.add((body.inertia_coord_uri, RDF.type, URI_DYN_TYPE_MOMENT_OF_INERTIA_XYZ))
             graph.add((body.inertia_coord_uri, RDF.type, URI_DYN_TYPE_PRODUCT_OF_INERTIA_XYZ))
-            graph.add((body.inertia_coord_uri, URI_DYN_PRED_IXX, Literal(inertia.matrix[0][0])))
-            graph.add((body.inertia_coord_uri, URI_DYN_PRED_IXY, Literal(inertia.matrix[0][1])))
-            graph.add((body.inertia_coord_uri, URI_DYN_PRED_IXZ, Literal(inertia.matrix[0][2])))
-            graph.add((body.inertia_coord_uri, URI_DYN_PRED_IYY, Literal(inertia.matrix[1][1])))
-            graph.add((body.inertia_coord_uri, URI_DYN_PRED_IYZ, Literal(inertia.matrix[1][2])))
-            graph.add((body.inertia_coord_uri, URI_DYN_PRED_IZZ, Literal(inertia.matrix[2][2])))
+            for predicate, (row, column) in (
+                (URI_DYN_PRED_IXX, (0, 0)),
+                (URI_DYN_PRED_IXY, (0, 1)),
+                (URI_DYN_PRED_IXZ, (0, 2)),
+                (URI_DYN_PRED_IYY, (1, 1)),
+                (URI_DYN_PRED_IYZ, (1, 2)),
+                (URI_DYN_PRED_IZZ, (2, 2)),
+            ):
+                value = Literal(float(inertia.matrix[row][column]), datatype=XSD.double)
+                graph.add((body.inertia_coord_uri, predicate, value))
 
 
 def add_revolute_joint(graph: Graph, joint: RevoluteJoint) -> None:

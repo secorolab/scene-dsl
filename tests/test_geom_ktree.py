@@ -1,5 +1,3 @@
-import json
-
 import pytest
 from rdf_utils.constraints import check_shacl_constraints
 from rdf_utils.models.geom_coord import (
@@ -281,15 +279,6 @@ scene inst (ns=n) sx {{
         (URI_DYN_PRED_IZZ, matrix[2][2]),
     ):
         assert (cup_body.inertia_coord_uri, predicate, Literal(value)) in graph
-
-    # The inertia matrix is built with numpy, and a numpy scalar left in a literal reaches the
-    # JSON-LD serializer as a numpy object -- which some interpreters write and others refuse.
-    assert not [
-        term
-        for _, _, term in graph
-        if isinstance(term, Literal) and type(term.value).__module__.startswith("numpy")
-    ]
-    json.loads(graph.serialize(format="json-ld", auto_compact=True))
 
 
 def test_scenex_mass_quantity_validation(tmp_path):

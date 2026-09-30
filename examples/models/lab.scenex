@@ -1,6 +1,6 @@
 import "lab.scene"
-import "kinova_gen3_7dof.ktree"
-import "robotiq_2f85.ktree"
+import "scene_dsl:robots/kinova_gen3_7dof.ktree"
+import "scene_dsl:robots/robotiq_2f85.ktree"
 
 ns lab_rob='https://secorolab.github.io/models/acceptance-criteria/bdd/scenes/secorolab-mjc/robots/'
 

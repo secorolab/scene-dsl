@@ -1,0 +1,264 @@
+// Universal Robots UR10e arm template, from MuJoCo Menagerie's ur10e.xml.
+//
+// Same conventions as kinova_gen3_7dof.ktree. Joints turn about y of their child body except
+// shoulder_pan and wrist_2, which turn about z.
+// Trap: ur10e.xml turns base a half turn about z inside the file, on top of wherever the scene
+// mounts it, so the world pose of base_origin is off by that turn.
+ktree ur10e_tree {
+    root: <base.base_origin>
+    body base {
+        frame base_origin { }
+        frame shoulder_pan_joint_anchor {
+            pose shoulder_pan_joint_anchor_in_base {
+                wrt: <base.base_origin>
+                xyz: (0, 0, 0.181) m
+                orientation: euler { axes: xyz extrinsic angles: (0, 0, 0) unit: deg }
+            }
+        }
+        inertia {
+            frame: <base_origin>
+            mass: 4.0 kg
+            inertia-matrix: (
+                (0.0061063308908, 0.0, 0.0),
+                (0.0, 0.0061063308908, 0.0),
+                (0.0, 0.0, 0.01125)
+            ) kg*m^2
+        }
+    }
+    body shoulder_link {
+        frame shoulder_link_origin { }
+        frame shoulder_lift_joint_anchor {
+            pose shoulder_lift_joint_anchor_in_shoulder_link {
+                wrt: <shoulder_link.shoulder_link_origin>
+                xyz: (0, 0.176, 0) m
+                orientation: euler { axes: xyz extrinsic angles: (0, 90, 0) unit: deg }
+            }
+        }
+        inertia {
+            frame: <shoulder_link_origin>
+            mass: 7.778 kg
+            inertia-matrix: (
+                (0.0314743, 0.0, 0.0),
+                (0.0, 0.0314743, 0.0),
+                (0.0, 0.0, 0.0218756)
+            ) kg*m^2
+        }
+    }
+    body upper_arm_link {
+        frame upper_arm_link_origin { }
+        frame elbow_joint_anchor {
+            pose elbow_joint_anchor_in_upper_arm_link {
+                wrt: <upper_arm_link.upper_arm_link_origin>
+                xyz: (0, -0.137, 0.613) m
+                orientation: euler { axes: xyz extrinsic angles: (0, 0, 0) unit: deg }
+            }
+        }
+        frame upper_arm_link_com {
+            pose upper_arm_link_com_in_upper_arm_link {
+                wrt: <upper_arm_link.upper_arm_link_origin>
+                xyz: (0, 0, 0.3065) m
+                orientation: euler { axes: xyz extrinsic angles: (0, 0, 0) unit: deg }
+            }
+        }
+        inertia {
+            frame: <upper_arm_link_com>
+            mass: 12.93 kg
+            inertia-matrix: (
+                (0.423074, 0.0, 0.0),
+                (0.0, 0.423074, 0.0),
+                (0.0, 0.0, 0.0363656)
+            ) kg*m^2
+        }
+    }
+    body forearm_link {
+        frame forearm_link_origin { }
+        frame wrist_1_joint_anchor {
+            pose wrist_1_joint_anchor_in_forearm_link {
+                wrt: <forearm_link.forearm_link_origin>
+                xyz: (0, 0, 0.571) m
+                orientation: euler { axes: xyz extrinsic angles: (0, 90, 0) unit: deg }
+            }
+        }
+        frame forearm_link_com {
+            pose forearm_link_com_in_forearm_link {
+                wrt: <forearm_link.forearm_link_origin>
+                xyz: (0, 0, 0.2855) m
+                orientation: euler { axes: xyz extrinsic angles: (0, 0, 0) unit: deg }
+            }
+        }
+        inertia {
+            frame: <forearm_link_com>
+            mass: 3.87 kg
+            inertia-matrix: (
+                (0.11059, 0.0, 0.0),
+                (0.0, 0.11059, 0.0),
+                (0.0, 0.0, 0.0108844)
+            ) kg*m^2
+        }
+    }
+    body wrist_1_link {
+        frame wrist_1_link_origin { }
+        frame wrist_2_joint_anchor {
+            pose wrist_2_joint_anchor_in_wrist_1_link {
+                wrt: <wrist_1_link.wrist_1_link_origin>
+                xyz: (0, 0.135, 0) m
+                orientation: euler { axes: xyz extrinsic angles: (0, 0, 0) unit: deg }
+            }
+        }
+        frame wrist_1_link_com {
+            pose wrist_1_link_com_in_wrist_1_link {
+                wrt: <wrist_1_link.wrist_1_link_origin>
+                xyz: (0, 0.135, 0) m
+                orientation: quat { xyzw: (0.5, -0.5, 0.5, 0.5) }
+            }
+        }
+        inertia {
+            frame: <wrist_1_link_com>
+            mass: 1.96 kg
+            inertia-matrix: (
+                (0.0055125, 0.0, 0.0),
+                (0.0, 0.00510825, 0.0),
+                (0.0, 0.0, 0.00510825)
+            ) kg*m^2
+        }
+    }
+    body wrist_2_link {
+        frame wrist_2_link_origin { }
+        frame wrist_3_joint_anchor {
+            pose wrist_3_joint_anchor_in_wrist_2_link {
+                wrt: <wrist_2_link.wrist_2_link_origin>
+                xyz: (0, 0, 0.12) m
+                orientation: euler { axes: xyz extrinsic angles: (0, 0, 0) unit: deg }
+            }
+        }
+        frame wrist_2_link_com {
+            pose wrist_2_link_com_in_wrist_2_link {
+                wrt: <wrist_2_link.wrist_2_link_origin>
+                xyz: (0, 0, 0.12) m
+                orientation: quat { xyzw: (0.5, -0.5, 0.5, 0.5) }
+            }
+        }
+        inertia {
+            frame: <wrist_2_link_com>
+            mass: 1.96 kg
+            inertia-matrix: (
+                (0.0055125, 0.0, 0.0),
+                (0.0, 0.00510825, 0.0),
+                (0.0, 0.0, 0.00510825)
+            ) kg*m^2
+        }
+    }
+    body wrist_3_link {
+        frame wrist_3_link_origin { }
+        // The flange: +z out of the wrist, along wrist_3's axis.
+        frame attachment_site {
+            pose attachment_site_in_wrist_3_link {
+                wrt: <wrist_3_link.wrist_3_link_origin>
+                xyz: (0, 0.1, 0) m
+                orientation: euler { axes: xyz extrinsic angles: (-90, 0, 0) unit: deg }
+            }
+        }
+        frame wrist_3_link_com {
+            pose wrist_3_link_com_in_wrist_3_link {
+                wrt: <wrist_3_link.wrist_3_link_origin>
+                xyz: (0, 0.092, 0) m
+                orientation: quat { xyzw: (0.7071067812, -0.7071067812, 0.0, 0.0) }
+            }
+        }
+        inertia {
+            frame: <wrist_3_link_com>
+            mass: 0.202 kg
+            inertia-matrix: (
+                (0.000204525, 0.0, 0.0),
+                (0.0, 0.000144346, 0.0),
+                (0.0, 0.0, 0.000144346)
+            ) kg*m^2
+        }
+    }
+    joints {
+        revolute shoulder_pan_joint {
+            parent: <base.shoulder_pan_joint_anchor>.z
+            child: <shoulder_link.shoulder_link_origin>.z
+            actuation {
+                gear ratio: 1.0
+                command-interface: position torque
+                state-interface: position velocity torque
+            }
+            limits {
+                position: (-6.28319, 6.28319) rad
+                effort: (-330, 330) N*m
+            }
+            polarity: PositivePolarity
+        }
+        revolute shoulder_lift_joint {
+            parent: <shoulder_link.shoulder_lift_joint_anchor>.y
+            child: <upper_arm_link.upper_arm_link_origin>.y
+            actuation {
+                gear ratio: 1.0
+                command-interface: position torque
+                state-interface: position velocity torque
+            }
+            limits {
+                position: (-6.28319, 6.28319) rad
+                effort: (-330, 330) N*m
+            }
+            polarity: PositivePolarity
+        }
+        revolute elbow_joint {
+            parent: <upper_arm_link.elbow_joint_anchor>.y
+            child: <forearm_link.forearm_link_origin>.y
+            actuation {
+                gear ratio: 1.0
+                command-interface: position torque
+                state-interface: position velocity torque
+            }
+            limits {
+                position: (-3.1415, 3.1415) rad
+                effort: (-150, 150) N*m
+            }
+            polarity: PositivePolarity
+        }
+        revolute wrist_1_joint {
+            parent: <forearm_link.wrist_1_joint_anchor>.y
+            child: <wrist_1_link.wrist_1_link_origin>.y
+            actuation {
+                gear ratio: 1.0
+                command-interface: position torque
+                state-interface: position velocity torque
+            }
+            limits {
+                position: (-6.28319, 6.28319) rad
+                effort: (-56, 56) N*m
+            }
+            polarity: PositivePolarity
+        }
+        revolute wrist_2_joint {
+            parent: <wrist_1_link.wrist_2_joint_anchor>.z
+            child: <wrist_2_link.wrist_2_link_origin>.z
+            actuation {
+                gear ratio: 1.0
+                command-interface: position torque
+                state-interface: position velocity torque
+            }
+            limits {
+                position: (-6.28319, 6.28319) rad
+                effort: (-56, 56) N*m
+            }
+            polarity: PositivePolarity
+        }
+        revolute wrist_3_joint {
+            parent: <wrist_2_link.wrist_3_joint_anchor>.y
+            child: <wrist_3_link.wrist_3_link_origin>.y
+            actuation {
+                gear ratio: 1.0
+                command-interface: position torque
+                state-interface: position velocity torque
+            }
+            limits {
+                position: (-6.28319, 6.28319) rad
+                effort: (-56, 56) N*m
+            }
+            polarity: PositivePolarity
+        }
+    }
+}

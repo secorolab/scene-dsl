@@ -20,6 +20,27 @@ name. An element's IRI is its namespace plus the path down to it, so two
 instances of one device may share a namespace, and a sensor is scoped by the
 agent carrying it.
 
+## Shipped Robots
+
+The package ships device trees for common robots in `scene_dsl/robots/`:
+
+| File | Device |
+|---|---|
+| `kinova_gen3_7dof.ktree` | Kinova Gen3, 7 DoF arm |
+| `robotiq_2f85.ktree` | Robotiq 2F-85 gripper |
+| `ur10e.ktree` | Universal Robots UR10e arm |
+| `eddie_base.ktree` | Eddie mobile base |
+
+Import one with the `scene_dsl:` prefix, which names the package it comes from:
+
+```text
+import "scene_dsl:robots/kinova_gen3_7dof.ktree"
+```
+
+`<package>:<path>` resolves to `<path>` inside any installed top-level package,
+through `importlib.resources`, so another package can ship its own trees the
+same way. Every other import is relative to the importing file.
+
 ## Installation
 
 `scene-dsl` is a Python package installable with `pip`. It depends on

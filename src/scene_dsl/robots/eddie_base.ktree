@@ -1,34 +1,28 @@
-// Eddie's KELO-drive mobile base.
+// Eddie: a mobile base, a parallel chain of four KELO drive units that close through the floor.
+// Each drive is a castor: an unactuated pivot carrying two driven wheels, steered by their
+// differential torque.
 //
-// Transcribed from eddie_description/mujoco/mobile_platform.xml, which is generated from the
-// STEP assembly and is the description the simulation and the hddc2b config agree on. The URDF
-// under eddie_description/urdf carries the same base_link and the same drive placements, but its
-// wheel hinges are still the pre-2026-09-09 eccentric ones (y = 0.010108 / 0.009890) that the
-// MJCF centres at 0.010000, so the MJCF is what this file follows.
+//   Top view (x forward, y left), pivots 0.376 m apart along x and 0.415 m along y:
 //
-// Conventions, as in kinova_gen3_7dof.ktree:
-//   <body>_origin   the body frame; carries no pose when a joint places it
-//   <body>_com      the inertial frame, so the inertia matrix stays diagonal
-//   <joint>_anchor  anchors a joint on its *parent* body -- a revolute joint is the
-//                   collinearity of two z axes, coincident at q=0
+//          front_left  [o]===========[o]  front_right
+//                       |      x      |
+//                       |      ^      |
+//                       |  y <-+      |
+//                       |             |
+//           rear_left  [o]===========[o]  rear_right
 //
-// Body and joint names are the MJCF's, so a run resolves them there directly. q=0 is the MJCF's
-// q=0: every caster frame coincides with base_link. The home pose the sim starts from is a
-// runtime choice, not a property of the model.
+//   [o]  a drive: the pivot (o) and its two wheels ([ ]), which swing about it.
 //
-// The base is a branching tree, not a serial chain, so it declares no joint composition. Each
-// drive unit is a castor: the pivot is unactuated and steers by differential wheel torque, so no
-// pivot carries an actuation block. The wheel hinges do -- MJCF motors, +-12 Nm.
+//   One drive, top and side:
 //
-// Wheel frames put z on the spin axis (MJCF wheel axis is the caster's -x), so each wheel's
-// inertia is the MJCF diagonal permuted into that frame.
+//                 o                         o      pivot, free about z
+//        [##]----------[##]                 |
+//        |<-- 0.081 m -->|                  | 0.037 m
+//     wheel axle 0.010 m off the pivot    ( + )    wheel, r = 0.0525 m, driven
 ktree eddie_base_tree {
     root: <base_footprint.base_footprint_origin>
     body base_footprint {
         frame base_footprint_origin { }
-        // Standing height: 0.1273 caster drop + 0.036623 axle drop + 0.0524994 nominal tyre
-        // radius. The MJCF spawns `base` 1.6 mm higher, at 0.218, to drop the robot onto the
-        // floor; that is a spawn height, not this frame.
         frame base_link_joint_anchor {
             pose base_link_joint_anchor_in_base_footprint {
                 wrt: <base_footprint.base_footprint_origin>
@@ -46,14 +40,6 @@ ktree eddie_base_tree {
                 orientation: euler { axes: xyz extrinsic angles: (0.0, 0.0, 0.0) unit: rad }
             }
         }
-        // Where the two arms bolt onto the tower's angled brackets, read out of "Torso with
-        // arms.STEP" -- the arm subassemblies' own placements (components 5 and 6), carried into
-        // this frame through the bbox centre export_torso.py centres torso.stl on and the pose
-        // the MJCF gives that mesh. The arm mount origins in eddie_base.macro.xacro are NOT this:
-        // they put the arm axes near vertical and sink the bases into the tower.
-        //
-        // Each arm's own z leaves its plate at 45 degrees outboard and tilted 5.3 degrees down,
-        // which is the splay the CAD has.
         frame left_arm_attachment {
             pose left_arm_attachment_in_base_link {
                 wrt: <base_link.base_link_origin>
@@ -96,8 +82,6 @@ ktree eddie_base_tree {
                 orientation: euler { axes: xyz extrinsic angles: (0.0, 0.0, 0.0) unit: rad }
             }
         }
-        // Carries the two 0.16 kg laser scanners the URDF holds as separate links, with their
-        // parallel-axis terms, as the MJCF does.
         inertia {
             frame: <base_link_com>
             mass: 76.7577 kg

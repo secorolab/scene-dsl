@@ -1,13 +1,4 @@
-// Kinova Gen3 7-DoF arm template.
-//
-// Body/frame names are the element names of gen3.xml as they appear in the assembled
-// model. Link transforms, inertias and limits are generated from that MJCF.
-//
-// Conventions:
-//   <body>_origin   the body frame; carries no pose when a joint places it
-//   <body>_com      the inertial frame, so diaginertia stays diagonal
-//   <joint_i>       anchors joint i on its *parent* body -- a revolute joint is the
-//                   collinearity of two z axes, coincident at q=0
+// Kinova Gen3: a 7-DoF arm of revolute joints, joint_1 at the base to joint_7 at the bracelet.
 ktree kinova_tree {
     root: <base_link.base_link_origin>
     body base_link {

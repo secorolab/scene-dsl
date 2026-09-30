@@ -1,9 +1,4 @@
-// Universal Robots UR10e arm template, from MuJoCo Menagerie's ur10e.xml.
-//
-// Same conventions as kinova_gen3_7dof.ktree. Joints turn about y of their child body except
-// shoulder_pan and wrist_2, which turn about z.
-// Trap: ur10e.xml turns base a half turn about z inside the file, on top of wherever the scene
-// mounts it, so the world pose of base_origin is off by that turn.
+// Universal Robots UR10e: a 6-DoF arm of revolute joints, shoulder_pan at the base to wrist_3.
 ktree ur10e_tree {
     root: <base.base_origin>
     body base {
@@ -150,7 +145,6 @@ ktree ur10e_tree {
     }
     body wrist_3_link {
         frame wrist_3_link_origin { }
-        // The flange: +z out of the wrist, along wrist_3's axis.
         frame attachment_site {
             pose attachment_site_in_wrist_3_link {
                 wrt: <wrist_3_link.wrist_3_link_origin>

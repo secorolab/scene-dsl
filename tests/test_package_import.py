@@ -10,17 +10,24 @@ from scene_dsl.rdf.scenex import create_scenex_model_graph
 
 from .test_common import write_example_scene
 
-SHIPPED_ROBOTS = ["eddie_base", "kinova_gen3_7dof", "robotiq_2f85", "ur10e"]
+SHIPPED_ROBOTS = {
+    "eddie_base": ("eddie_base_tree", "base_footprint.base_footprint_origin"),
+    "kinova_gen3_7dof": ("kinova_tree", "base_link.base_link_origin"),
+    "robotiq_2f85": ("gripper_tree", "g_base_mount.g_base_mount_origin"),
+    "ur10e": ("ur10e_tree", "base.base_origin"),
+}
 
 
-def _scene_importing(uri: str) -> str:
+def _scene_importing(
+    uri: str, template: str = "kinova_tree", root: str = "base_link.base_link_origin"
+) -> str:
     return f"""import "example.scene"
 import "{uri}"
 ns lab = "https://example.test/lab/"
-ktree inst (ns=lab) arm of <kinova_tree>
+ktree inst (ns=lab) arm of <{template}>
 scene inst (ns=lab) lab {{
     scene: <s>
-    kgraph (ns=lab) lab_graph {{ anchor: <arm.base_link.base_link_origin>
+    kgraph (ns=lab) lab_graph {{ anchor: <arm.{root}>
         tree <arm>
     }}
 }}
@@ -35,6 +42,10 @@ def test_a_prefix_naming_no_installed_package_stays_as_written():
     assert package_import("no_such_package:robots/x.ktree") == "no_such_package:robots/x.ktree"
 
 
+def test_a_prefix_naming_a_module_not_a_package_stays_as_written():
+    assert package_import("math:robots/x.ktree") == "math:robots/x.ktree"
+
+
 def test_any_installed_package_can_ship_the_file():
     resolved = package_import("textx:__init__.py")
     assert Path(resolved) == Path(str(resources.files("textx") / "__init__.py"))
@@ -47,13 +58,16 @@ def test_a_prefixed_import_names_the_file_the_package_ships(robot):
     assert resolved.is_file()
 
 
-def test_a_scene_instances_a_shipped_robot(tmp_path):
+@pytest.mark.parametrize("robot", SHIPPED_ROBOTS)
+def test_a_scene_instances_a_shipped_robot(tmp_path, robot):
+    template, root = SHIPPED_ROBOTS[robot]
     write_example_scene(tmp_path)
     path = tmp_path / "lab.scenex"
-    path.write_text(_scene_importing("scene_dsl:robots/kinova_gen3_7dof.ktree"))
+    path.write_text(_scene_importing(f"scene_dsl:robots/{robot}.ktree", template, root))
 
     graph = create_scenex_model_graph(scenex_metamodel().model_from_file(path))
-    assert URIRef("https://example.test/lab/arm/base_link/base_link_origin") in graph.subjects()
+    root_uri = f"https://example.test/lab/arm/{root.replace('.', '/')}"
+    assert URIRef(root_uri) in graph.subjects()
 
 
 def test_a_shipped_file_that_does_not_exist_names_where_it_was_looked_for(tmp_path):

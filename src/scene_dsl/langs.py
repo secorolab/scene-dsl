@@ -79,7 +79,10 @@ def package_import(uri: str) -> str:
     """Resolve `<package>:<path>` to a file an installed package ships; others stay relative."""
     package, colon, path = uri.partition(":")
     # A top-level name only: a dotted one would import its parents just to be looked up.
-    if not colon or not package.isidentifier() or util.find_spec(package) is None:
+    if not colon or not package.isidentifier():
+        return uri
+    spec = util.find_spec(package)
+    if spec is None or spec.submodule_search_locations is None:
         return uri
     return str(resources.files(package) / path)
 

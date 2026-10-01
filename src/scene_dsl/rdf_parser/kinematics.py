@@ -23,6 +23,8 @@ from rdf_utils.models.common import ModelBase, get_node_types
 from rdf_utils.models.geom_coord import get_transform_between_frames
 from rdf_utils.models.geom_rel import FrameModel, relation_neighbors
 from rdf_utils.models.vocab import (
+    URI_ACT_PRED_JOINT,
+    URI_ACT_PRED_ROTOR_INERTIA,
     URI_DYN_PRED_ABOUT,
     URI_DYN_PRED_IXX,
     URI_DYN_PRED_IXY,
@@ -58,8 +60,10 @@ from rdf_utils.models.vocab import (
     URI_KC_TYPE_REVOLUTE_JOINT,
     URI_KC_TYPE_SERIAL,
     URI_QUDT_PRED_UNIT,
+    URI_QUDT_PRED_VALUE,
     URI_QUDT_UNIT_G,
     URI_QUDT_UNIT_KG,
+    URI_QUDT_UNIT_KG_M2,
 )
 from rdflib import RDF, Graph, Literal, URIRef
 from rdflib.namespace import split_uri
@@ -435,6 +439,7 @@ class RevoluteJointModel(JointModel):
 
     axes: dict[URIRef, str]
     offset: URIRef | None
+    rotor_inertia: float
 
     def __init__(self, joint_id: URIRef, graph: Graph) -> None:
         super().__init__(joint_id=joint_id, graph=graph)
@@ -461,6 +466,15 @@ class RevoluteJointModel(JointModel):
         self.offset = ensure_one_obj_uri(
             graph=graph, subject=self.id, predicate=URI_KC_PRED_ORIGIN_OFFSET
         )
+        actuation = graph.value(predicate=URI_ACT_PRED_JOINT, object=self.id)
+        inertia = graph.value(actuation, URI_ACT_PRED_ROTOR_INERTIA) if actuation else None
+        self.rotor_inertia = 0.0
+        if inertia is not None:
+            if graph.value(inertia, URI_QUDT_PRED_UNIT) != URI_QUDT_UNIT_KG_M2:
+                raise ConstraintViolation(
+                    "dynamics", f"rotor inertia '{inertia}' of {self} must be stated in kg*m^2"
+                )
+            self.rotor_inertia = float(graph.value(inertia, URI_QUDT_PRED_VALUE))
 
     def axis_on(self, frame: URIRef) -> str:
         """Which of the frame's own axes the joint turns about."""

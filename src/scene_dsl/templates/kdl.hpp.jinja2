@@ -7,6 +7,8 @@ KDL::Vector({{ values[0] }}, {{ values[1] }}, {{ values[2] }})
 KDL::Joint(KDL::Joint::None)
 {%- elif joint.axis is none -%}
 KDL::Joint("{{ joint.name }}", KDL::Joint::None)
+{%- elif joint.rotor_inertia -%}
+KDL::Joint("{{ joint.name }}", {{ vector(joint.origin) }}, {{ vector(joint.axis) }}, KDL::Joint::RotAxis, 1.0, 0.0, {{ joint.rotor_inertia }})
 {%- else -%}
 KDL::Joint("{{ joint.name }}", {{ vector(joint.origin) }}, {{ vector(joint.axis) }}, KDL::Joint::RotAxis)
 {%- endif -%}

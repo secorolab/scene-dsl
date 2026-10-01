@@ -106,6 +106,7 @@ ktree gripper_tree {
             child: <g_left_driver.g_left_driver_origin>.x
             actuation {
                 gear ratio: 1.0
+                rotor-inertia: 0.005 kg*m^2
                 command-interface: position
                 state-interface: position
             }

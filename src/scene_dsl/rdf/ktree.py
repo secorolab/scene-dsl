@@ -3,6 +3,7 @@ from rdf_utils.models.vocab import (
     URI_ACT_PRED_COMMAND_INTERFACE,
     URI_ACT_PRED_GEAR_RATIO,
     URI_ACT_PRED_JOINT,
+    URI_ACT_PRED_ROTOR_INERTIA,
     URI_ACT_PRED_STATE_INTERFACE,
     URI_ACT_TYPE_ACTUATION,
     URI_ACT_TYPE_JOINT_CURRENT,
@@ -62,6 +63,7 @@ from rdf_utils.models.vocab import (
     URI_QUDT_QK_ANG_ACCEL,
     URI_QUDT_QK_ANG_VEL,
     URI_QUDT_QK_ANGLE,
+    URI_QUDT_QK_MOMENT_OF_INERTIA,
     URI_QUDT_QK_TORQUE,
     URI_QUDT_TYPE_QUANTITY,
     URI_QUDT_UNIT_DEG_PER_SEC,
@@ -262,6 +264,15 @@ def add_actuation(
     graph.add(
         (actuation_uri, URI_ACT_PRED_GEAR_RATIO, Literal(actuation.gear_ratio, datatype=XSD.double))
     )
+    if actuation.rotor_inertia is not None:
+        inertia_uri = URIRef(f"{actuation_uri}-rotor-inertia")
+        graph.add((inertia_uri, RDF.type, URI_QUDT_TYPE_QUANTITY))
+        graph.add(
+            (inertia_uri, URI_QUDT_PRED_VALUE, Literal(actuation.rotor_inertia, datatype=XSD.double))
+        )
+        graph.add((inertia_uri, URI_QUDT_PRED_UNIT, INERTIA_UNITS[actuation.rotor_inertia_unit]))
+        graph.add((inertia_uri, URI_QUDT_PRED_QUANTITY_KIND, URI_QUDT_QK_MOMENT_OF_INERTIA))
+        graph.add((actuation_uri, URI_ACT_PRED_ROTOR_INERTIA, inertia_uri))
     for interface in actuation.cmd_interfaces:
         graph.add(
             (

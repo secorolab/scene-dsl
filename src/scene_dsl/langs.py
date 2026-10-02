@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MPL-2.0
-from importlib import resources
+from importlib import resources, util
 
 import textx.scoping.providers as scoping_providers
 from rdflib import URIRef
@@ -73,6 +73,18 @@ from scene_dsl.classes.sensors import (
     ForceTorqueSensorSpec,
     ImuSensorSpec,
 )
+
+
+def package_import(uri: str) -> str:
+    """Resolve `<package>:<path>` to a file an installed package ships; others stay relative."""
+    package, colon, path = uri.partition(":")
+    # A top-level name only: a dotted one would import its parents just to be looked up.
+    if not colon or not package.isidentifier():
+        return uri
+    spec = util.find_spec(package)
+    if spec is None or spec.submodule_search_locations is None:
+        return uri
+    return str(resources.files(package) / path)
 
 
 class InstancedRefScopeProvider(scoping_providers.FQNImportURI):
@@ -416,7 +428,9 @@ def scene_metamodel():
             SceneModel,
         ],
     )
-    mm_scene.register_scope_providers({"*.*": scoping_providers.FQNImportURI()})
+    mm_scene.register_scope_providers(
+        {"*.*": scoping_providers.FQNImportURI(importURI_converter=package_import)}
+    )
     return mm_scene
 
 
@@ -473,9 +487,11 @@ def scenex_metamodel():
     mm_scenex.register_scope_providers(
         {
             # Falls back to plain FQN when the ref is not into an instanced tree.
-            "*.*": InstancedRefScopeProvider(),
+            "*.*": InstancedRefScopeProvider(importURI_converter=package_import),
             # Trees are named flatly, but nest under scene instances and imports.
-            "KinematicTreeModel.trees": scoping_providers.PlainNameImportURI(),
+            "KinematicTreeModel.trees": scoping_providers.PlainNameImportURI(
+                importURI_converter=package_import
+            ),
         }
     )
     mm_scenex.register_model_processor(check_tree_composition)

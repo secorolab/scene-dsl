@@ -108,6 +108,7 @@ JointMimicSpec:
 Actuation:
 'actuation' '{'
     'gear' 'ratio' ':' gear_ratio=FLOAT
+    ('rotor-inertia' ':' rotor_inertia=FLOAT rotor_inertia_unit=InertiaUnit)?
     'command-interface' ':' cmd_interfaces+=Interface
     'state-interface' ':' state_interfaces+=Interface
 '}'

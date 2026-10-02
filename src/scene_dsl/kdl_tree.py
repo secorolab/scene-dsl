@@ -151,6 +151,7 @@ def _joint_data(
             "iri": str(joint.id),
             "origin": [float(value) for value in origin],
             "axis": [float(value) for value in parent_attachment[:3, :3] @ axis],
+            "rotor_inertia": joint.rotor_inertia,
         },
         _transform_data(parent_attachment @ offset_pose @ _inverse_pose(child_attachment)),
     )

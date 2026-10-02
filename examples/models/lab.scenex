@@ -1,12 +1,14 @@
 import "lab.scene"
-import "kinova_gen3_7dof.ktree"
-import "robotiq_2f85.ktree"
+import "scene_dsl:robots/kinova_gen3_7dof.ktree"
+import "scene_dsl:robots/robotiq_2f85.ktree"
+import "scene_dsl:robots/ur10e.ktree"
 
 ns lab_rob='https://secorolab.github.io/models/acceptance-criteria/bdd/scenes/secorolab-mjc/robots/'
 
 ktree inst (ns=lab_rob) arm1 of <kinova_tree>
 ktree inst (ns=lab_rob) arm2 of <kinova_tree>
 ktree inst (ns=lab_rob) gripper of <gripper_tree>
+ktree inst (ns=lab_rob) ur10 of <ur10e_tree>
 
 ktree (ns=lab_rob) arm1_gripper {
     root: <arm1.base_link.base_link_origin>
@@ -156,28 +158,10 @@ ktree (ns=scene_lab_mjc) panda_tree {
     }
 }
 
-ktree (ns=scene_lab_mjc) ur10_tree {
-    root: <ur10_body.ur10_base_link>
-    body ur10_body {
-        frame ur10_base_link { }
-        // As ur10e.xml states it for the body it calls 'base'.
-        inertia {
-            frame: <ur10_base_link>
-            mass: 4.0 kg
-            inertia-matrix: (
-                (0.0061063308908, 0.0, 0.0),
-                (0.0, 0.0061063308908, 0.0),
-                (0.0, 0.0, 0.01125)
-            ) kg*m^2
-        }
-    }
-    joints { }
-}
-
 ktree (ns=scene_lab_mjc) world_tree {
     root: <world_body.world>
     tree <panda_tree>
-    tree <ur10_tree>
+    tree <ur10>
     tree <arm1_gripper>
     tree <arm2>
 
@@ -216,7 +200,7 @@ ktree (ns=scene_lab_mjc) world_tree {
         }
         fixed ur10_on_table {
             parent: <table_body.table_root>
-            child: <ur10_tree.ur10_body.ur10_base_link>
+            child: <ur10.base.base_origin>
         }
         fixed panda_on_table {
             parent: <table_body.table_root>
@@ -304,7 +288,7 @@ scene inst (ns=scene_lab_mjc) pickplace_scene_mjc {
     agn <isaac_agents.ur10> {
         model ur10-mjc as mjcf {
             sys path = '~/.cache/mj_kdl_wrapper/menagerie/universal_robots_ur10e/ur10e.xml'
-            map tree <ur10_tree> to "ur10e"
+            map tree <ur10> to "ur10e"
         }
     }
 

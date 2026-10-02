@@ -1,0 +1,389 @@
+// Eddie: a mobile base, a parallel chain of four KELO drive units that close through the floor.
+// Each drive is a castor: an unactuated pivot carrying two driven wheels, steered by their
+// differential torque.
+//
+//   Top view (x forward, y left), pivots 0.376 m apart along x and 0.415 m along y:
+//
+//          front_left  [o]===========[o]  front_right
+//                       |      x      |
+//                       |      ^      |
+//                       |  y <-+      |
+//                       |             |
+//           rear_left  [o]===========[o]  rear_right
+//
+//   [o]  a drive: the pivot (o) and its two wheels ([ ]), which swing about it.
+//
+//   One drive, top and side:
+//
+//                 o                         o      pivot, free about z
+//        [##]----------[##]                 |
+//        |<-- 0.081 m -->|                  | 0.037 m
+//     wheel axle 0.010 m off the pivot    ( + )    wheel, r = 0.0525 m, driven
+ktree eddie_base_tree {
+    root: <base_footprint.base_footprint_origin>
+    body base_footprint {
+        frame base_footprint_origin { }
+        frame base_link_joint_anchor {
+            pose base_link_joint_anchor_in_base_footprint {
+                wrt: <base_footprint.base_footprint_origin>
+                xyz: (0.0, 0.0, 0.2164224) m
+                orientation: euler { axes: xyz extrinsic angles: (0.0, 0.0, 0.0) unit: rad }
+            }
+        }
+    }
+    body base_link {
+        frame base_link_origin { }
+        frame base_link_com {
+            pose base_link_com_in_base_link {
+                wrt: <base_link.base_link_origin>
+                xyz: (0.0, 0.0, 0.0833) m
+                orientation: euler { axes: xyz extrinsic angles: (0.0, 0.0, 0.0) unit: rad }
+            }
+        }
+        frame left_arm_attachment {
+            pose left_arm_attachment_in_base_link {
+                wrt: <base_link.base_link_origin>
+                xyz: (-0.1393, 0.0788, 0.5317) m
+                orientation: euler { axes: xyz extrinsic angles: (-2.3562, -1.4399, 0.0) unit: rad }
+            }
+        }
+        frame right_arm_attachment {
+            pose right_arm_attachment_in_base_link {
+                wrt: <base_link.base_link_origin>
+                xyz: (-0.1393, -0.0782, 0.5317) m
+                orientation: euler { axes: xyz extrinsic angles: (2.3562, -1.4399, 0.0) unit: rad }
+            }
+        }
+        frame pivot_front_left_anchor {
+            pose pivot_front_left_anchor_in_base_link {
+                wrt: <base_link.base_link_origin>
+                xyz: (0.18813, 0.20748, -0.1273) m
+                orientation: euler { axes: xyz extrinsic angles: (0.0, 0.0, 0.0) unit: rad }
+            }
+        }
+        frame pivot_front_right_anchor {
+            pose pivot_front_right_anchor_in_base_link {
+                wrt: <base_link.base_link_origin>
+                xyz: (0.18813, -0.20752, -0.1273) m
+                orientation: euler { axes: xyz extrinsic angles: (0.0, 0.0, 0.0) unit: rad }
+            }
+        }
+        frame pivot_rear_right_anchor {
+            pose pivot_rear_right_anchor_in_base_link {
+                wrt: <base_link.base_link_origin>
+                xyz: (-0.18787, -0.20752, -0.1273) m
+                orientation: euler { axes: xyz extrinsic angles: (0.0, 0.0, 0.0) unit: rad }
+            }
+        }
+        frame pivot_rear_left_anchor {
+            pose pivot_rear_left_anchor_in_base_link {
+                wrt: <base_link.base_link_origin>
+                xyz: (-0.18787, 0.20748, -0.1273) m
+                orientation: euler { axes: xyz extrinsic angles: (0.0, 0.0, 0.0) unit: rad }
+            }
+        }
+        inertia {
+            frame: <base_link_com>
+            mass: 76.7577 kg
+            inertia-matrix: (
+                (4.147165, 0.0, 0.0),
+                (0.0, 4.133063, 0.0),
+                (0.0, 0.0, 3.398081)
+            ) kg*m^2
+        }
+    }
+    body front_left_caster {
+        frame front_left_caster_origin { }
+        frame front_left_caster_com {
+            pose front_left_caster_com_in_front_left_caster {
+                wrt: <front_left_caster.front_left_caster_origin>
+                xyz: (0.0, -0.0101, 0.0) m
+                orientation: euler { axes: xyz extrinsic angles: (0.0, 0.0, 0.0) unit: rad }
+            }
+        }
+        frame wheel_front_left_right_anchor {
+            pose wheel_front_left_right_anchor_in_front_left_caster {
+                wrt: <front_left_caster.front_left_caster_origin>
+                xyz: (0.0405, -0.01, -0.036623) m
+                orientation: euler { axes: xyz extrinsic angles: (0.0, -1.5707963, 0.0) unit: rad }
+            }
+        }
+        frame wheel_front_left_left_anchor {
+            pose wheel_front_left_left_anchor_in_front_left_caster {
+                wrt: <front_left_caster.front_left_caster_origin>
+                xyz: (-0.0405, -0.01, -0.036623) m
+                orientation: euler { axes: xyz extrinsic angles: (0.0, -1.5707963, 0.0) unit: rad }
+            }
+        }
+        inertia {
+            frame: <front_left_caster_com>
+            mass: 1.392 kg
+            inertia-matrix: (
+                (0.004574163, 0.0, 0.0),
+                (0.0, 0.004344228, 0.0),
+                (0.0, 0.0, 0.004640438)
+            ) kg*m^2
+        }
+    }
+    body front_left_right_wheel {
+        frame front_left_right_wheel_origin { }
+        inertia {
+            frame: <front_left_right_wheel_origin>
+            mass: 1.563 kg
+            inertia-matrix: (
+                (0.00101313, 0.0, 0.0),
+                (0.0, 0.001012837, 0.0),
+                (0.0, 0.0, 0.001579986)
+            ) kg*m^2
+        }
+    }
+    body front_left_left_wheel {
+        frame front_left_left_wheel_origin { }
+        inertia {
+            frame: <front_left_left_wheel_origin>
+            mass: 1.563 kg
+            inertia-matrix: (
+                (0.00101313, 0.0, 0.0),
+                (0.0, 0.001012837, 0.0),
+                (0.0, 0.0, 0.001579986)
+            ) kg*m^2
+        }
+    }
+    body front_right_caster {
+        frame front_right_caster_origin { }
+        frame front_right_caster_com {
+            pose front_right_caster_com_in_front_right_caster {
+                wrt: <front_right_caster.front_right_caster_origin>
+                xyz: (0.0, 0.0101, 0.0) m
+                orientation: euler { axes: xyz extrinsic angles: (0.0, 0.0, 0.0) unit: rad }
+            }
+        }
+        frame wheel_front_right_right_anchor {
+            pose wheel_front_right_right_anchor_in_front_right_caster {
+                wrt: <front_right_caster.front_right_caster_origin>
+                xyz: (-0.0405, 0.01, -0.036623) m
+                orientation: euler { axes: xyz extrinsic angles: (0.0, -1.5707963, 0.0) unit: rad }
+            }
+        }
+        frame wheel_front_right_left_anchor {
+            pose wheel_front_right_left_anchor_in_front_right_caster {
+                wrt: <front_right_caster.front_right_caster_origin>
+                xyz: (0.0405, 0.01, -0.036623) m
+                orientation: euler { axes: xyz extrinsic angles: (0.0, -1.5707963, 0.0) unit: rad }
+            }
+        }
+        inertia {
+            frame: <front_right_caster_com>
+            mass: 1.392 kg
+            inertia-matrix: (
+                (0.004574163, 0.0, 0.0),
+                (0.0, 0.004344228, 0.0),
+                (0.0, 0.0, 0.004640438)
+            ) kg*m^2
+        }
+    }
+    body front_right_right_wheel {
+        frame front_right_right_wheel_origin { }
+        inertia {
+            frame: <front_right_right_wheel_origin>
+            mass: 1.563 kg
+            inertia-matrix: (
+                (0.00101313, 0.0, 0.0),
+                (0.0, 0.001012837, 0.0),
+                (0.0, 0.0, 0.001579986)
+            ) kg*m^2
+        }
+    }
+    body front_right_left_wheel {
+        frame front_right_left_wheel_origin { }
+        inertia {
+            frame: <front_right_left_wheel_origin>
+            mass: 1.563 kg
+            inertia-matrix: (
+                (0.00101313, 0.0, 0.0),
+                (0.0, 0.001012837, 0.0),
+                (0.0, 0.0, 0.001579986)
+            ) kg*m^2
+        }
+    }
+    body rear_right_caster {
+        frame rear_right_caster_origin { }
+        frame rear_right_caster_com {
+            pose rear_right_caster_com_in_rear_right_caster {
+                wrt: <rear_right_caster.rear_right_caster_origin>
+                xyz: (0.0, 0.0101, 0.0) m
+                orientation: euler { axes: xyz extrinsic angles: (0.0, 0.0, 0.0) unit: rad }
+            }
+        }
+        frame wheel_rear_right_right_anchor {
+            pose wheel_rear_right_right_anchor_in_rear_right_caster {
+                wrt: <rear_right_caster.rear_right_caster_origin>
+                xyz: (-0.0405, 0.01, -0.036623) m
+                orientation: euler { axes: xyz extrinsic angles: (0.0, -1.5707963, 0.0) unit: rad }
+            }
+        }
+        frame wheel_rear_right_left_anchor {
+            pose wheel_rear_right_left_anchor_in_rear_right_caster {
+                wrt: <rear_right_caster.rear_right_caster_origin>
+                xyz: (0.0405, 0.01, -0.036623) m
+                orientation: euler { axes: xyz extrinsic angles: (0.0, -1.5707963, 0.0) unit: rad }
+            }
+        }
+        inertia {
+            frame: <rear_right_caster_com>
+            mass: 1.392 kg
+            inertia-matrix: (
+                (0.004574163, 0.0, 0.0),
+                (0.0, 0.004344228, 0.0),
+                (0.0, 0.0, 0.004640438)
+            ) kg*m^2
+        }
+    }
+    body rear_right_right_wheel {
+        frame rear_right_right_wheel_origin { }
+        inertia {
+            frame: <rear_right_right_wheel_origin>
+            mass: 1.563 kg
+            inertia-matrix: (
+                (0.00101313, 0.0, 0.0),
+                (0.0, 0.001012837, 0.0),
+                (0.0, 0.0, 0.001579986)
+            ) kg*m^2
+        }
+    }
+    body rear_right_left_wheel {
+        frame rear_right_left_wheel_origin { }
+        inertia {
+            frame: <rear_right_left_wheel_origin>
+            mass: 1.563 kg
+            inertia-matrix: (
+                (0.00101313, 0.0, 0.0),
+                (0.0, 0.001012837, 0.0),
+                (0.0, 0.0, 0.001579986)
+            ) kg*m^2
+        }
+    }
+    body rear_left_caster {
+        frame rear_left_caster_origin { }
+        frame rear_left_caster_com {
+            pose rear_left_caster_com_in_rear_left_caster {
+                wrt: <rear_left_caster.rear_left_caster_origin>
+                xyz: (0.0, -0.0101, 0.0) m
+                orientation: euler { axes: xyz extrinsic angles: (0.0, 0.0, 0.0) unit: rad }
+            }
+        }
+        frame wheel_rear_left_right_anchor {
+            pose wheel_rear_left_right_anchor_in_rear_left_caster {
+                wrt: <rear_left_caster.rear_left_caster_origin>
+                xyz: (0.0405, -0.01, -0.036623) m
+                orientation: euler { axes: xyz extrinsic angles: (0.0, -1.5707963, 0.0) unit: rad }
+            }
+        }
+        frame wheel_rear_left_left_anchor {
+            pose wheel_rear_left_left_anchor_in_rear_left_caster {
+                wrt: <rear_left_caster.rear_left_caster_origin>
+                xyz: (-0.0405, -0.01, -0.036623) m
+                orientation: euler { axes: xyz extrinsic angles: (0.0, -1.5707963, 0.0) unit: rad }
+            }
+        }
+        inertia {
+            frame: <rear_left_caster_com>
+            mass: 1.392 kg
+            inertia-matrix: (
+                (0.004574163, 0.0, 0.0),
+                (0.0, 0.004344228, 0.0),
+                (0.0, 0.0, 0.004640438)
+            ) kg*m^2
+        }
+    }
+    body rear_left_right_wheel {
+        frame rear_left_right_wheel_origin { }
+        inertia {
+            frame: <rear_left_right_wheel_origin>
+            mass: 1.563 kg
+            inertia-matrix: (
+                (0.00101313, 0.0, 0.0),
+                (0.0, 0.001012837, 0.0),
+                (0.0, 0.0, 0.001579986)
+            ) kg*m^2
+        }
+    }
+    body rear_left_left_wheel {
+        frame rear_left_left_wheel_origin { }
+        inertia {
+            frame: <rear_left_left_wheel_origin>
+            mass: 1.563 kg
+            inertia-matrix: (
+                (0.00101313, 0.0, 0.0),
+                (0.0, 0.001012837, 0.0),
+                (0.0, 0.0, 0.001579986)
+            ) kg*m^2
+        }
+    }
+    joints {
+        fixed base_link_joint {
+            parent: <base_footprint.base_link_joint_anchor>
+            child: <base_link.base_link_origin>
+        }
+        revolute pivot_front_left {
+            parent: <base_link.pivot_front_left_anchor>.z
+            child: <front_left_caster.front_left_caster_origin>.z
+            polarity: PositivePolarity
+        }
+        revolute wheel_front_left_right {
+            parent: <front_left_caster.wheel_front_left_right_anchor>.z
+            child: <front_left_right_wheel.front_left_right_wheel_origin>.z
+            polarity: PositivePolarity
+        }
+        revolute wheel_front_left_left {
+            parent: <front_left_caster.wheel_front_left_left_anchor>.z
+            child: <front_left_left_wheel.front_left_left_wheel_origin>.z
+            polarity: PositivePolarity
+        }
+        revolute pivot_front_right {
+            parent: <base_link.pivot_front_right_anchor>.z
+            child: <front_right_caster.front_right_caster_origin>.z
+            polarity: PositivePolarity
+        }
+        revolute wheel_front_right_right {
+            parent: <front_right_caster.wheel_front_right_right_anchor>.z
+            child: <front_right_right_wheel.front_right_right_wheel_origin>.z
+            polarity: PositivePolarity
+        }
+        revolute wheel_front_right_left {
+            parent: <front_right_caster.wheel_front_right_left_anchor>.z
+            child: <front_right_left_wheel.front_right_left_wheel_origin>.z
+            polarity: PositivePolarity
+        }
+        revolute pivot_rear_right {
+            parent: <base_link.pivot_rear_right_anchor>.z
+            child: <rear_right_caster.rear_right_caster_origin>.z
+            polarity: PositivePolarity
+        }
+        revolute wheel_rear_right_right {
+            parent: <rear_right_caster.wheel_rear_right_right_anchor>.z
+            child: <rear_right_right_wheel.rear_right_right_wheel_origin>.z
+            polarity: PositivePolarity
+        }
+        revolute wheel_rear_right_left {
+            parent: <rear_right_caster.wheel_rear_right_left_anchor>.z
+            child: <rear_right_left_wheel.rear_right_left_wheel_origin>.z
+            polarity: PositivePolarity
+        }
+        revolute pivot_rear_left {
+            parent: <base_link.pivot_rear_left_anchor>.z
+            child: <rear_left_caster.rear_left_caster_origin>.z
+            polarity: PositivePolarity
+        }
+        revolute wheel_rear_left_right {
+            parent: <rear_left_caster.wheel_rear_left_right_anchor>.z
+            child: <rear_left_right_wheel.rear_left_right_wheel_origin>.z
+            polarity: PositivePolarity
+        }
+        revolute wheel_rear_left_left {
+            parent: <rear_left_caster.wheel_rear_left_left_anchor>.z
+            child: <rear_left_left_wheel.rear_left_left_wheel_origin>.z
+            polarity: PositivePolarity
+        }
+    }
+}

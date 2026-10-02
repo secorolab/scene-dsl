@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: MPL-2.0
+from functools import cache
 from importlib import resources, util
 
 import textx.scoping.providers as scoping_providers
@@ -412,6 +413,8 @@ def check_unique_uris(model, metamodel):
         record(obj)
 
 
+# One per language: building another resets textx's stash on the shared user classes mid-import.
+@cache
 def scene_metamodel():
     mm_scene = metamodel_from_file(
         resources.files("scene_dsl") / "grammars" / "scene.tx",
@@ -434,6 +437,7 @@ def scene_metamodel():
     return mm_scene
 
 
+@cache
 def scenex_metamodel():
     mm_scenex = metamodel_from_file(
         resources.files("scene_dsl") / "grammars" / "scenex.tx",

@@ -4,8 +4,9 @@ from pathlib import Path
 
 import pytest
 from rdflib import URIRef
+from textx import metamodel_for_language
 
-from scene_dsl.langs import package_import, scenex_metamodel
+from scene_dsl.langs import package_import, scene_metamodel, scenex_metamodel
 from scene_dsl.rdf.scenex import create_scenex_model_graph
 
 from .test_common import write_example_scene
@@ -78,3 +79,9 @@ def test_a_shipped_file_that_does_not_exist_names_where_it_was_looked_for(tmp_pa
     expected = str(resources.files("scene_dsl") / "robots" / "no_such_robot.ktree")
     with pytest.raises(OSError, match=re.escape(expected)):
         scenex_metamodel().model_from_file(path)
+
+
+def test_a_language_has_one_metamodel_the_registry_shares():
+    # A second instance, built while a .scenex imports another, resets the importer's objects.
+    assert scenex_metamodel() is metamodel_for_language("scenex")
+    assert scene_metamodel() is metamodel_for_language("scene")

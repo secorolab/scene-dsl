@@ -2,6 +2,7 @@ from importlib import resources
 
 import pytest
 from jinja2 import Environment, FileSystemLoader
+from rdf_utils.constraints import ConstraintViolation
 from rdf_utils.models.vocab import (
     URI_ACT_PRED_JOINT,
     URI_ACT_PRED_ROTOR_INERTIA,
@@ -11,7 +12,7 @@ from rdf_utils.models.vocab import (
     URI_QUDT_QK_MOMENT_OF_INERTIA,
     URI_QUDT_UNIT_KG_M2,
 )
-from rdflib import Literal, URIRef
+from rdflib import XSD, Literal, URIRef
 
 from scene_dsl.classes.ktree import Actuation
 from scene_dsl.kdl_tree import build_kdl_trees
@@ -73,6 +74,26 @@ def test_the_kdl_header_passes_it_to_the_joint(tmp_path):
 def test_a_negative_rotor_inertia_is_rejected():
     with pytest.raises(ValueError, match="Actuation.rotor_inertia must be"):
         Actuation(None, 1.0, ["torque"], ["position"], -0.1, "kg*m^2")
+
+
+@pytest.mark.parametrize(
+    ("values", "error"),
+    [
+        ([], ConstraintViolation),
+        ([-0.1], ConstraintViolation),
+        ([float("nan")], ConstraintViolation),
+        ([0.1, 0.2], ValueError),
+    ],
+)
+def test_a_read_rotor_inertia_must_be_one_finite_non_negative_value(tmp_path, values, error):
+    graph, base = _kinova(tmp_path)
+    actuation = graph.value(predicate=URI_ACT_PRED_JOINT, object=JOINT_1)
+    inertia = graph.value(actuation, URI_ACT_PRED_ROTOR_INERTIA)
+    graph.remove((inertia, URI_QUDT_PRED_VALUE, None))
+    for value in values:
+        graph.add((inertia, URI_QUDT_PRED_VALUE, Literal(value, datatype=XSD.double)))
+    with pytest.raises(error):
+        build_kdl_trees(graph, base)
 
 
 def test_an_unstated_rotor_inertia_is_zero_and_not_in_the_graph(tmp_path):

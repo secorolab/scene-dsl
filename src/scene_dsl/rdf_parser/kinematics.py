@@ -12,6 +12,7 @@ tree, an element one name, a tree one tree holding it. Views that overlap withou
 holding the other are reported rather than read, since the answer would be arbitrary.
 """
 
+import math
 from collections import deque
 from dataclasses import dataclass
 from itertools import pairwise
@@ -474,7 +475,17 @@ class RevoluteJointModel(JointModel):
                 raise ConstraintViolation(
                     "dynamics", f"rotor inertia '{inertia}' of {self} must be stated in kg*m^2"
                 )
-            self.rotor_inertia = float(graph.value(inertia, URI_QUDT_PRED_VALUE))
+            stated = ensure_one_obj_literal(
+                graph=graph, subject=inertia, predicate=URI_QUDT_PRED_VALUE
+            )
+            value = float(stated.toPython()) if stated is not None else math.nan
+            if not math.isfinite(value) or value < 0:
+                raise ConstraintViolation(
+                    "dynamics",
+                    f"rotor inertia '{inertia}' of {self} must state one finite value >= 0, "
+                    f"got {stated}",
+                )
+            self.rotor_inertia = value
 
     def axis_on(self, frame: URIRef) -> str:
         """Which of the frame's own axes the joint turns about."""

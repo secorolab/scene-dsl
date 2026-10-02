@@ -222,6 +222,7 @@ ktree kinova_tree {
             child: <shoulder_link.shoulder_link_origin>.z
             actuation {
                 gear ratio: 1.0
+                rotor-inertia: 0.5580 kg*m^2
                 command-interface: position torque
                 state-interface: position velocity torque
             }
@@ -235,6 +236,7 @@ ktree kinova_tree {
             child: <half_arm_1_link.half_arm_1_link_origin>.z
             actuation {
                 gear ratio: 1.0
+                rotor-inertia: 0.5580 kg*m^2
                 command-interface: position torque
                 state-interface: position velocity torque
             }
@@ -249,6 +251,7 @@ ktree kinova_tree {
             child: <half_arm_2_link.half_arm_2_link_origin>.z
             actuation {
                 gear ratio: 1.0
+                rotor-inertia: 0.5580 kg*m^2
                 command-interface: position torque
                 state-interface: position velocity torque
             }
@@ -262,6 +265,7 @@ ktree kinova_tree {
             child: <forearm_link.forearm_link_origin>.z
             actuation {
                 gear ratio: 1.0
+                rotor-inertia: 0.5580 kg*m^2
                 command-interface: position torque
                 state-interface: position velocity torque
             }
@@ -276,6 +280,7 @@ ktree kinova_tree {
             child: <spherical_wrist_1_link.spherical_wrist_1_link_origin>.z
             actuation {
                 gear ratio: 1.0
+                rotor-inertia: 0.1389 kg*m^2
                 command-interface: position torque
                 state-interface: position velocity torque
             }
@@ -289,6 +294,7 @@ ktree kinova_tree {
             child: <spherical_wrist_2_link.spherical_wrist_2_link_origin>.z
             actuation {
                 gear ratio: 1.0
+                rotor-inertia: 0.1389 kg*m^2
                 command-interface: position torque
                 state-interface: position velocity torque
             }
@@ -303,6 +309,7 @@ ktree kinova_tree {
             child: <bracelet_link.bracelet_link_origin>.z
             actuation {
                 gear ratio: 1.0
+                rotor-inertia: 0.1389 kg*m^2
                 command-interface: position torque
                 state-interface: position velocity torque
             }

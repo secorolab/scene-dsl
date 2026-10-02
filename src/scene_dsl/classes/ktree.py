@@ -514,11 +514,26 @@ class SerialJoints(JointComposition):
 
 class Actuation:
     gear_ratio: float
+    rotor_inertia: float | None
+    rotor_inertia_unit: str
     cmd_interfaces: list[str]
     state_interfaces: list[str]
 
-    def __init__(self, parent, gear_ratio, cmd_interfaces, state_interfaces) -> None:
+    def __init__(
+        self,
+        parent,
+        gear_ratio,
+        cmd_interfaces,
+        state_interfaces,
+        rotor_inertia=0.0,
+        rotor_inertia_unit="",
+    ) -> None:
         self.parent = parent
         self.gear_ratio = gear_ratio
+        # The unit is only there when the value was stated, which an unset FLOAT cannot tell.
+        self.rotor_inertia = rotor_inertia if rotor_inertia_unit else None
+        if self.rotor_inertia is not None and self.rotor_inertia < 0:
+            raise ValueError(f"Actuation.rotor_inertia must be >= 0, got {self.rotor_inertia}")
+        self.rotor_inertia_unit = rotor_inertia_unit
         self.cmd_interfaces = cmd_interfaces
         self.state_interfaces = state_interfaces

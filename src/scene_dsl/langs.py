@@ -4,9 +4,15 @@ from importlib import resources, util
 
 import textx.scoping.providers as scoping_providers
 from rdflib import URIRef
-from textx import get_children, get_children_of_type, get_location, get_model, metamodel_from_file
+from textx import (
+    get_children,
+    get_children_of_type,
+    get_location,
+    get_model,
+    metamodel_from_file,
+    textx_isinstance,
+)
 from textx.exceptions import TextXSemanticError
-from textx.model import ObjCrossRef
 from textx.scoping import Postponed
 
 from scene_dsl.classes.common import FloatVector, IHasNamespace, IntVector
@@ -102,27 +108,30 @@ class InstancedRefScopeProvider(scoping_providers.FQNImportURI):
             return super().__call__(obj, attr, obj_ref)
         if not isinstance(tree.template, KinematicTreeTemplate):
             return Postponed()
-        expected = [obj_ref.cls, *((RigidBody, KinematicGraph) if obj_ref.cls is Frame else ())]
-        target = None
-        for cls in expected:
-            in_template = ObjCrossRef(
-                f"{tree.template.name}.{path}",
-                cls,
-                obj_ref.position,
-                obj_ref.scope_provider,
-                obj_ref.match_rule_name,
+        target = tree.template
+        for segment in path.split("."):
+            # Unnamed containers are transparent, as in a textX FQN: a joint sits in the tree's
+            # joints block, a frame in its body.
+            matches = get_children(
+                lambda node, name=segment, scope=target: (
+                    node is not scope and getattr(node, "name", None) == name
+                ),
+                target,
+                should_follow=lambda node, name=segment: (
+                    getattr(node, "name", None) in (None, name)
+                ),
             )
-            # Resolve from the tree's own model: its template is only imported there.
-            target = super().__call__(tree, attr, in_template)
-            if target is not None:
-                break
-        if target is not None and cls is not obj_ref.cls:
+            target = matches[0] if matches else None
+            if target is None:
+                return None
+        if not textx_isinstance(target, obj_ref.cls):
+            if not (obj_ref.cls is Frame and isinstance(target, (RigidBody, KinematicGraph))):
+                return None
             try:
                 target = target.default_frame
             except ValueError:  # a tree with no body has no frame to stand for
-                target = None
-        if target is not None:
-            _pending_refs(get_model(obj)).append((obj, attr.name, tree, target))
+                return None
+        _pending_refs(get_model(obj)).append((obj, attr.name, tree, target))
         return target
 
 

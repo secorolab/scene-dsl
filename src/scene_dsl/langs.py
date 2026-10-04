@@ -98,7 +98,6 @@ class InstancedRefScopeProvider(scoping_providers.FQNImportURI):
     """Resolves references qualified by an instanced tree, e.g. '<arm1.base.origin>'.
 
     The tree's copy cannot exist yet, so resolve against the template -- see `_pending_refs`.
-    Where a frame is expected, a body or a tree stands for its default frame.
     """
 
     def __call__(self, obj, attr, obj_ref):
@@ -125,12 +124,7 @@ class InstancedRefScopeProvider(scoping_providers.FQNImportURI):
             if target is None:
                 return None
         if not textx_isinstance(target, obj_ref.cls):
-            if not (obj_ref.cls is Frame and isinstance(target, (RigidBody, KinematicGraph))):
-                return None
-            try:
-                target = target.default_frame
-            except ValueError:  # a tree with no body has no frame to stand for
-                return None
+            return None
         _pending_refs(get_model(obj)).append((obj, attr.name, tree, target))
         return target
 
@@ -202,6 +196,30 @@ def build_instance_trees(model, metamodel):
         # Landing twice is harmless: the recorded target stays the template's element.
         for obj, attr_name, tree, target in _pending_refs(m):
             setattr(obj, attr_name, tree.copies[id(target)])
+
+
+def lower_frame_refs(model, metamodel):
+    """Replace a body or tree named by one of the model's `FrameLike` references with its default frame.
+
+    Runs after `build_instance_trees`, so a reference into an instanced tree takes the copy's frame.
+
+    Raises:
+        TextXSemanticError: the named body or tree has no frame to stand for it.
+    """
+    frame_like = scenex_metamodel()["FrameLike"]
+    for obj in get_children(lambda _: True, model):
+        for attr_name, attr in type(obj)._tx_attrs.items():
+            target = getattr(obj, attr_name) if attr.cls is frame_like else None
+            if target is None or isinstance(target, Frame):
+                continue
+            try:
+                setattr(obj, attr_name, target.default_frame)
+            except ValueError as error:
+                raise TextXSemanticError(
+                    f"'{target.name}' has no frame to stand for it -- name a frame, or "
+                    "declare one on it",
+                    **get_location(obj),
+                ) from error
 
 
 def _fill_from_template(tree) -> None:

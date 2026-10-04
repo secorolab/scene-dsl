@@ -92,6 +92,7 @@ class InstancedRefScopeProvider(scoping_providers.FQNImportURI):
     """Resolves references qualified by an instanced tree, e.g. '<arm1.base.origin>'.
 
     The tree's copy cannot exist yet, so resolve against the template -- see `_pending_refs`.
+    Where a frame is expected, a body or a tree stands for its default frame.
     """
 
     def __call__(self, obj, attr, obj_ref):
@@ -101,15 +102,25 @@ class InstancedRefScopeProvider(scoping_providers.FQNImportURI):
             return super().__call__(obj, attr, obj_ref)
         if not isinstance(tree.template, KinematicTreeTemplate):
             return Postponed()
-        in_template = ObjCrossRef(
-            f"{tree.template.name}.{path}",
-            obj_ref.cls,
-            obj_ref.position,
-            obj_ref.scope_provider,
-            obj_ref.match_rule_name,
-        )
-        # Resolve from the tree's own model: its template is only imported there.
-        target = super().__call__(tree, attr, in_template)
+        expected = [obj_ref.cls, *((RigidBody, KinematicGraph) if obj_ref.cls is Frame else ())]
+        target = None
+        for cls in expected:
+            in_template = ObjCrossRef(
+                f"{tree.template.name}.{path}",
+                cls,
+                obj_ref.position,
+                obj_ref.scope_provider,
+                obj_ref.match_rule_name,
+            )
+            # Resolve from the tree's own model: its template is only imported there.
+            target = super().__call__(tree, attr, in_template)
+            if target is not None:
+                break
+        if target is not None and cls is not obj_ref.cls:
+            try:
+                target = target.default_frame
+            except ValueError:  # a tree with no body has no frame to stand for
+                target = None
         if target is not None:
             _pending_refs(get_model(obj)).append((obj, attr.name, tree, target))
         return target

@@ -111,9 +111,13 @@ class InstancedRefScopeProvider(scoping_providers.FQNImportURI):
         for segment in path.split("."):
             # Unnamed blocks are transparent, as in a textX FQN: a joint sits in `joints { }`.
             matches = get_children(
-                lambda node: node is not target and getattr(node, "name", None) == segment,
+                lambda node, name=segment, scope=target: (
+                    node is not scope and getattr(node, "name", None) == name
+                ),
                 target,
-                should_follow=lambda node: getattr(node, "name", None) in (None, segment),
+                should_follow=lambda node, name=segment: (
+                    getattr(node, "name", None) in (None, name)
+                ),
             )
             if not matches:
                 return None

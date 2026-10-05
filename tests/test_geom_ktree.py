@@ -578,6 +578,68 @@ def test_instanced_frame_ref_resolves_to_its_own_instance(tmp_path):
         assert URIRef("https://example.test/lab/world_tree/table_body/table_root") in attached
 
 
+def test_instanced_joint_ref_resolves_through_the_joints_block(tmp_path):
+    """'<arm.arm_joint>' names a joint, which sits in the template's unnamed joints block; the
+    block is transparent, as in any textX FQN, and the reference lands on the instance's copy."""
+    write_example_scene(tmp_path)
+    (tmp_path / "device.ktree").write_text(
+        """ktree arm_tree { root: <arm_base.arm_root>
+    body arm_base { frame arm_root { } frame joint_anchor { } }
+    body arm_link { frame arm_link_origin { } }
+    joints {
+        revolute arm_joint {
+            parent: <arm_base.joint_anchor>.z
+            child: <arm_link.arm_link_origin>.z
+            polarity: PositivePolarity
+        }
+    }
+}
+"""
+    )
+    path = tmp_path / "mimic.scenex"
+    path.write_text(
+        """import "example.scene"
+import "device.ktree"
+ns lab = "https://example.test/lab/"
+
+ktree inst (ns=lab) arm of <arm_tree>
+
+ktree (ns=lab) world_tree { root: <table_body.table_root>
+    tree <arm>
+    body table_body { frame table_root { } frame follower_anchor { } }
+    body follower_link { frame follower_origin { } }
+    joints {
+        fixed arm_on_table {
+            parent: <table_body.table_root>
+            child: <arm.arm_base.arm_root>
+        }
+        revolute follower {
+            parent: <table_body.follower_anchor>.z
+            child: <follower_link.follower_origin>.z
+            mimic { joint: <arm.arm_joint> multiplier: 1.0 offset: 0.0 }
+            polarity: PositivePolarity
+        }
+    }
+}
+scene inst (ns=lab) mimic {
+    scene: <s>
+    kgraph (ns=lab) world_tree_graph { anchor: <world_tree.table_body.table_root>
+        tree <world_tree>
+    }
+}
+"""
+    )
+
+    model = scenex_metamodel().model_from_file(path)
+    world_tree = next(tree for tree in model.ktrees if tree.name == "world_tree")
+    arm = next(tree for tree in model.ktrees if tree.name == "arm")
+    joints = {joint.name: joint for joint in world_tree.joints_spec.joints}
+    mimicked = joints["follower"].mimic.joint
+
+    assert mimicked.name == "arm_joint"
+    assert mimicked is not arm.template.joints_spec.joints[0]
+
+
 def test_composing_a_template_directly_is_rejected(tmp_path):
     """A template names no device, so a tree composes an instance of it, never it."""
     write_example_scene(tmp_path)

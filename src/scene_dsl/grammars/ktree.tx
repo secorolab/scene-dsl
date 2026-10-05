@@ -6,6 +6,8 @@ InertiaUnit: 'kg*m^2' ;
 EffortUnit: 'N*m' ;
 Polarity: 'PositivePolarity' | 'NegativePolarity' ;
 
+FrameLike: Frame | RigidBody | KinematicGraph ;
+
 KinematicGraph:
 'kgraph' '(' 'ns' '=' ns=[NamespaceDeclare|FQN] ')' name=IRI_TRUNK '{'
     'anchor' ':' '<' anchor=[Frame|FQN] '>'

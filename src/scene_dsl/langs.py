@@ -4,9 +4,15 @@ from importlib import resources, util
 
 import textx.scoping.providers as scoping_providers
 from rdflib import URIRef
-from textx import get_children, get_children_of_type, get_location, get_model, metamodel_from_file
+from textx import (
+    get_children,
+    get_children_of_type,
+    get_location,
+    get_model,
+    metamodel_from_file,
+    textx_isinstance,
+)
 from textx.exceptions import TextXSemanticError
-from textx.model import ObjCrossRef
 from textx.scoping import Postponed
 
 from scene_dsl.classes.common import FloatVector, IHasNamespace, IntVector
@@ -101,17 +107,25 @@ class InstancedRefScopeProvider(scoping_providers.FQNImportURI):
             return super().__call__(obj, attr, obj_ref)
         if not isinstance(tree.template, KinematicTreeTemplate):
             return Postponed()
-        in_template = ObjCrossRef(
-            f"{tree.template.name}.{path}",
-            obj_ref.cls,
-            obj_ref.position,
-            obj_ref.scope_provider,
-            obj_ref.match_rule_name,
-        )
-        # Resolve from the tree's own model: its template is only imported there.
-        target = super().__call__(tree, attr, in_template)
-        if target is not None:
-            _pending_refs(get_model(obj)).append((obj, attr.name, tree, target))
+        target = tree.template
+        for segment in path.split("."):
+            # Unnamed containers are transparent, as in a textX FQN: a joint sits in the tree's
+            # joints block, a frame in its body.
+            matches = get_children(
+                lambda node, name=segment, scope=target: (
+                    node is not scope and getattr(node, "name", None) == name
+                ),
+                target,
+                should_follow=lambda node, name=segment: (
+                    getattr(node, "name", None) in (None, name)
+                ),
+            )
+            target = matches[0] if matches else None
+            if target is None:
+                return None
+        if not textx_isinstance(target, obj_ref.cls):
+            return None
+        _pending_refs(get_model(obj)).append((obj, attr.name, tree, target))
         return target
 
 
@@ -182,6 +196,30 @@ def build_instance_trees(model, metamodel):
         # Landing twice is harmless: the recorded target stays the template's element.
         for obj, attr_name, tree, target in _pending_refs(m):
             setattr(obj, attr_name, tree.copies[id(target)])
+
+
+def lower_frame_refs(model, metamodel):
+    """Replace a body or tree named by one of the model's `FrameLike` references with its default frame.
+
+    Runs after `build_instance_trees`, so a reference into an instanced tree takes the copy's frame.
+
+    Raises:
+        TextXSemanticError: the named body or tree has no frame to stand for it.
+    """
+    frame_like = scenex_metamodel()["FrameLike"]
+    for obj in get_children(lambda _: True, model):
+        for attr_name, attr in type(obj)._tx_attrs.items():
+            target = getattr(obj, attr_name) if attr.cls is frame_like else None
+            if target is None or isinstance(target, Frame):
+                continue
+            try:
+                setattr(obj, attr_name, target.default_frame)
+            except ValueError as error:
+                raise TextXSemanticError(
+                    f"'{target.name}' has no frame to stand for it -- name a frame, or "
+                    "declare one on it",
+                    **get_location(obj),
+                ) from error
 
 
 def _fill_from_template(tree) -> None:

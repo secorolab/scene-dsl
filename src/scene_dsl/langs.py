@@ -109,8 +109,7 @@ class InstancedRefScopeProvider(scoping_providers.FQNImportURI):
             return Postponed()
         target = tree.template
         for segment in path.split("."):
-            # Unnamed containers are transparent, as in a textX FQN: a joint sits in the tree's
-            # joints block, a frame in its body.
+            # Unnamed blocks are transparent, as in a textX FQN: a joint sits in `joints { }`.
             matches = get_children(
                 lambda node, name=segment, scope=target: (
                     node is not scope and getattr(node, "name", None) == name

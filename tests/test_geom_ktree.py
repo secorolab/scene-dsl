@@ -636,8 +636,7 @@ scene inst (ns=lab) mimic {
     joints = {joint.name: joint for joint in world_tree.joints_spec.joints}
     mimicked = joints["follower"].mimic.joint
 
-    assert mimicked.name == "arm_joint"
-    assert mimicked is not arm.template.joints_spec.joints[0]
+    assert mimicked is arm.copies[id(arm.template.joints_spec.joints[0])]
 
 
 def test_composing_a_template_directly_is_rejected(tmp_path):

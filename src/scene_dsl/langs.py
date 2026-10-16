@@ -36,6 +36,11 @@ from scene_dsl.classes.geom import (
 )
 from scene_dsl.classes.ktree import (
     Actuation,
+    BodyShape,
+    RectangularPrism,
+    Cube,
+    Cylinder,
+    MeshShape,
     FixedJoint,
     JointBase,
     JointComposition,
@@ -51,6 +56,7 @@ from scene_dsl.classes.ktree import (
     RigidBody,
     RigidBodyInertia,
     SerialJoints,
+    Sphere,
 )
 from scene_dsl.classes.scene import (
     Agent,
@@ -426,6 +432,15 @@ def check_unique_uris(model, metamodel):
         record(obj)
 
 
+def check_shape_frames(model, metamodel):
+    for shape in get_children(lambda item: isinstance(item, BodyShape), model):
+        if shape.frame is not None and shape.frame.parent is not shape.parent:
+            raise TextXSemanticError(
+                f"shape '{shape.name}' must use a frame owned by body '{shape.parent.name}'",
+                **get_location(shape),
+            )
+
+
 # One per language: building another resets textx's stash on the shared user classes mid-import.
 @cache
 def scene_metamodel():
@@ -485,6 +500,11 @@ def scenex_metamodel():
             KinematicTreeTemplate,
             KinematicGraph,
             RigidBody,
+            Sphere,
+            RectangularPrism,
+            Cube,
+            Cylinder,
+            MeshShape,
             RigidBodyInertia,
             JointsSpec,
             JointBase,
@@ -517,5 +537,6 @@ def scenex_metamodel():
     mm_scenex.register_model_processor(check_model_mappings)
     mm_scenex.register_model_processor(check_element_model_refs)
     mm_scenex.register_model_processor(check_agent_set_membership)
+    mm_scenex.register_model_processor(check_shape_frames)
     mm_scenex.register_model_processor(check_unique_uris)
     return mm_scenex

@@ -1,0 +1,19 @@
+ns demo_fsm = "https://secorolab.github.io/models/examples/lab-sampled/fsm/"
+
+evt loop (ns=demo_fsm) events {
+    evt E_STEP
+}
+
+fsm (ns=demo_fsm) lab_sampled_fsm {
+    description: "Keep the scene running so each run has one sampled shape size."
+    states { S_START, S_HOLD, S_DONE }
+    evt loop: <events>
+    start: <S_START>
+    end: <S_DONE>
+    transitions {
+        T_START_HOLD { from: <S_START>, to: <S_HOLD> }
+    }
+    reactions {
+        R_STEP { when: <events.E_STEP>, do: <T_START_HOLD> }
+    }
+}

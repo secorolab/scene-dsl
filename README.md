@@ -85,6 +85,50 @@ textx generate examples/models/lab.scenex --target graph -o examples/generated -
 The RDF generators accept `format` (`json-ld`, `ttl`, or `xml`) and `filename`.
 For JSON-LD, pass `--nocompact` to skip compacting IRIs.
 
+## Body shapes
+
+Declare one or more shapes inside a body in `.scenex` or `.ktree`:
+
+```text
+body ball {
+    frame center { }
+    shape sphere surface { frame: <center> radius: 0.05 m }
+}
+```
+
+Each shape references a frame on its body; pose that frame with `wrt` to place
+the shape. Sphere, cube, rectangular prism, and cylinder primitives are centered
+at that frame. Prism dimensions are full X/Y/Z lengths, and cylinder height
+follows local Z. Lengths must be positive and use `m`, `cm`, or `mm`.
+
+STL meshes use `shape mesh` with `format: stl`, `path`, and optional positive
+`scale: (x, y, z)`. The mesh keeps its authored origin; STL coordinates are
+interpreted as metres. Any shape may have an optional RGBA `color` in `[0, 1]`.
+Shapes do not supply mass or inertia.
+
+Sizes and mesh scale also accept `sample <distribution>`. Use a one-component
+uniform distribution for scalar sizes or three components for prism dimensions
+and mesh scale; size bounds must be finite and positive. A value is drawn once
+per run and reused wherever referenced. The robot example's optional
+`[sampling].seed` makes runs repeatable, though the viewer and generated run
+may draw different values for the same seed.
+
+From this repository directory, view the [compound example](examples/models/compound.scenex)
+for fixed and sampled shapes, local poses, and STL scale. With MuJoCo assets
+installed, the [robot example](examples/models/lab-sampled.scenex) shows a
+sampled sphere on a body alongside a Kinova arm:
+
+```bash
+motion-spec view examples/models/compound.scenex
+motion-spec view examples/models/lab-sampled.scenex --config examples/models/lab-sampled.toml
+motion-spec run examples/models/lab-sampled.robmot --headless --steps 5
+```
+
+Use `--headless` with `view` to check compilation without opening a window.
+Generated runs use these shapes for visual and collision geometry. RDF export
+links shapes to frames with `shapes:attached-to-frame` and dimensions with
+`shapes:has-dimension`; the companion metamodels repository validates them.
+
 ## Drawing the Kinematics
 
 Draw the scene's bodies and the joints between them, with each device a cluster

@@ -1,0 +1,50 @@
+import "lab-sampled.fsm"
+import "lab-sampled.scenex"
+
+ns demo = "https://secorolab.github.io/models/examples/lab-sampled/"
+ns demo_fsm = "https://secorolab.github.io/models/examples/lab-sampled/fsm/"
+
+exec-context (ns=demo) lab-sampled-exec {
+    runs-scene: <pickplace_scene_mjc>
+    platform: simulation { name: "MuJoCo" }
+    config: "lab-sampled.toml"
+    timestep: 2.0 ms
+}
+
+context (ns=demo) shared {
+    world {
+        joint-position joint-1 { joint: <arm1.joint_1>, normalization: (-pi, pi) rad }
+    },
+    spec {
+        angle home = 0.0 rad,
+        angle band = 0.02 rad,
+        torque limit = 12.0 Nm
+    }
+}
+
+guarded-motion (ns=demo) hold {
+    description: "Hold the first arm joint while the sampled scene runs"
+    context {}
+    when {}
+    while {
+        hold-1: keeping <shared.world.joint-1> equal to <shared.spec.home> within <shared.spec.band>
+    }
+    until {}
+}
+
+constraint-handler (ns=demo) handler-hold {
+    handles: <hold>
+    runs-in: <demo_fsm.S_HOLD>
+    monitors {}
+    controllers {
+        pid ctrl-hold { constraint: <hold.hold-1>, Kp: 20, Ki: 0, Kd: 8, decay: 0, error-normalization: (-pi, pi) rad } as torque
+    }
+    solvers {
+        arm-solver: serial-chain {
+            agent: <isaac_agents.arm1>,
+            algorithm: rne,
+            limits { torque: saturation { max: <shared.spec.limit> } },
+            gravity: (0.0, 0.0, 9.81) m/s^2
+        }
+    }
+}

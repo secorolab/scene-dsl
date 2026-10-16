@@ -1,4 +1,6 @@
 # SPDX-License-Identifier: MPL-2.0
+from decimal import Decimal
+
 from rdf_utils.models.vocab import (
     URI_ACT_PRED_COMMAND_INTERFACE,
     URI_ACT_PRED_GEAR_RATIO,
@@ -60,6 +62,7 @@ from rdf_utils.models.vocab import (
     URI_QUDT_PRED_QUANTITY_KIND,
     URI_QUDT_PRED_UNIT,
     URI_QUDT_PRED_VALUE,
+    URI_QUDT_QK_DISTANCE,
     URI_QUDT_QK_ANG_ACCEL,
     URI_QUDT_QK_ANG_VEL,
     URI_QUDT_QK_ANGLE,
@@ -76,24 +79,127 @@ from rdf_utils.models.vocab import (
     URI_QUDT_UNIT_RAD_PER_SEC,
     URI_QUDT_UNIT_RAD_PER_SEC2,
 )
-from rdflib import RDF, XSD, Graph, Literal, URIRef
+from rdflib import RDF, XSD, Graph, Literal, Namespace, URIRef
 
 from scene_dsl.classes.ktree import (
     Actuation,
+    BodyShape,
+    Cube,
+    Cylinder,
+    MeshShape,
     FixedJoint,
     JointBase,
     JointLimits,
     JointMimicSpec,
     KinematicGraph,
     KinematicTreeModel,
+    RectangularPrism,
     RevoluteJoint,
     SerialJoints,
+    Sphere,
 )
+from scene_dsl.classes.distrib import DistributionRef
+from scene_dsl.rdf.distrib import add_sampled_quantity
 from scene_dsl.rdf.geom import (
     ANGLE_UNITS,
+    LENGTH_UNITS,
     add_frame,
     add_position_coord,
 )
+
+ASTRO = Namespace("http://www.astro.umd.edu/~eshaya/astro-onto/owl/geometry.owl#")
+SHAPES = Namespace("https://secorolab.github.io/metamodels/geometry/shape-resources#")
+COL = Namespace("https://secorolab.github.io/metamodels/color#")
+
+
+def add_sphere(graph: Graph, sphere: Sphere) -> None:
+    add_shape_common(graph, sphere)
+    graph.add((sphere.uri, RDF.type, ASTRO.sphere))
+    add_shape_dimension(graph, sphere, sphere.radius_uri, ASTRO.radius, sphere.radius, sphere.unit)
+
+
+def add_shape_dimension(
+    graph: Graph, shape: BodyShape, uri: URIRef, type_uri: URIRef,
+    value: float | DistributionRef, unit: str
+) -> None:
+    graph.add((shape.uri, SHAPES["has-dimension"], uri))
+    graph.add((uri, RDF.type, type_uri))
+    graph.add((uri, RDF.type, URI_QUDT_TYPE_QUANTITY))
+    graph.add((uri, URI_QUDT_PRED_QUANTITY_KIND, URI_QUDT_QK_DISTANCE))
+    if isinstance(value, DistributionRef):
+        add_sampled_quantity(graph, uri, value)
+    else:
+        graph.add((uri, URI_QUDT_PRED_VALUE, Literal(value, datatype=XSD.double)))
+    graph.add((uri, URI_QUDT_PRED_UNIT, LENGTH_UNITS[unit]))
+
+
+def add_shape_common(graph: Graph, shape: BodyShape) -> None:
+    graph.bind("astro", ASTRO)
+    graph.bind("shapes", SHAPES)
+    graph.add((shape.uri, RDF.type, ASTRO["three-D_Shape"]))
+    graph.add((shape.uri, SHAPES["attached-to-frame"], shape.frame.uri))
+    if shape.color is not None:
+        graph.bind("col", COL)
+        graph.add((shape.uri, COL["has-color"], shape.color_uri))
+        graph.add((shape.color_uri, RDF.type, COL.Color))
+        graph.add((shape.color_uri, RDF.type, COL.RGBAScheme))
+        graph.add(
+            (
+                shape.color_uri,
+                COL.value,
+                Literal(" ".join(format(Decimal(str(abs(v))), "f") for v in shape.color)),
+            )
+        )
+
+
+def add_shape(graph: Graph, shape: BodyShape) -> None:
+    if isinstance(shape, Sphere):
+        add_sphere(graph, shape)
+    elif isinstance(shape, Cube):
+        add_shape_common(graph, shape)
+        graph.add((shape.uri, RDF.type, ASTRO.cube))
+        graph.add((shape.uri, RDF.type, ASTRO.rectangularPrism))
+        add_shape_dimension(
+            graph, shape, shape.side_uri, ASTRO.length, shape.side, shape.unit
+        )
+    elif isinstance(shape, RectangularPrism):
+        add_shape_common(graph, shape)
+        graph.add((shape.uri, RDF.type, ASTRO.rectangularPrism))
+        if isinstance(shape.dimensions, DistributionRef):
+            add_shape_dimension(
+                graph, shape, shape.dimensions_uri, SHAPES.DimensionsXYZ,
+                shape.dimensions, shape.unit,
+            )
+        else:
+            for axis, value in zip("xyz", shape.dimensions):
+                add_shape_dimension(
+                    graph, shape, shape.dimension_uri(axis),
+                    SHAPES[f"{axis.upper()}Length"], value, shape.unit,
+                )
+    elif isinstance(shape, Cylinder):
+        add_shape_common(graph, shape)
+        graph.add((shape.uri, RDF.type, SHAPES.Cylinder))
+        add_shape_dimension(
+            graph, shape, shape.radius_uri, ASTRO.radius, shape.radius, shape.radius_unit
+        )
+        add_shape_dimension(
+            graph, shape, shape.height_uri, ASTRO.height, shape.height, shape.height_unit
+        )
+    elif isinstance(shape, MeshShape):
+        add_shape_common(graph, shape)
+        graph.add((shape.uri, RDF.type, SHAPES.MeshShape))
+        graph.add((shape.uri, SHAPES["file-format"], Literal(shape.format)))
+        graph.add((shape.uri, SHAPES["source-path"], Literal(shape.path)))
+        if shape.scale is not None:
+            if isinstance(shape.scale, DistributionRef):
+                graph.add((shape.uri, SHAPES.scale, shape.scale_uri))
+                graph.add((shape.scale_uri, RDF.type, SHAPES.ScaleXYZ))
+                add_sampled_quantity(graph, shape.scale_uri, shape.scale)
+            else:
+                for axis, value in zip("xyz", shape.scale):
+                    graph.add((shape.uri, SHAPES[f"scale-{axis}"], Literal(value, datatype=XSD.double)))
+    else:
+        raise TypeError(f"Unhandled shape type: {type(shape).__name__}")
 
 ACTUATION_INTERFACE_TYPES = {
     "position": URI_KC_STAT_JNT_POSITION,
@@ -128,6 +234,9 @@ def add_body(graph: Graph, body) -> None:
         add_frame(graph, frame)
         graph.add((body.uri, URI_GEOM_PRED_SIMPLICES, frame.uri))
         graph.add((body.uri, URI_GEOM_PRED_SIMPLICES, frame.origin_uri))
+
+    for shape in body.shapes:
+        add_shape(graph, shape)
 
     graph.add(triple=(body.uri, URI_KC_EXT_PRED_ROOT, body.default_frame.uri))
 

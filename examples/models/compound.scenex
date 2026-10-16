@@ -1,0 +1,65 @@
+import "shapes.scene"
+
+ns demo = "https://example.org/compound/"
+
+distrib (ns=demo) radius_range {
+    uniform { dimension: 1 lower: (0.01) upper: (0.02) }
+}
+distrib (ns=demo) wall_size_range {
+    uniform { dimension: 3 lower: (0.01, 0.2, 0.08) upper: (0.02, 0.3, 0.12) }
+}
+distrib (ns=demo) mesh_scale_range {
+    uniform { dimension: 3 lower: (0.5, 0.5, 0.5) upper: (1.5, 1.5, 1.5) }
+}
+
+scene inst (ns=demo) compound_demo {
+    scene: <demo_scene>
+    kgraph (ns=demo) world {
+        anchor: <ground.origin>
+        body ground { frame origin { } }
+        body bin {
+            frame center {
+                pose bin_in_world {
+                    wrt: <ground.origin>
+                    xyz: (0.0, 0.0, 0.2) m
+                    orientation: euler { angles: (0.0, 0.0, 0.0) }
+                }
+            }
+            frame side {
+                pose side_in_bin {
+                    wrt: <center>
+                    xyz: (0.1, 0.0, 0.0) m
+                    orientation: euler { axes: xyz angles: (0.0, 0.0, 1.5707963267948966) }
+                }
+            }
+            shape rectangular-prism floor {
+                frame: <center>
+                dimensions: (0.2, 0.3, 0.01) m
+                color: (0.5, 0.5, 0.5, 1.0)
+            }
+            shape rectangular-prism wall {
+                frame: <side>
+                dimensions: sample <wall_size_range> m
+            }
+            shape sphere marker {
+                frame: <side>
+                radius: sample <radius_range> m
+            }
+            shape cylinder post {
+                frame: <center>
+                radius: 1 cm
+                height: 0.1 m
+            }
+            shape mesh tetra {
+                frame: <center>
+                format: stl
+                path: "../assets/tetra.stl"
+                scale: sample <mesh_scale_range>
+            }
+            shape cube block {
+                frame: <center>
+                side: 0.04 m
+            }
+        }
+    }
+}

@@ -9,6 +9,8 @@ from rdf_utils.models.vocab import (
     URI_ACT_PRED_STATE_INTERFACE,
     URI_ACT_TYPE_ACTUATION,
     URI_ACT_TYPE_JOINT_CURRENT,
+    URI_DISTRIB_PRED_FROM_DISTRIB,
+    URI_DISTRIB_TYPE_DISTRIB,
     URI_DYN_PRED_ABOUT,
     URI_DYN_PRED_AS_SEEN_BY,
     URI_DYN_PRED_IXX,
@@ -28,6 +30,9 @@ from rdf_utils.models.vocab import (
     URI_DYN_TYPE_RIGID_BODY_INERTIA_COORD,
     URI_GEOM_PRED_LINES,
     URI_GEOM_PRED_SIMPLICES,
+    URI_GEOM_PRED_X,
+    URI_GEOM_PRED_Y,
+    URI_GEOM_PRED_Z,
     URI_GEOM_TYPE_COLLINEAR,
     URI_GEOM_TYPE_KGRAPH,
     URI_GEOM_TYPE_KTREE,
@@ -100,7 +105,7 @@ from scene_dsl.classes.ktree import (
     Sphere,
 )
 from scene_dsl.classes.distrib import DistributionRef
-from scene_dsl.rdf.distrib import add_sampled_quantity
+from scene_dsl.rdf.distrib import add_distribution, add_sampled_quantity
 from scene_dsl.rdf.geom import (
     ANGLE_UNITS,
     LENGTH_UNITS,
@@ -191,13 +196,17 @@ def add_shape(graph: Graph, shape: BodyShape) -> None:
         graph.add((shape.uri, RDF.type, SHAPES.MeshShape))
         graph.add((shape.uri, SHAPES["source-path"], Literal(shape.path)))
         if shape.scale is not None:
+            graph.add((shape.uri, RDF.type, SHAPES.Scale))
             if isinstance(shape.scale, DistributionRef):
-                graph.add((shape.uri, SHAPES.scale, shape.scale_uri))
-                graph.add((shape.scale_uri, RDF.type, URI_GEOM_TYPE_VECTOR_XYZ))
-                add_sampled_quantity(graph, shape.scale_uri, shape.scale)
+                distribution = shape.scale.distribution
+                if (distribution.uri, RDF.type, URI_DISTRIB_TYPE_DISTRIB) not in graph:
+                    add_distribution(graph, distribution)
+                graph.add((shape.uri, URI_DISTRIB_PRED_FROM_DISTRIB, distribution.uri))
             else:
-                for axis, value in zip("xyz", shape.scale):
-                    graph.add((shape.uri, SHAPES[f"scale-{axis}"], Literal(value, datatype=XSD.double)))
+                for axis, value in zip(
+                    (URI_GEOM_PRED_X, URI_GEOM_PRED_Y, URI_GEOM_PRED_Z), shape.scale
+                ):
+                    graph.add((shape.uri, axis, Literal(value, datatype=XSD.double)))
     else:
         raise TypeError(f"Unhandled shape type: {type(shape).__name__}")
 

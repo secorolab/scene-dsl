@@ -340,10 +340,6 @@ class MeshShape(BodyShape):
         if not self.path.lower().endswith(".stl"):
             raise ValueError(f"mesh '{name}' requires a .stl path")
 
-    @property
-    def scale_uri(self) -> URIRef:
-        return URIRef(f"{self.uri}/scale")
-
 
 class RigidBodyInertia:
     frame: Frame

@@ -101,7 +101,7 @@ the shape. Sphere, cube, rectangular prism, and cylinder primitives are centered
 at that frame. Prism dimensions are full X/Y/Z lengths, and cylinder height
 follows local Z. Lengths must be positive and use `m`, `cm`, or `mm`.
 
-STL meshes use `shape mesh` with `format: stl`, `path`, and optional positive
+STL meshes use `shape mesh` with a `.stl` `path` and optional positive
 `scale: (x, y, z)`. The mesh keeps its authored origin; STL coordinates are
 interpreted as metres. Any shape may have an optional RGBA `color` in `[0, 1]`.
 Shapes do not supply mass or inertia.

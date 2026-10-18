@@ -33,6 +33,7 @@ from rdf_utils.models.vocab import (
     URI_GEOM_TYPE_KTREE,
     URI_GEOM_TYPE_RIGID_BODY,
     URI_GEOM_TYPE_SIMPLICIAL_COMPLEX,
+    URI_GEOM_TYPE_VECTOR_XYZ,
     URI_KC_EXT_PRED_ANCHOR,
     URI_KC_EXT_PRED_DEPENDENT_JOINT,
     URI_KC_EXT_PRED_INDEPENDENT_JOINT,
@@ -167,7 +168,7 @@ def add_shape(graph: Graph, shape: BodyShape) -> None:
         graph.add((shape.uri, RDF.type, ASTRO.rectangularPrism))
         if isinstance(shape.dimensions, DistributionRef):
             add_shape_dimension(
-                graph, shape, shape.dimensions_uri, SHAPES.DimensionsXYZ,
+                graph, shape, shape.dimensions_uri, URI_GEOM_TYPE_VECTOR_XYZ,
                 shape.dimensions, shape.unit,
             )
         else:
@@ -188,12 +189,11 @@ def add_shape(graph: Graph, shape: BodyShape) -> None:
     elif isinstance(shape, MeshShape):
         add_shape_common(graph, shape)
         graph.add((shape.uri, RDF.type, SHAPES.MeshShape))
-        graph.add((shape.uri, SHAPES["file-format"], Literal(shape.format)))
         graph.add((shape.uri, SHAPES["source-path"], Literal(shape.path)))
         if shape.scale is not None:
             if isinstance(shape.scale, DistributionRef):
                 graph.add((shape.uri, SHAPES.scale, shape.scale_uri))
-                graph.add((shape.scale_uri, RDF.type, SHAPES.ScaleXYZ))
+                graph.add((shape.scale_uri, RDF.type, URI_GEOM_TYPE_VECTOR_XYZ))
                 add_sampled_quantity(graph, shape.scale_uri, shape.scale)
             else:
                 for axis, value in zip("xyz", shape.scale):

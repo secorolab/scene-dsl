@@ -49,7 +49,6 @@ RigidBody:
 ;
 
 Shape: Sphere | Cube | RectangularPrism | Cylinder | MeshShape ;
-MeshFormat: 'stl' ;
 
 Sphere:
 'shape' 'sphere' name=IRI_TRUNK '{'
@@ -87,7 +86,6 @@ Cylinder:
 MeshShape:
 'shape' 'mesh' name=IRI_TRUNK '{'
     'frame' ':' '<' frame=[Frame|FQN] '>'
-    'format' ':' format=MeshFormat
     'path' ':' path=STRING
     ('scale' ':' scale=PositionSpec)?
     ('color' ':' color=FloatVector)?

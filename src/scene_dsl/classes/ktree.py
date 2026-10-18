@@ -323,10 +323,9 @@ class Cylinder(BodyShape):
 
 class MeshShape(BodyShape):
     def __init__(
-        self, parent, name, frame, format, path, scale=None, color=None
+        self, parent, name, frame, path, scale=None, color=None
     ) -> None:
         super().__init__(parent, name, frame, color)
-        self.format = format
         self.path = path
         if scale is None:
             self.scale = None
@@ -338,8 +337,8 @@ class MeshShape(BodyShape):
             self.scale = _positive_size(None, scale, 3, f"mesh '{name}' scale")
         if not self.path:
             raise ValueError(f"mesh '{name}' needs a file path")
-        if self.format != "stl" or not self.path.lower().endswith(".stl"):
-            raise ValueError(f"mesh '{name}' requires STL format and a .stl path")
+        if not self.path.lower().endswith(".stl"):
+            raise ValueError(f"mesh '{name}' requires a .stl path")
 
     @property
     def scale_uri(self) -> URIRef:

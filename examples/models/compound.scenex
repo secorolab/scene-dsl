@@ -52,7 +52,6 @@ scene inst (ns=demo) compound_demo {
             }
             shape mesh tetra {
                 frame: <center>
-                format: stl
                 path: "../assets/tetra.stl"
                 scale: sample <mesh_scale_range>
             }

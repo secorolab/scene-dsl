@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from math import isfinite
 from typing import Any
 
 import numpy as np
@@ -13,6 +14,7 @@ from scene_dsl.classes.common import (
     IHasNamespaceDeclare,
     IHasParent,
 )
+from scene_dsl.classes.distrib import DistributionRef, UniformDistribution
 from scene_dsl.classes.geom import Frame, FrameAxis, IDefaultFrame
 
 
@@ -167,12 +169,14 @@ class KinematicTreeInstance(KinematicTreeModel):
 class RigidBody(IHasNamespace, IDefaultFrame):
     name: str
     frames: list[Frame]
+    shapes: list[BodyShape]
     inertia: RigidBodyInertia | None
 
-    def __init__(self, parent, name, frames, inertia) -> None:
+    def __init__(self, parent, name, frames, shapes, inertia) -> None:
         super().__init__(parent=parent)
         self.name = name
         self.frames = frames
+        self.shapes = shapes
         self.inertia = inertia
         self._uri = None
         self._inertia_uri = None
@@ -211,6 +215,127 @@ class RigidBody(IHasNamespace, IDefaultFrame):
         if self._inertia_coord_uri is None:
             self._inertia_coord_uri = self.namespace[self.scoped("-inertia-coord")]
         return self._inertia_coord_uri
+
+
+class BodyShape(IHasNamespace):
+    def __init__(self, parent, name, frame, color=None) -> None:
+        super().__init__(parent=parent)
+        self.name = name
+        self.frame = frame
+        self.color = None if color is None else [float(value) for value in color.values]
+        if self.color is not None and (
+            len(self.color) != 4 or any(not isfinite(v) or not 0 <= v <= 1 for v in self.color)
+        ):
+            raise ValueError(f"shape '{name}' color requires four RGBA channels in [0, 1]")
+
+    @property
+    def namespace(self) -> Namespace:
+        return self.parent.namespace
+
+    @property
+    def uri(self) -> URIRef:
+        return self.namespace[self.scoped()]
+
+    @property
+    def color_uri(self) -> URIRef:
+        return URIRef(f"{self.uri}/color")
+
+
+def _positive_size(value, sample: DistributionRef | None, count: int, name: str):
+    if sample is not None:
+        spec = sample.distribution.spec
+        if not isinstance(spec, UniformDistribution) or spec.dimension != count:
+            raise ValueError(f"{name} requires a {count}-component uniform distribution")
+        if any(
+            not isfinite(lower) or not isfinite(upper) or lower <= 0
+            for lower, upper in zip(spec.lower.values, spec.upper.values)
+        ):
+            raise ValueError(f"{name} distribution bounds must be finite and positive")
+        return sample
+    values = value if isinstance(value, list) else [value]
+    if len(values) != count or any(not isfinite(v) or v <= 0 for v in values):
+        raise ValueError(f"{name} requires {count} finite positive value(s)")
+    return value
+
+
+class Sphere(BodyShape):
+    def __init__(self, parent, name, frame, radius, radius_sample, unit, color=None) -> None:
+        super().__init__(parent, name, frame, color)
+        self.radius = _positive_size(float(radius) if radius_sample is None else None, radius_sample, 1, f"sphere '{name}' radius")
+        self.unit = unit
+
+    @property
+    def radius_uri(self) -> URIRef:
+        return URIRef(f"{self.uri}/radius")
+
+
+class RectangularPrism(BodyShape):
+    def __init__(self, parent, name, frame, dimensions, unit, color=None) -> None:
+        super().__init__(parent, name, frame, color)
+        self.dimensions = (
+            _positive_size([float(value) for value in dimensions.values], None, 3, f"rectangular prism '{name}' dimensions")
+            if isinstance(dimensions, FloatVector)
+            else _positive_size(None, dimensions, 3, f"rectangular prism '{name}' dimensions")
+        )
+        self.unit = unit
+
+    @property
+    def dimensions_uri(self) -> URIRef:
+        return URIRef(f"{self.uri}/dimensions")
+
+
+class Cube(BodyShape):
+    def __init__(self, parent, name, frame, side, side_sample, unit, color=None) -> None:
+        super().__init__(parent, name, frame, color)
+        self.side = _positive_size(
+            float(side) if side_sample is None else None,
+            side_sample, 1, f"cube '{name}' side",
+        )
+        self.unit = unit
+
+    @property
+    def side_uri(self) -> URIRef:
+        return URIRef(f"{self.uri}/side")
+
+
+class Cylinder(BodyShape):
+    def __init__(
+        self, parent, name, frame, radius, radius_sample, radius_unit,
+        height, height_sample, height_unit, color=None
+    ) -> None:
+        super().__init__(parent, name, frame, color)
+        self.radius = _positive_size(float(radius) if radius_sample is None else None, radius_sample, 1, f"cylinder '{name}' radius")
+        self.radius_unit = radius_unit
+        self.height = _positive_size(float(height) if height_sample is None else None, height_sample, 1, f"cylinder '{name}' height")
+        self.height_unit = height_unit
+
+    @property
+    def radius_uri(self) -> URIRef:
+        return URIRef(f"{self.uri}/radius")
+
+    @property
+    def height_uri(self) -> URIRef:
+        return URIRef(f"{self.uri}/height")
+
+
+class MeshShape(BodyShape):
+    def __init__(
+        self, parent, name, frame, path, scale=None, color=None
+    ) -> None:
+        super().__init__(parent, name, frame, color)
+        self.path = path
+        if scale is None:
+            self.scale = None
+        elif isinstance(scale, FloatVector):
+            self.scale = _positive_size(
+                [float(value) for value in scale.values], None, 3, f"mesh '{name}' scale"
+            )
+        else:
+            self.scale = _positive_size(None, scale, 3, f"mesh '{name}' scale")
+        if not self.path:
+            raise ValueError(f"mesh '{name}' needs a file path")
+        if not self.path.lower().endswith(".stl"):
+            raise ValueError(f"mesh '{name}' requires a .stl path")
 
 
 class RigidBodyInertia:

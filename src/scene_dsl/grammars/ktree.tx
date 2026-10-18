@@ -1,4 +1,5 @@
 import base
+import distrib
 import geom
 
 MassUnit: 'kg' | 'g' ;
@@ -42,7 +43,52 @@ KinematicTreeModel:
 RigidBody:
 'body' name=IRI_TRUNK '{'
     frames*=Frame
+    shapes*=Shape
     inertia=RigidBodyInertia?
+'}'
+;
+
+Shape: Sphere | Cube | RectangularPrism | Cylinder | MeshShape ;
+
+Sphere:
+'shape' 'sphere' name=IRI_TRUNK '{'
+    'frame' ':' '<' frame=[Frame|FQN] '>'
+    'radius' ':' (radius=FLOAT | radius_sample=DistributionRef) unit=LengthUnit
+    ('color' ':' color=FloatVector)?
+'}'
+;
+
+Cube:
+'shape' 'cube' name=IRI_TRUNK '{'
+    'frame' ':' '<' frame=[Frame|FQN] '>'
+    'side' ':' (side=FLOAT | side_sample=DistributionRef) unit=LengthUnit
+    ('color' ':' color=FloatVector)?
+'}'
+;
+
+RectangularPrism:
+'shape' 'rectangular-prism' name=IRI_TRUNK '{'
+    'frame' ':' '<' frame=[Frame|FQN] '>'
+    'dimensions' ':' dimensions=PositionSpec unit=LengthUnit
+    ('color' ':' color=FloatVector)?
+'}'
+;
+
+Cylinder:
+'shape' 'cylinder' name=IRI_TRUNK '{'
+    'frame' ':' '<' frame=[Frame|FQN] '>'
+    'radius' ':' (radius=FLOAT | radius_sample=DistributionRef) radius_unit=LengthUnit
+    'height' ':' (height=FLOAT | height_sample=DistributionRef) height_unit=LengthUnit
+    ('color' ':' color=FloatVector)?
+'}'
+;
+
+MeshShape:
+'shape' 'mesh' name=IRI_TRUNK '{'
+    'frame' ':' '<' frame=[Frame|FQN] '>'
+    'path' ':' path=STRING
+    ('scale' ':' scale=PositionSpec)?
+    ('color' ':' color=FloatVector)?
 '}'
 ;
 

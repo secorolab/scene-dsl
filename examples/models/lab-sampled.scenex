@@ -1,0 +1,114 @@
+import "lab-sampled.scene"
+import "scene_dsl:robots/kinova_gen3_7dof.ktree"
+
+ns lab_rob='https://secorolab.github.io/models/acceptance-criteria/bdd/scenes/secorolab-mjc/robots/'
+
+distrib (ns=scene_lab_mjc) sphere_radius {
+    uniform { dimension: 1 lower: (0.025) upper: (0.045) }
+}
+
+ktree inst (ns=lab_rob) arm1 of <kinova_tree>
+
+ktree (ns=scene_lab_mjc) world_tree {
+    root: <world_body.world>
+    tree <arm1>
+
+    body world_body {
+        frame world { }
+    }
+
+    body table_body {
+        frame table_top {
+            pose table_in_world {
+                wrt: <world_body.world>
+                xyz: (0.0, 0.0, 0.0) m
+                orientation: euler { angles: (0.0, 0.0, 0.0) unit: rad }
+            }
+        }
+        inertia {
+            frame: <table_top>
+            mass: 10.0 kg
+            inertia-matrix: (
+                (1.0, 0.0, 0.0),
+                (0.0, 1.0, 0.0),
+                (0.0, 0.0, 1.0)
+            ) kg*m^2
+        }
+    }
+
+    joints {
+        fixed table_on_world {
+            parent: <world_body.world>
+            child: <table_body.table_top>
+        }
+        fixed arm1_on_table {
+            parent: <table_body.table_top>
+            child: <arm1.base_link.base_link_origin>
+        }
+        serial {
+            root: <arm1.base_link.base_link_origin>
+            tip: <arm1.bracelet_link.pinch_site>
+        }
+    }
+}
+
+scene inst (ns=scene_lab_mjc) pickplace_scene_mjc {
+    scene: <pickplace_scene>
+
+    kgraph (ns=scene_lab_mjc) lab_graph {
+        anchor: <world_tree.world_body.world>
+        tree <world_tree>
+
+        body box1_body {
+            frame box1_root {
+                pose box1_on_table {
+                    wrt: <world_tree.table_body.table_top>
+                    xyz: (0.45, 0.1, 0.02) m
+                    orientation: euler { angles: (0.0, 0.0, 0.0) unit: rad }
+                }
+            }
+            frame sphere_center {
+                pose sphere_on_box {
+                    wrt: <box1_root>
+                    xyz: (0.0, 0.0, 0.12) m
+                    orientation: euler { angles: (0.0, 0.0, 0.0) unit: rad }
+                }
+            }
+            shape sphere ball {
+                frame: <sphere_center>
+                radius: sample <sphere_radius> m
+                color: (0.9, 0.2, 0.2, 1.0)
+            }
+            inertia {
+                frame: <box1_root>
+                mass: 0.2 kg
+                inertia-matrix: (
+                    (0.001, 0.0, 0.0),
+                    (0.0, 0.001, 0.0),
+                    (0.0, 0.0, 0.001)
+                ) kg*m^2
+            }
+        }
+    }
+
+    obj <pickplace_objects.box1> {
+        model box1-mjc as mjcf {
+            sys path = '~/.cache/mj_kdl_wrapper/assets/cube.xml'
+            map body <lab_graph.box1_body> to "root"
+        }
+    }
+
+    obj <ws_objects.dining_table> {
+        model mjc-table as mjcf {
+            sys path = '~/.cache/mj_kdl_wrapper/assets/table.xml'
+            map body <world_tree.table_body> to "root"
+        }
+    }
+
+    agn <isaac_agents.arm1> {
+        model arm1-mjc as mjcf {
+            sys path = '~/.cache/mj_kdl_wrapper/assets/kinova_gen3/gen3.xml'
+            map tree <arm1> to "gen3"
+        }
+    }
+}

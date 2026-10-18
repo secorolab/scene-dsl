@@ -126,7 +126,7 @@ def add_sphere(graph: Graph, sphere: Sphere) -> None:
 
 def add_shape_dimension(
     graph: Graph, shape: BodyShape, uri: URIRef, type_uri: URIRef,
-    value: float | DistributionRef, unit: str
+    value: float | list[float] | DistributionRef, unit: str
 ) -> None:
     graph.add((shape.uri, SHAPES["has-dimension"], uri))
     graph.add((uri, RDF.type, type_uri))
@@ -134,6 +134,11 @@ def add_shape_dimension(
     graph.add((uri, URI_QUDT_PRED_QUANTITY_KIND, URI_QUDT_QK_DISTANCE))
     if isinstance(value, DistributionRef):
         add_sampled_quantity(graph, uri, value)
+    elif isinstance(value, list):
+        for predicate, component in zip(
+            (URI_GEOM_PRED_X, URI_GEOM_PRED_Y, URI_GEOM_PRED_Z), value
+        ):
+            graph.add((uri, predicate, Literal(component, datatype=XSD.double)))
     else:
         graph.add((uri, URI_QUDT_PRED_VALUE, Literal(value, datatype=XSD.double)))
     graph.add((uri, URI_QUDT_PRED_UNIT, LENGTH_UNITS[unit]))
@@ -171,17 +176,10 @@ def add_shape(graph: Graph, shape: BodyShape) -> None:
     elif isinstance(shape, RectangularPrism):
         add_shape_common(graph, shape)
         graph.add((shape.uri, RDF.type, ASTRO.rectangularPrism))
-        if isinstance(shape.dimensions, DistributionRef):
-            add_shape_dimension(
-                graph, shape, shape.dimensions_uri, URI_GEOM_TYPE_VECTOR_XYZ,
-                shape.dimensions, shape.unit,
-            )
-        else:
-            for axis, value in zip("xyz", shape.dimensions):
-                add_shape_dimension(
-                    graph, shape, shape.dimension_uri(axis),
-                    SHAPES[f"{axis.upper()}Length"], value, shape.unit,
-                )
+        add_shape_dimension(
+            graph, shape, shape.dimensions_uri, URI_GEOM_TYPE_VECTOR_XYZ,
+            shape.dimensions, shape.unit,
+        )
     elif isinstance(shape, Cylinder):
         add_shape_common(graph, shape)
         graph.add((shape.uri, RDF.type, SHAPES.Cylinder))

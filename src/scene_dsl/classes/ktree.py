@@ -279,9 +279,6 @@ class RectangularPrism(BodyShape):
         )
         self.unit = unit
 
-    def dimension_uri(self, axis: str) -> URIRef:
-        return URIRef(f"{self.uri}/{axis}-length")
-
     @property
     def dimensions_uri(self) -> URIRef:
         return URIRef(f"{self.uri}/dimensions")

@@ -127,7 +127,9 @@ motion-spec run examples/models/lab-sampled.robmot --headless --steps 5
 Use `--headless` with `view` to check compilation without opening a window.
 Generated runs use these shapes for visual and collision geometry. RDF export
 links shapes to frames with `shapes:attached-to-frame` and dimensions with
-`shapes:has-dimension`. A scaled mesh has type `shapes:Scale`; fixed factors
+`shapes:has-dimension`. A rectangular prism has one `geom-coord:VectorXYZ`
+dimension node with fixed `geom-coord:x/y/z` lengths or one sampled distribution.
+A scaled mesh has type `shapes:Scale`; fixed factors
 use `geom-coord:x/y/z` on that mesh, while sampled factors use
 `distrib:from-distribution` on it. The companion metamodels repository validates
 these nodes.

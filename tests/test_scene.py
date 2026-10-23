@@ -1,4 +1,5 @@
 import pytest
+from rdf_utils import DatasetFormat
 from rdf_utils.models.common import ModelBase
 from rdf_utils.models.execution import load_attr_path
 from rdf_utils.models.vocab import (
@@ -10,11 +11,10 @@ from rdf_utils.models.vocab import (
     URI_EXEC_PRED_PATH,
     URI_GEOM_TYPE_RIGID_BODY,
 )
-from rdflib import RDF, Literal, Namespace, URIRef
+from rdflib import RDF, Dataset, Literal, Namespace, URIRef
 from textx.exceptions import TextXSemanticError
 
 from scene_dsl.classes.common import IHasNamespace
-from scene_dsl.gens import parse_rdflib_serial_args
 from scene_dsl.langs import scene_metamodel, scenex_metamodel
 from scene_dsl.rdf.scene import create_scene_model_graph
 from scene_dsl.rdf.scenex import URI_MJCF_MUJOCO, create_scenex_model_graph
@@ -89,13 +89,14 @@ def test_scenex_references_scene_and_generates_rdf():
     assert len(graph) > 0
 
 
-@pytest.mark.parametrize("g_format", ["json-ld", "ttl"])
-def test_example_scenex_serializes(g_format):
+@pytest.mark.parametrize("dataset_format", ["json-ld", "nquads", "trig"])
+def test_example_scenex_serializes(dataset_format):
     # orjson, which rdflib uses for JSON-LD when installed, refuses a numpy float64 left uncast.
     model = scenex_metamodel().model_from_file(MODELS_DIR / "lab.scenex")
-    graph = create_scenex_model_graph(model)
+    dataset = Dataset()
+    dataset.add_graph(create_scenex_model_graph(model))
 
-    assert graph.serialize(**parse_rdflib_serial_args(format=g_format))
+    assert dataset.serialize(format=DatasetFormat(dataset_format))
 
 
 def test_scenex_accepts_scene_level_usd_model():

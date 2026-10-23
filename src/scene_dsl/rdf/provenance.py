@@ -4,7 +4,8 @@
 Each generated file is a ``prov-ext:Transformation`` of the model and its imports by the
 scene-dsl package, recorded in a ``prov:Bundle`` of its own. Files are named by their content,
 so every tool names a file alike and a caller adds the bundle to its record unchanged. Each
-generator run writes its bundle to a new document, never one written before.
+generator run writes its bundle beside the file, as ``<file>.prov.ld.json``, replacing the one
+that described the bytes it overwrote.
 """
 
 from datetime import UTC, datetime
@@ -19,13 +20,13 @@ from rdf_utils.models.prov import (
     load_pkg_prov,
     load_transformation_prov,
 )
-from rdf_utils.namespace import URL_MM_PROV_EXT_JSON, URL_MM_PROV_JSON
+from rdf_utils.namespace import URL_MM_PROV_EXT_JSON, URL_MM_PROV_JSON, URL_SECORO_UNI
 from rdf_utils.resolver import install_resolver
 from rdflib import Dataset, Graph, Literal, Namespace, URIRef
 from rdflib.namespace import SDO
 
-SDPROV = Namespace("https://secorolab.github.io/scene-dsl/provenance/")
-DOCUMENT_NAME = "provenance.ld.json"
+SDPROV = Namespace(f"{URL_SECORO_UNI}/scene-dsl/provenance/")
+DOCUMENT_SUFFIX = ".prov.ld.json"
 AGENTS = Namespace(f"{SDPROV}agent/")
 AGENT = AGENTS["scene-dsl"]
 CONTEXT = [URL_MM_PROV_JSON, URL_MM_PROV_EXT_JSON, {"sdprov": str(SDPROV)}]
@@ -85,22 +86,13 @@ def generation_provenance(
 
 
 def record(model, artifact: Path | str, started: datetime, **kwargs) -> Path:
-    """Write one generated file's provenance to a new document and return it.
+    """Write one generated file's provenance beside it, as `<file>.prov.ld.json`, and return it.
 
-    The document is the generator's `provenance` path when given; otherwise it sits beside the
-    file as `provenance.ld.json`, or the first `provenance-N.ld.json` not taken. KWARGS are the
-    generator's; `root`, `source_dir` and `agents` among them are passed to
+    KWARGS are the generator's; `root`, `source_dir` and `agents` among them are passed to
     `generation_provenance`.
     """
     artifact = Path(artifact).resolve()
-    document = kwargs.get("provenance")
-    if document is None:
-        document = artifact.parent / DOCUMENT_NAME
-        number = 1
-        while document.exists():
-            document = artifact.parent / f"provenance-{number}.ld.json"
-            number += 1
-    document = Path(document)
+    document = artifact.with_name(f"{artifact.name}{DOCUMENT_SUFFIX}")
     # The contexts are metamodel URLs; the resolver serves them from the local cache.
     install_resolver()
     dataset = Dataset()

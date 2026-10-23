@@ -44,6 +44,7 @@ scene inst (ns=demo) compound_demo {
             shape sphere marker {
                 frame: <side>
                 radius: sample <radius_range> m
+                transform: ((2.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0))
             }
             shape cylinder post {
                 frame: <center>
@@ -58,6 +59,7 @@ scene inst (ns=demo) compound_demo {
             shape cube block {
                 frame: <center>
                 side: 0.04 m
+                transform: ((1.0, 0.25, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0))
             }
         }
     }

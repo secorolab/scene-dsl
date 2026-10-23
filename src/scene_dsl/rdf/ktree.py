@@ -85,7 +85,8 @@ from rdf_utils.models.vocab import (
     URI_QUDT_UNIT_RAD_PER_SEC,
     URI_QUDT_UNIT_RAD_PER_SEC2,
 )
-from rdflib import RDF, XSD, Graph, Literal, Namespace, URIRef
+from rdflib import RDF, XSD, BNode, Graph, Literal, Namespace, URIRef
+from rdflib.collection import Collection
 
 from scene_dsl.classes.ktree import (
     Actuation,
@@ -149,6 +150,13 @@ def add_shape_common(graph: Graph, shape: BodyShape) -> None:
     graph.bind("shapes", SHAPES)
     graph.add((shape.uri, RDF.type, ASTRO["three-D_Shape"]))
     graph.add((shape.uri, SHAPES["attached-to-frame"], shape.frame.uri))
+    if shape.transform is not None:
+        matrix = BNode()
+        Collection(
+            graph, matrix,
+            [Literal(value, datatype=XSD.double) for row in shape.transform for value in row],
+        )
+        graph.add((shape.uri, SHAPES["linear-transform"], matrix))
     if shape.color is not None:
         graph.bind("col", COL)
         graph.add((shape.uri, COL["has-color"], shape.color_uri))

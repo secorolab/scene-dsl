@@ -106,6 +106,14 @@ STL meshes use `shape mesh` with a `.stl` `path` and optional positive
 interpreted as metres. Any shape may have an optional RGBA `color` in `[0, 1]`.
 Shapes do not supply mass or inertia.
 
+Every 3D shape, including an STL mesh, can instead use an invertible 3×3
+`transform: ((m00, m01, m02), (m10, m11, m12), (m20, m21, m22))`.
+It maps local points as `p' = M p` before the frame pose. Diagonal entries
+stretch axes; off-diagonal entries can shear a cube into a parallelepiped.
+The primitive type describes the geometry before this transform. A mesh cannot
+specify both `scale` and `transform`. See the sphere and cube in
+[compound.scenex](examples/models/compound.scenex).
+
 Sizes and mesh scale also accept `sample <distribution>`. Use a one-component
 uniform distribution for scalar sizes or three components for prism dimensions
 and mesh scale; size bounds must be finite and positive. A value is drawn once
@@ -132,7 +140,9 @@ dimension node with fixed `geom-coord:x/y/z` lengths or one sampled distribution
 A scaled mesh has type `shapes:Scale`; fixed factors
 use `geom-coord:x/y/z` on that mesh, while sampled factors use
 `distrib:from-distribution` on it. The companion metamodels repository validates
-these nodes.
+these nodes. A `transform` is stored as `shapes:linear-transform`, an RDF list
+of nine row-major `xsd:double` values. MuJoCo renders transformed primitives
+as triangle meshes, so their curved surfaces are approximated.
 
 ## Drawing the Kinematics
 

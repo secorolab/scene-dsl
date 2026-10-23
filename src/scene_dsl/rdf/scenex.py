@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: MPL-2.0
 from typing import Any
+from uuid import uuid4
 
 from rdf_utils.models.vocab import (
     URI_AGN_PRED_HAS_AGN_MODEL,
@@ -259,7 +260,7 @@ def add_modelled_scene(
 
 def create_scenex_model_graph(model: Any, g: Graph | None = None) -> Graph:
     if g is None:
-        g = Graph()
+        g = Graph(identifier=URIRef(uuid4().urn))
 
     _bind_model_kind_namespaces(graph=g)
 

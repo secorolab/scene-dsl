@@ -218,7 +218,7 @@ class RigidBody(IHasNamespace, IDefaultFrame):
 
 
 class BodyShape(IHasNamespace):
-    def __init__(self, parent, name, frame, color=None, transform=None) -> None:
+    def __init__(self, parent, name, frame, color=None) -> None:
         super().__init__(parent=parent)
         self.name = name
         self.frame = frame
@@ -227,15 +227,6 @@ class BodyShape(IHasNamespace):
             len(self.color) != 4 or any(not isfinite(v) or not 0 <= v <= 1 for v in self.color)
         ):
             raise ValueError(f"shape '{name}' color requires four RGBA channels in [0, 1]")
-        self.transform = None if transform is None else transform.values
-        if self.transform is not None:
-            matrix = np.asarray(self.transform, dtype=float)
-            if (
-                matrix.shape != (3, 3)
-                or not np.isfinite(matrix).all()
-                or np.linalg.matrix_rank(matrix) < 3
-            ):
-                raise ValueError(f"shape '{name}' transform requires an invertible finite 3x3 matrix")
 
     @property
     def namespace(self) -> Namespace:
@@ -267,11 +258,24 @@ def _positive_size(value, sample: DistributionRef | None, count: int, name: str)
     return value
 
 
+def _positive_scale(scale, name: str, scalar_allowed=True):
+    if isinstance(scale, FloatVector):
+        return _positive_size([float(v) for v in scale.values], None, 3, name)
+    if isinstance(scale, DistributionRef):
+        spec = scale.distribution.spec
+        allowed = (1, 3) if scalar_allowed else (3,)
+        if not isinstance(spec, UniformDistribution) or spec.dimension not in allowed:
+            raise ValueError(f"{name} requires a uniform distribution with {allowed} components")
+        return _positive_size(None, scale, spec.dimension, name)
+    if scalar_allowed:
+        return _positive_size(float(scale), None, 1, name)
+    raise ValueError(f"{name} requires three components")
+
+
 class Sphere(BodyShape):
-    def __init__(self, parent, name, frame, radius, radius_sample, unit, color=None, transform=None) -> None:
-        super().__init__(parent, name, frame, color, transform)
-        self.radius = _positive_size(float(radius) if radius_sample is None else None, radius_sample, 1, f"sphere '{name}' radius")
-        self.unit = unit
+    def __init__(self, parent, name, frame, scale, color=None) -> None:
+        super().__init__(parent, name, frame, color)
+        self.scale = _positive_scale(scale, f"sphere '{name}' scale")
 
     @property
     def radius_uri(self) -> URIRef:
@@ -279,20 +283,9 @@ class Sphere(BodyShape):
 
 
 class RectangularPrism(BodyShape):
-    def __init__(self, parent, name, frame, scale, color=None, transform=None) -> None:
-        super().__init__(parent, name, frame, color, transform)
-        if isinstance(scale, FloatVector):
-            self.scale = _positive_size(
-                [float(value) for value in scale.values], None, 3,
-                f"rectangular prism '{name}' scale",
-            )
-        elif isinstance(scale, DistributionRef):
-            spec = scale.distribution.spec
-            if not isinstance(spec, UniformDistribution) or spec.dimension not in (1, 3):
-                raise ValueError(f"rectangular prism '{name}' scale requires one or three components")
-            self.scale = _positive_size(None, scale, spec.dimension, f"rectangular prism '{name}' scale")
-        else:
-            self.scale = _positive_size(float(scale), None, 1, f"rectangular prism '{name}' scale")
+    def __init__(self, parent, name, frame, scale, color=None) -> None:
+        super().__init__(parent, name, frame, color)
+        self.scale = _positive_scale(scale, f"rectangular prism '{name}' scale")
 
     @property
     def unit_length_uri(self) -> URIRef:
@@ -300,15 +293,9 @@ class RectangularPrism(BodyShape):
 
 
 class Cylinder(BodyShape):
-    def __init__(
-        self, parent, name, frame, radius, radius_sample, radius_unit,
-        height, height_sample, height_unit, color=None, transform=None
-    ) -> None:
-        super().__init__(parent, name, frame, color, transform)
-        self.radius = _positive_size(float(radius) if radius_sample is None else None, radius_sample, 1, f"cylinder '{name}' radius")
-        self.radius_unit = radius_unit
-        self.height = _positive_size(float(height) if height_sample is None else None, height_sample, 1, f"cylinder '{name}' height")
-        self.height_unit = height_unit
+    def __init__(self, parent, name, frame, scale, color=None) -> None:
+        super().__init__(parent, name, frame, color)
+        self.scale = _positive_scale(scale, f"cylinder '{name}' scale")
 
     @property
     def radius_uri(self) -> URIRef:
@@ -321,20 +308,11 @@ class Cylinder(BodyShape):
 
 class MeshShape(BodyShape):
     def __init__(
-        self, parent, name, frame, path, scale=None, color=None, transform=None
+        self, parent, name, frame, path, scale=None, color=None
     ) -> None:
-        super().__init__(parent, name, frame, color, transform)
-        if scale is not None and transform is not None:
-            raise ValueError(f"mesh '{name}' cannot specify both scale and transform")
+        super().__init__(parent, name, frame, color)
         self.path = path
-        if scale is None:
-            self.scale = None
-        elif isinstance(scale, FloatVector):
-            self.scale = _positive_size(
-                [float(value) for value in scale.values], None, 3, f"mesh '{name}' scale"
-            )
-        else:
-            self.scale = _positive_size(None, scale, 3, f"mesh '{name}' scale")
+        self.scale = None if scale is None else _positive_scale(scale, f"mesh '{name}' scale", False)
         if not self.path:
             raise ValueError(f"mesh '{name}' needs a file path")
         if not self.path.lower().endswith(".stl"):

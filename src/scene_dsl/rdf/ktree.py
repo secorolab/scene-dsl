@@ -84,8 +84,7 @@ from rdf_utils.models.vocab import (
     URI_QUDT_UNIT_RAD_PER_SEC,
     URI_QUDT_UNIT_RAD_PER_SEC2,
 )
-from rdflib import RDF, XSD, BNode, Graph, Literal, Namespace, URIRef
-from rdflib.collection import Collection
+from rdflib import RDF, XSD, Graph, Literal, Namespace, URIRef
 
 from scene_dsl.classes.ktree import (
     Actuation,
@@ -104,7 +103,7 @@ from scene_dsl.classes.ktree import (
     Sphere,
 )
 from scene_dsl.classes.distrib import DistributionRef
-from scene_dsl.rdf.distrib import add_distribution, add_sampled_quantity
+from scene_dsl.rdf.distrib import add_distribution
 from scene_dsl.rdf.geom import (
     ANGLE_UNITS,
     LENGTH_UNITS,
@@ -120,25 +119,23 @@ COL = Namespace("https://secorolab.github.io/metamodels/color#")
 def add_sphere(graph: Graph, sphere: Sphere) -> None:
     add_shape_common(graph, sphere)
     graph.add((sphere.uri, RDF.type, ASTRO.sphere))
-    add_shape_dimension(graph, sphere, sphere.radius_uri, ASTRO.radius, sphere.radius, sphere.unit)
+    add_shape_dimension(graph, sphere, sphere.radius_uri, ASTRO.radius, 0.5, "m")
+    add_shape_scale(graph, sphere)
 
 
 def add_shape_dimension(
     graph: Graph, shape: BodyShape, uri: URIRef, type_uri: URIRef,
-    value: float | DistributionRef, unit: str
+    value: float, unit: str
 ) -> None:
     graph.add((shape.uri, SHAPES["has-dimension"], uri))
     graph.add((uri, RDF.type, type_uri))
     graph.add((uri, RDF.type, URI_QUDT_TYPE_QUANTITY))
     graph.add((uri, URI_QUDT_PRED_QUANTITY_KIND, URI_QUDT_QK_DISTANCE))
-    if isinstance(value, DistributionRef):
-        add_sampled_quantity(graph, uri, value)
-    else:
-        graph.add((uri, URI_QUDT_PRED_VALUE, Literal(value, datatype=XSD.double)))
+    graph.add((uri, URI_QUDT_PRED_VALUE, Literal(value, datatype=XSD.double)))
     graph.add((uri, URI_QUDT_PRED_UNIT, LENGTH_UNITS[unit]))
 
 
-def add_shape_scale(graph: Graph, shape: RectangularPrism | MeshShape) -> None:
+def add_shape_scale(graph: Graph, shape: BodyShape) -> None:
     if shape.scale is None:
         return
     graph.add((shape.uri, RDF.type, SHAPES.Scale))
@@ -160,13 +157,6 @@ def add_shape_common(graph: Graph, shape: BodyShape) -> None:
     graph.bind("shapes", SHAPES)
     graph.add((shape.uri, RDF.type, ASTRO["three-D_Shape"]))
     graph.add((shape.uri, SHAPES["attached-to-frame"], shape.frame.uri))
-    if shape.transform is not None:
-        matrix = BNode()
-        Collection(
-            graph, matrix,
-            [Literal(value, datatype=XSD.double) for row in shape.transform for value in row],
-        )
-        graph.add((shape.uri, SHAPES["linear-transform"], matrix))
     if shape.color is not None:
         graph.bind("col", COL)
         graph.add((shape.uri, COL["has-color"], shape.color_uri))
@@ -195,11 +185,12 @@ def add_shape(graph: Graph, shape: BodyShape) -> None:
         add_shape_common(graph, shape)
         graph.add((shape.uri, RDF.type, SHAPES.Cylinder))
         add_shape_dimension(
-            graph, shape, shape.radius_uri, ASTRO.radius, shape.radius, shape.radius_unit
+            graph, shape, shape.radius_uri, ASTRO.radius, 0.5, "m"
         )
         add_shape_dimension(
-            graph, shape, shape.height_uri, ASTRO.height, shape.height, shape.height_unit
+            graph, shape, shape.height_uri, ASTRO.height, 1.0, "m"
         )
+        add_shape_scale(graph, shape)
     elif isinstance(shape, MeshShape):
         add_shape_common(graph, shape)
         graph.add((shape.uri, RDF.type, SHAPES.MeshShape))

@@ -2,8 +2,8 @@ import "shapes.scene"
 
 ns demo = "https://example.org/compound/"
 
-distrib (ns=demo) radius_range {
-    uniform { dimension: 1 lower: (0.01) upper: (0.02) }
+distrib (ns=demo) sphere_scale_range {
+    uniform { dimension: 3 lower: (0.04, 0.02, 0.02) upper: (0.08, 0.04, 0.04) }
 }
 distrib (ns=demo) wall_scale_range {
     uniform { dimension: 3 lower: (0.01, 0.2, 0.08) upper: (0.02, 0.3, 0.12) }
@@ -46,13 +46,11 @@ scene inst (ns=demo) compound_demo {
             }
             shape sphere marker {
                 frame: <side>
-                radius: sample <radius_range> m
-                transform: ((2.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0))
+                scale: sample <sphere_scale_range>
             }
             shape cylinder post {
                 frame: <center>
-                radius: 1 cm
-                height: 0.1 m
+                scale: (0.02, 0.03, 0.1)
             }
             shape mesh tetra {
                 frame: <center>
@@ -62,7 +60,6 @@ scene inst (ns=demo) compound_demo {
             shape rectangular-prism block {
                 frame: <center>
                 scale: sample <block_scale_range>
-                transform: ((1.0, 0.25, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0))
             }
         }
     }

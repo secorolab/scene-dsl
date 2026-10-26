@@ -92,34 +92,36 @@ Declare one or more shapes inside a body in `.scenex` or `.ktree`:
 ```text
 body ball {
     frame center { }
-    shape sphere surface { frame: <center> radius: 0.05 m }
+    shape sphere surface { frame: <center> scale: 0.10 }
 }
 ```
 
 Each shape references a frame on its body; pose that frame with `wrt` to place
-the shape. Sphere, rectangular prism, and cylinder primitives are centered at
-that frame. A rectangular prism starts with a 1 m side along each local axis;
-cylinder height follows local Z. Lengths must be positive and use `m`, `cm`, or `mm`.
+the shape. Sphere, rectangular prism, and cylinder primitives have their
+geometric centers at that frame. Their unit bases have full X/Y/Z extents of
+1 m: a prism has 1 m sides, a sphere has 0.5 m radius, and a cylinder has
+0.5 m radius and 1 m height along local Z. The body frame can be elsewhere.
+This matches the primitive-origin convention in
+[SDFormat](https://sdformat.org/tutorials/specification/spec_shapes/); as with
+[ROS 2 markers](https://github.com/ros2/ros2_documentation/blob/rolling/source/Developer-Tools/Visualization/RViz/Marker-Display-types/Marker-Display-types.rst),
+the shape's placement relative to a reference frame is separate from its scale.
 
-Give a rectangular prism a required positive, dimensionless scale. A scalar
-`scale: 0.05` keeps equal side lengths; `scale: (0.2, 0.3, 0.01)` sets full
-X/Y/Z lengths in metres. STL meshes use `shape mesh` with a `.stl` `path` and
-may use three component scale. The mesh keeps its authored origin; STL
-coordinates are interpreted as metres. Any shape may have an optional RGBA
+Give each primitive a required positive, dimensionless scale. A scalar
+`scale: 0.05` keeps proportions; `scale: (0.2, 0.3, 0.01)` sets full X/Y/Z
+extents in metres. Different sphere factors make an ellipsoid; different
+cylinder X/Y factors make an elliptical cylinder. STL meshes use `shape mesh`
+with a `.stl` `path` and may use three component scale. The mesh keeps its
+authored origin; STL coordinates are interpreted as metres. Any shape may have an optional RGBA
 `color` in `[0, 1]`. Shapes do not supply mass or inertia.
-To migrate `shape cube`, use `shape rectangular-prism` and replace `side`
-with a scalar `scale` equal to the side length in metres.
+The primitive type describes the unit-base geometry before scaling. Scale acts
+before the attached frame pose. To migrate `shape cube`, use
+`shape rectangular-prism` and replace `side` with a scalar `scale` equal to the
+side length in metres. For older sphere and cylinder models, double each
+radius in metres to obtain X/Y scale, and use the cylinder height in metres
+for Z scale. Shear and reflection are not supported.
 
-Every 3D shape, including an STL mesh, can also use an invertible 3×3
-`transform: ((m00, m01, m02), (m10, m11, m12), (m20, m21, m22))`.
-It maps local points as `p' = M p` before the frame pose. Diagonal entries
-stretch axes; off-diagonal entries can shear a prism into a parallelepiped.
-The primitive type describes the geometry before scaling or transformation. On a prism,
-`scale` acts before `transform`; a mesh cannot specify both. See the sphere
-and prism in [compound.scenex](examples/models/compound.scenex).
-
-Sizes and prism or mesh scale also accept `sample <distribution>`. Use a
-one-component uniform distribution for proportional prism scale, or three
+Primitive and mesh scale also accept `sample <distribution>`. Use a
+one-component uniform distribution for proportional primitive scale, or three
 components for independent X/Y/Z scale; mesh scale takes three components.
 Bounds must be finite and positive. A value is drawn once per run and reused
 wherever referenced. The robot example's optional
@@ -140,14 +142,13 @@ motion-spec run examples/models/lab-sampled.robmot --headless --steps 5
 Use `--headless` with `view` to check compilation without opening a window.
 Generated runs use these shapes for visual and collision geometry. RDF export
 links shapes to frames with `shapes:attached-to-frame` and dimensions with
-`shapes:has-dimension`. Each prism carries a 1 m base length. A prism or mesh
-has type `shapes:Scale`; fixed factors use `geom-coord:x/y/z` on the shape,
-while sampled factors use
-`distrib:from-distribution` on it. The companion metamodels repository validates
-these nodes. A `transform` is stored as `shapes:linear-transform`, an RDF list
-of nine row-major `xsd:double` values. MuJoCo keeps diagonal prism transforms
-as boxes; other transformed primitives use triangle meshes, so curved surfaces
-are approximated.
+`shapes:has-dimension`. Each primitive carries fixed unit-base dimensions.
+A scaled shape has type `shapes:Scale`; fixed factors use `geom-coord:x/y/z`
+on the shape, while sampled factors use `distrib:from-distribution` on it.
+The companion metamodels repository validates
+these nodes. MuJoCo keeps prisms as boxes and isotropically scaled spheres and
+cylinders as native primitives. Non-uniform spheres and cylinders use triangle
+meshes, so curved surfaces are approximated.
 
 ## Drawing the Kinematics
 

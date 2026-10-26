@@ -54,8 +54,7 @@ ScaleSpec: FLOAT | FloatVector | DistributionRef ;
 Sphere:
 'shape' 'sphere' name=IRI_TRUNK '{'
     'frame' ':' '<' frame=[Frame|FQN] '>'
-    'radius' ':' (radius=FLOAT | radius_sample=DistributionRef) unit=LengthUnit
-    ('transform' ':' transform=FloatMatrix)?
+    'scale' ':' scale=ScaleSpec
     ('color' ':' color=FloatVector)?
 '}'
 ;
@@ -64,7 +63,6 @@ RectangularPrism:
 'shape' 'rectangular-prism' name=IRI_TRUNK '{'
     'frame' ':' '<' frame=[Frame|FQN] '>'
     'scale' ':' scale=ScaleSpec
-    ('transform' ':' transform=FloatMatrix)?
     ('color' ':' color=FloatVector)?
 '}'
 ;
@@ -72,9 +70,7 @@ RectangularPrism:
 Cylinder:
 'shape' 'cylinder' name=IRI_TRUNK '{'
     'frame' ':' '<' frame=[Frame|FQN] '>'
-    'radius' ':' (radius=FLOAT | radius_sample=DistributionRef) radius_unit=LengthUnit
-    'height' ':' (height=FLOAT | height_sample=DistributionRef) height_unit=LengthUnit
-    ('transform' ':' transform=FloatMatrix)?
+    'scale' ':' scale=ScaleSpec
     ('color' ':' color=FloatVector)?
 '}'
 ;
@@ -84,7 +80,6 @@ MeshShape:
     'frame' ':' '<' frame=[Frame|FQN] '>'
     'path' ':' path=STRING
     ('scale' ':' scale=PositionSpec)?
-    ('transform' ':' transform=FloatMatrix)?
     ('color' ':' color=FloatVector)?
 '}'
 ;

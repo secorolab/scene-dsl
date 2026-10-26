@@ -3,8 +3,8 @@ import "scene_dsl:robots/kinova_gen3_7dof.ktree"
 
 ns lab_rob='https://secorolab.github.io/models/acceptance-criteria/bdd/scenes/secorolab-mjc/robots/'
 
-distrib (ns=scene_lab_mjc) sphere_radius {
-    uniform { dimension: 1 lower: (0.025) upper: (0.045) }
+distrib (ns=scene_lab_mjc) sphere_scale {
+    uniform { dimension: 1 lower: (0.05) upper: (0.09) }
 }
 
 ktree inst (ns=lab_rob) arm1 of <kinova_tree>
@@ -76,7 +76,7 @@ scene inst (ns=scene_lab_mjc) pickplace_scene_mjc {
             }
             shape sphere ball {
                 frame: <sphere_center>
-                radius: sample <sphere_radius> m
+                scale: sample <sphere_scale>
                 color: (0.9, 0.2, 0.2, 1.0)
             }
             inertia {

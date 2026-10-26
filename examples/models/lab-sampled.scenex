@@ -74,10 +74,43 @@ scene inst (ns=scene_lab_mjc) pickplace_scene_mjc {
                     orientation: euler { angles: (0.0, 0.0, 0.0) unit: rad }
                 }
             }
+            frame cone_center {
+                pose cone_on_box {
+                    wrt: <box1_root>
+                    xyz: (0.1, 0.0, 0.08) m
+                    orientation: euler { angles: (0.0, 0.0, 0.0) unit: rad }
+                }
+            }
+            frame tetra_center {
+                pose tetra_on_box {
+                    wrt: <box1_root>
+                    xyz: (-0.1, 0.0, 0.08) m
+                    orientation: euler { angles: (0.0, 0.0, 0.0) unit: rad }
+                }
+            }
+            frame triangle_center {
+                pose triangle_on_box {
+                    wrt: <box1_root>
+                    xyz: (0.0, -0.1, 0.08) m
+                    orientation: euler { angles: (0.0, 0.0, 0.0) unit: rad }
+                }
+            }
             shape sphere ball {
                 frame: <sphere_center>
                 scale: sample <sphere_scale>
                 color: (0.9, 0.2, 0.2, 1.0)
+            }
+            shape right-circular-cone cone {
+                frame: <cone_center>
+                scale: (0.05, 0.05, 0.09)
+            }
+            shape tetrahedron solid {
+                frame: <tetra_center>
+                scale: sample <sphere_scale>
+            }
+            shape triangular-prism wedge {
+                frame: <triangle_center>
+                scale: (0.08, 0.06, 0.04)
             }
             inertia {
                 frame: <box1_root>

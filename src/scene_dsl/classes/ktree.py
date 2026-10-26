@@ -306,6 +306,40 @@ class Cylinder(BodyShape):
         return URIRef(f"{self.uri}/height")
 
 
+class RightCircularCone(BodyShape):
+    def __init__(self, parent, name, frame, scale, color=None) -> None:
+        super().__init__(parent, name, frame, color)
+        self.scale = _positive_scale(scale, f"circular cone '{name}' scale")
+
+    @property
+    def radius_uri(self) -> URIRef:
+        return URIRef(f"{self.uri}/radius")
+
+    @property
+    def height_uri(self) -> URIRef:
+        return URIRef(f"{self.uri}/height")
+
+
+class Tetrahedron(BodyShape):
+    def __init__(self, parent, name, frame, scale, color=None) -> None:
+        super().__init__(parent, name, frame, color)
+        self.scale = _positive_scale(scale, f"tetrahedron '{name}' scale")
+
+    @property
+    def unit_length_uri(self) -> URIRef:
+        return URIRef(f"{self.uri}/unit-length")
+
+
+class TriangularPrism(BodyShape):
+    def __init__(self, parent, name, frame, scale, color=None) -> None:
+        super().__init__(parent, name, frame, color)
+        self.scale = _positive_scale(scale, f"triangular prism '{name}' scale")
+
+    @property
+    def unit_length_uri(self) -> URIRef:
+        return URIRef(f"{self.uri}/unit-length")
+
+
 class MeshShape(BodyShape):
     def __init__(
         self, parent, name, frame, path, scale=None, color=None

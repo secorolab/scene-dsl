@@ -97,22 +97,31 @@ body ball {
 ```
 
 Each shape references a frame on its body; pose that frame with `wrt` to place
-the shape. Sphere, rectangular prism, and cylinder primitives have their
-geometric centers at that frame. Their unit bases have full X/Y/Z extents of
-1 m: a prism has 1 m sides, a sphere has 0.5 m radius, and a cylinder has
-0.5 m radius and 1 m height along local Z. The body frame can be elsewhere.
-This matches the primitive-origin convention in
-[SDFormat](https://sdformat.org/tutorials/specification/spec_shapes/); as with
-[ROS 2 markers](https://github.com/ros2/ros2_documentation/blob/rolling/source/Developer-Tools/Visualization/RViz/Marker-Display-types/Marker-Display-types.rst),
-the shape's placement relative to a reference frame is separate from its scale.
+the shape. Primitive local frames sit at the midpoint of their axis-aligned
+bounds. The unit bases have full X/Y/Z extents of 1 m: a rectangular prism has
+1 m sides; a sphere has 0.5 m radius; a cylinder and right circular cone have
+0.5 m radius and 1 m height along local Z. The cone base is at local Z = -0.5 m
+and its apex at +0.5 m. The regular tetrahedron and right-isosceles triangular
+prism each have 1 m bounds along all axes. Their fixed `astro:length` denotes
+that unit extent, not an edge length. The triangular prism's bounds midpoint
+is not its volume centroid. The body frame can be elsewhere. Cube, sphere, and
+cylinder marker origins are centered in
+[ROS 2 RViz](https://github.com/ros2/ros2_documentation/blob/rolling/source/Developer-Tools/Visualization/RViz/Marker-Display-types/Marker-Display-types.rst).
+The cone, tetrahedron, and triangular prism origins here follow the stated
+bounds-midpoint convention.
+
+Author the cone as `shape right-circular-cone`; RDF gives its unit base type
+`shapes:RightCircularCone`, a subclass of `astro:circularCone`. Equal X/Y scale
+keeps the rendered cone circular; different X/Y factors make an elliptical cone.
 
 Give each primitive a required positive, dimensionless scale. A scalar
 `scale: 0.05` keeps proportions; `scale: (0.2, 0.3, 0.01)` sets full X/Y/Z
 extents in metres. Different sphere factors make an ellipsoid; different
-cylinder X/Y factors make an elliptical cylinder. STL meshes use `shape mesh`
-with a `.stl` `path` and may use three component scale. The mesh keeps its
-authored origin; STL coordinates are interpreted as metres. Any shape may have an optional RGBA
-`color` in `[0, 1]`. Shapes do not supply mass or inertia.
+cylinder X/Y factors make an elliptical cylinder; the same factors work for a
+cone, tetrahedron, or triangular prism. STL meshes use `shape mesh` with a
+`.stl` `path` and may use three component scale. The mesh keeps its authored
+origin; STL coordinates are interpreted as metres. Any shape may have an
+optional RGBA `color` in `[0, 1]`. Shapes do not supply mass or inertia.
 The primitive type describes the unit-base geometry before scaling. Scale acts
 before the attached frame pose. To migrate `shape cube`, use
 `shape rectangular-prism` and replace `side` with a scalar `scale` equal to the
@@ -130,8 +139,8 @@ may draw different values for the same seed.
 
 From this repository directory, view the [compound example](examples/models/compound.scenex)
 for fixed and sampled shapes, local poses, and STL scale. With MuJoCo assets
-installed, the [robot example](examples/models/lab-sampled.scenex) shows a
-sampled sphere on a body alongside a Kinova arm:
+installed, the [robot example](examples/models/lab-sampled.scenex) shows the
+new primitives on a body alongside a Kinova arm:
 
 ```bash
 motion-spec view examples/models/compound.scenex

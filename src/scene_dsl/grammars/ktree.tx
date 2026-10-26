@@ -48,7 +48,7 @@ RigidBody:
 '}'
 ;
 
-Shape: Sphere | RectangularPrism | Cylinder | MeshShape ;
+Shape: Sphere | RectangularPrism | Cylinder | RightCircularCone | Tetrahedron | TriangularPrism | MeshShape ;
 ScaleSpec: FLOAT | FloatVector | DistributionRef ;
 
 Sphere:
@@ -69,6 +69,30 @@ RectangularPrism:
 
 Cylinder:
 'shape' 'cylinder' name=IRI_TRUNK '{'
+    'frame' ':' '<' frame=[Frame|FQN] '>'
+    'scale' ':' scale=ScaleSpec
+    ('color' ':' color=FloatVector)?
+'}'
+;
+
+RightCircularCone:
+'shape' 'right-circular-cone' name=IRI_TRUNK '{'
+    'frame' ':' '<' frame=[Frame|FQN] '>'
+    'scale' ':' scale=ScaleSpec
+    ('color' ':' color=FloatVector)?
+'}'
+;
+
+Tetrahedron:
+'shape' 'tetrahedron' name=IRI_TRUNK '{'
+    'frame' ':' '<' frame=[Frame|FQN] '>'
+    'scale' ':' scale=ScaleSpec
+    ('color' ':' color=FloatVector)?
+'}'
+;
+
+TriangularPrism:
+'shape' 'triangular-prism' name=IRI_TRUNK '{'
     'frame' ':' '<' frame=[Frame|FQN] '>'
     'scale' ':' scale=ScaleSpec
     ('color' ':' color=FloatVector)?

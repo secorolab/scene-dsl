@@ -141,12 +141,13 @@ def add_shape_scale(graph: Graph, shape: BodyShape) -> None:
         if (distribution.uri, RDF.type, URI_DISTRIB_TYPE_DISTRIB) not in graph:
             add_distribution(graph, distribution)
         graph.add((shape.uri, URI_DISTRIB_PRED_FROM_DISTRIB, distribution.uri))
-    else:
-        values = shape.scale if isinstance(shape.scale, list) else [shape.scale] * 3
+    elif isinstance(shape.scale, list):
         for axis, value in zip(
-            (SHAPES["scale-x"], SHAPES["scale-y"], SHAPES["scale-z"]), values
+            (SHAPES["scale-x"], SHAPES["scale-y"], SHAPES["scale-z"]), shape.scale
         ):
             graph.add((shape.uri, axis, Literal(value, datatype=XSD.double)))
+    else:
+        graph.add((shape.uri, SHAPES["uniform-scale"], Literal(shape.scale, datatype=XSD.double)))
 
 
 def add_shape_common(graph: Graph, shape: BodyShape) -> None:

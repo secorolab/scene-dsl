@@ -143,8 +143,9 @@ Use `--headless` with `view` to check compilation without opening a window.
 Generated runs use these shapes for visual and collision geometry. RDF export
 links shapes to frames with `shapes:attached-to-frame` and dimensions with
 `shapes:has-dimension`. Each primitive carries fixed unit-base dimensions.
-A scaled shape has type `shapes:ScaledShape`; fixed factors use `shapes:scale-x/y/z`
-on the shape, while sampled factors use `distrib:from-distribution` on it.
+A scaled shape has type `shapes:ScaledShape`. A fixed scalar uses
+`shapes:uniform-scale`; fixed XYZ factors use `shapes:scale-x/y/z`; sampled
+factors use `distrib:from-distribution` on the shape.
 The companion metamodels repository validates
 these nodes. MuJoCo keeps prisms as boxes and isotropically scaled spheres and
 cylinders as native primitives. Non-uniform spheres and cylinders use triangle

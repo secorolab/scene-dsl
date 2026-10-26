@@ -278,28 +278,25 @@ class Sphere(BodyShape):
         return URIRef(f"{self.uri}/radius")
 
 
-class Cube(BodyShape):
-    def __init__(self, parent, name, frame, side, side_sample, unit, scale=None, color=None, transform=None) -> None:
+class RectangularPrism(BodyShape):
+    def __init__(self, parent, name, frame, scale, color=None, transform=None) -> None:
         super().__init__(parent, name, frame, color, transform)
-        self.side = _positive_size(
-            float(side) if side_sample is None else None,
-            side_sample, 1, f"cube '{name}' side",
-        )
-        if scale is None:
-            self.scale = None
-        elif isinstance(scale, FloatVector):
+        if isinstance(scale, FloatVector):
             self.scale = _positive_size(
-                [float(value) for value in scale.values], None, 3, f"cube '{name}' scale"
+                [float(value) for value in scale.values], None, 3,
+                f"rectangular prism '{name}' scale",
             )
+        elif isinstance(scale, DistributionRef):
+            spec = scale.distribution.spec
+            if not isinstance(spec, UniformDistribution) or spec.dimension not in (1, 3):
+                raise ValueError(f"rectangular prism '{name}' scale requires one or three components")
+            self.scale = _positive_size(None, scale, spec.dimension, f"rectangular prism '{name}' scale")
         else:
-            self.scale = _positive_size(None, scale, 3, f"cube '{name}' scale")
-        if isinstance(self.side, DistributionRef) and isinstance(self.scale, DistributionRef):
-            raise ValueError(f"cube '{name}' cannot sample both side and scale")
-        self.unit = unit
+            self.scale = _positive_size(float(scale), None, 1, f"rectangular prism '{name}' scale")
 
     @property
-    def side_uri(self) -> URIRef:
-        return URIRef(f"{self.uri}/side")
+    def unit_length_uri(self) -> URIRef:
+        return URIRef(f"{self.uri}/unit-length")
 
 
 class Cylinder(BodyShape):

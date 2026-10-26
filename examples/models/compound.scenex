@@ -8,6 +8,9 @@ distrib (ns=demo) radius_range {
 distrib (ns=demo) wall_scale_range {
     uniform { dimension: 3 lower: (0.01, 0.2, 0.08) upper: (0.02, 0.3, 0.12) }
 }
+distrib (ns=demo) block_scale_range {
+    uniform { dimension: 1 lower: (0.03) upper: (0.05) }
+}
 distrib (ns=demo) mesh_scale_range {
     uniform { dimension: 3 lower: (0.5, 0.5, 0.5) upper: (1.5, 1.5, 1.5) }
 }
@@ -32,15 +35,13 @@ scene inst (ns=demo) compound_demo {
                     orientation: euler { axes: xyz angles: (0.0, 0.0, 1.5707963267948966) }
                 }
             }
-            shape cube floor {
+            shape rectangular-prism floor {
                 frame: <center>
-                side: 1.0 m
-                transform: ((0.2, 0.0, 0.0), (0.0, 0.3, 0.0), (0.0, 0.0, 0.01))
+                scale: (0.2, 0.3, 0.01)
                 color: (0.5, 0.5, 0.5, 1.0)
             }
-            shape cube wall {
+            shape rectangular-prism wall {
                 frame: <side>
-                side: 1.0 m
                 scale: sample <wall_scale_range>
             }
             shape sphere marker {
@@ -58,9 +59,9 @@ scene inst (ns=demo) compound_demo {
                 path: "../assets/tetra.stl"
                 scale: sample <mesh_scale_range>
             }
-            shape cube block {
+            shape rectangular-prism block {
                 frame: <center>
-                side: 0.04 m
+                scale: sample <block_scale_range>
                 transform: ((1.0, 0.25, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0))
             }
         }

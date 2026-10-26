@@ -37,7 +37,7 @@ from scene_dsl.classes.geom import (
 from scene_dsl.classes.ktree import (
     Actuation,
     BodyShape,
-    Cube,
+    RectangularPrism,
     Cylinder,
     MeshShape,
     FixedJoint,
@@ -500,7 +500,7 @@ def scenex_metamodel():
             KinematicGraph,
             RigidBody,
             Sphere,
-            Cube,
+            RectangularPrism,
             Cylinder,
             MeshShape,
             RigidBodyInertia,

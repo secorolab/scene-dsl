@@ -90,7 +90,7 @@ from rdflib.collection import Collection
 from scene_dsl.classes.ktree import (
     Actuation,
     BodyShape,
-    Cube,
+    RectangularPrism,
     Cylinder,
     MeshShape,
     FixedJoint,
@@ -138,7 +138,7 @@ def add_shape_dimension(
     graph.add((uri, URI_QUDT_PRED_UNIT, LENGTH_UNITS[unit]))
 
 
-def add_shape_scale(graph: Graph, shape: Cube | MeshShape) -> None:
+def add_shape_scale(graph: Graph, shape: RectangularPrism | MeshShape) -> None:
     if shape.scale is None:
         return
     graph.add((shape.uri, RDF.type, SHAPES.Scale))
@@ -148,8 +148,9 @@ def add_shape_scale(graph: Graph, shape: Cube | MeshShape) -> None:
             add_distribution(graph, distribution)
         graph.add((shape.uri, URI_DISTRIB_PRED_FROM_DISTRIB, distribution.uri))
     else:
+        values = shape.scale if isinstance(shape.scale, list) else [shape.scale] * 3
         for axis, value in zip(
-            (URI_GEOM_PRED_X, URI_GEOM_PRED_Y, URI_GEOM_PRED_Z), shape.scale
+            (URI_GEOM_PRED_X, URI_GEOM_PRED_Y, URI_GEOM_PRED_Z), values
         ):
             graph.add((shape.uri, axis, Literal(value, datatype=XSD.double)))
 
@@ -183,11 +184,11 @@ def add_shape_common(graph: Graph, shape: BodyShape) -> None:
 def add_shape(graph: Graph, shape: BodyShape) -> None:
     if isinstance(shape, Sphere):
         add_sphere(graph, shape)
-    elif isinstance(shape, Cube):
+    elif isinstance(shape, RectangularPrism):
         add_shape_common(graph, shape)
-        graph.add((shape.uri, RDF.type, ASTRO.cube))
+        graph.add((shape.uri, RDF.type, ASTRO.rectangularPrism))
         add_shape_dimension(
-            graph, shape, shape.side_uri, ASTRO.length, shape.side, shape.unit
+            graph, shape, shape.unit_length_uri, ASTRO.length, 1.0, "m"
         )
         add_shape_scale(graph, shape)
     elif isinstance(shape, Cylinder):

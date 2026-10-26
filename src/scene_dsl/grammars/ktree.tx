@@ -48,7 +48,8 @@ RigidBody:
 '}'
 ;
 
-Shape: Sphere | Cube | Cylinder | MeshShape ;
+Shape: Sphere | RectangularPrism | Cylinder | MeshShape ;
+ScaleSpec: FLOAT | FloatVector | DistributionRef ;
 
 Sphere:
 'shape' 'sphere' name=IRI_TRUNK '{'
@@ -59,11 +60,10 @@ Sphere:
 '}'
 ;
 
-Cube:
-'shape' 'cube' name=IRI_TRUNK '{'
+RectangularPrism:
+'shape' 'rectangular-prism' name=IRI_TRUNK '{'
     'frame' ':' '<' frame=[Frame|FQN] '>'
-    'side' ':' (side=FLOAT | side_sample=DistributionRef) unit=LengthUnit
-    ('scale' ':' scale=PositionSpec)?
+    'scale' ':' scale=ScaleSpec
     ('transform' ':' transform=FloatMatrix)?
     ('color' ':' color=FloatVector)?
 '}'

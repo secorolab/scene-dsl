@@ -30,9 +30,6 @@ from rdf_utils.models.vocab import (
     URI_DYN_TYPE_RIGID_BODY_INERTIA_COORD,
     URI_GEOM_PRED_LINES,
     URI_GEOM_PRED_SIMPLICES,
-    URI_GEOM_PRED_X,
-    URI_GEOM_PRED_Y,
-    URI_GEOM_PRED_Z,
     URI_GEOM_TYPE_COLLINEAR,
     URI_GEOM_TYPE_KGRAPH,
     URI_GEOM_TYPE_KTREE,
@@ -138,7 +135,7 @@ def add_shape_dimension(
 def add_shape_scale(graph: Graph, shape: BodyShape) -> None:
     if shape.scale is None:
         return
-    graph.add((shape.uri, RDF.type, SHAPES.Scale))
+    graph.add((shape.uri, RDF.type, SHAPES.ScaledShape))
     if isinstance(shape.scale, DistributionRef):
         distribution = shape.scale.distribution
         if (distribution.uri, RDF.type, URI_DISTRIB_TYPE_DISTRIB) not in graph:
@@ -147,7 +144,7 @@ def add_shape_scale(graph: Graph, shape: BodyShape) -> None:
     else:
         values = shape.scale if isinstance(shape.scale, list) else [shape.scale] * 3
         for axis, value in zip(
-            (URI_GEOM_PRED_X, URI_GEOM_PRED_Y, URI_GEOM_PRED_Z), values
+            (SHAPES["scale-x"], SHAPES["scale-y"], SHAPES["scale-z"]), values
         ):
             graph.add((shape.uri, axis, Literal(value, datatype=XSD.double)))
 

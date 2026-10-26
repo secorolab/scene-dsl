@@ -5,7 +5,7 @@ ns demo = "https://example.org/compound/"
 distrib (ns=demo) radius_range {
     uniform { dimension: 1 lower: (0.01) upper: (0.02) }
 }
-distrib (ns=demo) wall_size_range {
+distrib (ns=demo) wall_scale_range {
     uniform { dimension: 3 lower: (0.01, 0.2, 0.08) upper: (0.02, 0.3, 0.12) }
 }
 distrib (ns=demo) mesh_scale_range {
@@ -32,14 +32,16 @@ scene inst (ns=demo) compound_demo {
                     orientation: euler { axes: xyz angles: (0.0, 0.0, 1.5707963267948966) }
                 }
             }
-            shape rectangular-prism floor {
+            shape cube floor {
                 frame: <center>
-                dimensions: (0.2, 0.3, 0.01) m
+                side: 1.0 m
+                transform: ((0.2, 0.0, 0.0), (0.0, 0.3, 0.0), (0.0, 0.0, 0.01))
                 color: (0.5, 0.5, 0.5, 1.0)
             }
-            shape rectangular-prism wall {
+            shape cube wall {
                 frame: <side>
-                dimensions: sample <wall_size_range> m
+                side: 1.0 m
+                scale: sample <wall_scale_range>
             }
             shape sphere marker {
                 frame: <side>

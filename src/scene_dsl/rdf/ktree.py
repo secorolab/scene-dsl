@@ -38,7 +38,6 @@ from rdf_utils.models.vocab import (
     URI_GEOM_TYPE_KTREE,
     URI_GEOM_TYPE_RIGID_BODY,
     URI_GEOM_TYPE_SIMPLICIAL_COMPLEX,
-    URI_GEOM_TYPE_VECTOR_XYZ,
     URI_KC_EXT_PRED_ANCHOR,
     URI_KC_EXT_PRED_DEPENDENT_JOINT,
     URI_KC_EXT_PRED_INDEPENDENT_JOINT,
@@ -100,7 +99,6 @@ from scene_dsl.classes.ktree import (
     JointMimicSpec,
     KinematicGraph,
     KinematicTreeModel,
-    RectangularPrism,
     RevoluteJoint,
     SerialJoints,
     Sphere,
@@ -127,7 +125,7 @@ def add_sphere(graph: Graph, sphere: Sphere) -> None:
 
 def add_shape_dimension(
     graph: Graph, shape: BodyShape, uri: URIRef, type_uri: URIRef,
-    value: float | list[float] | DistributionRef, unit: str
+    value: float | DistributionRef, unit: str
 ) -> None:
     graph.add((shape.uri, SHAPES["has-dimension"], uri))
     graph.add((uri, RDF.type, type_uri))
@@ -135,14 +133,25 @@ def add_shape_dimension(
     graph.add((uri, URI_QUDT_PRED_QUANTITY_KIND, URI_QUDT_QK_DISTANCE))
     if isinstance(value, DistributionRef):
         add_sampled_quantity(graph, uri, value)
-    elif isinstance(value, list):
-        for predicate, component in zip(
-            (URI_GEOM_PRED_X, URI_GEOM_PRED_Y, URI_GEOM_PRED_Z), value
-        ):
-            graph.add((uri, predicate, Literal(component, datatype=XSD.double)))
     else:
         graph.add((uri, URI_QUDT_PRED_VALUE, Literal(value, datatype=XSD.double)))
     graph.add((uri, URI_QUDT_PRED_UNIT, LENGTH_UNITS[unit]))
+
+
+def add_shape_scale(graph: Graph, shape: Cube | MeshShape) -> None:
+    if shape.scale is None:
+        return
+    graph.add((shape.uri, RDF.type, SHAPES.Scale))
+    if isinstance(shape.scale, DistributionRef):
+        distribution = shape.scale.distribution
+        if (distribution.uri, RDF.type, URI_DISTRIB_TYPE_DISTRIB) not in graph:
+            add_distribution(graph, distribution)
+        graph.add((shape.uri, URI_DISTRIB_PRED_FROM_DISTRIB, distribution.uri))
+    else:
+        for axis, value in zip(
+            (URI_GEOM_PRED_X, URI_GEOM_PRED_Y, URI_GEOM_PRED_Z), shape.scale
+        ):
+            graph.add((shape.uri, axis, Literal(value, datatype=XSD.double)))
 
 
 def add_shape_common(graph: Graph, shape: BodyShape) -> None:
@@ -177,17 +186,10 @@ def add_shape(graph: Graph, shape: BodyShape) -> None:
     elif isinstance(shape, Cube):
         add_shape_common(graph, shape)
         graph.add((shape.uri, RDF.type, ASTRO.cube))
-        graph.add((shape.uri, RDF.type, ASTRO.rectangularPrism))
         add_shape_dimension(
             graph, shape, shape.side_uri, ASTRO.length, shape.side, shape.unit
         )
-    elif isinstance(shape, RectangularPrism):
-        add_shape_common(graph, shape)
-        graph.add((shape.uri, RDF.type, ASTRO.rectangularPrism))
-        add_shape_dimension(
-            graph, shape, shape.dimensions_uri, URI_GEOM_TYPE_VECTOR_XYZ,
-            shape.dimensions, shape.unit,
-        )
+        add_shape_scale(graph, shape)
     elif isinstance(shape, Cylinder):
         add_shape_common(graph, shape)
         graph.add((shape.uri, RDF.type, SHAPES.Cylinder))
@@ -201,18 +203,7 @@ def add_shape(graph: Graph, shape: BodyShape) -> None:
         add_shape_common(graph, shape)
         graph.add((shape.uri, RDF.type, SHAPES.MeshShape))
         graph.add((shape.uri, SHAPES["source-path"], Literal(shape.path)))
-        if shape.scale is not None:
-            graph.add((shape.uri, RDF.type, SHAPES.Scale))
-            if isinstance(shape.scale, DistributionRef):
-                distribution = shape.scale.distribution
-                if (distribution.uri, RDF.type, URI_DISTRIB_TYPE_DISTRIB) not in graph:
-                    add_distribution(graph, distribution)
-                graph.add((shape.uri, URI_DISTRIB_PRED_FROM_DISTRIB, distribution.uri))
-            else:
-                for axis, value in zip(
-                    (URI_GEOM_PRED_X, URI_GEOM_PRED_Y, URI_GEOM_PRED_Z), shape.scale
-                ):
-                    graph.add((shape.uri, axis, Literal(value, datatype=XSD.double)))
+        add_shape_scale(graph, shape)
     else:
         raise TypeError(f"Unhandled shape type: {type(shape).__name__}")
 

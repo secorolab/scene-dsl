@@ -97,27 +97,30 @@ body ball {
 ```
 
 Each shape references a frame on its body; pose that frame with `wrt` to place
-the shape. Sphere, cube, rectangular prism, and cylinder primitives are centered
-at that frame. Prism dimensions are full X/Y/Z lengths, and cylinder height
-follows local Z. Lengths must be positive and use `m`, `cm`, or `mm`.
+the shape. Sphere, cube, and cylinder primitives are centered at that frame.
+The cube side is its full length before scaling, and cylinder height follows
+local Z. Lengths must be positive and use `m`, `cm`, or `mm`.
 
-STL meshes use `shape mesh` with a `.stl` `path` and optional positive
-`scale: (x, y, z)`. The mesh keeps its authored origin; STL coordinates are
-interpreted as metres. Any shape may have an optional RGBA `color` in `[0, 1]`.
-Shapes do not supply mass or inertia.
+STL meshes use `shape mesh` with a `.stl` `path`. Cubes and meshes can use
+positive, dimensionless `scale: (x, y, z)` factors. For example, a cube with
+`side: 1 m` and `scale: (0.2, 0.3, 0.01)` has those full X/Y/Z lengths in
+metres. The mesh keeps its authored origin; STL coordinates are interpreted as
+metres. Any shape may have an optional RGBA `color` in `[0, 1]`. Shapes do not
+supply mass or inertia.
 
-Every 3D shape, including an STL mesh, can instead use an invertible 3×3
+Every 3D shape, including an STL mesh, can also use an invertible 3×3
 `transform: ((m00, m01, m02), (m10, m11, m12), (m20, m21, m22))`.
 It maps local points as `p' = M p` before the frame pose. Diagonal entries
 stretch axes; off-diagonal entries can shear a cube into a parallelepiped.
-The primitive type describes the geometry before this transform. A mesh cannot
-specify both `scale` and `transform`. See the sphere and cube in
-[compound.scenex](examples/models/compound.scenex).
+The primitive type describes the geometry before scaling or transformation. On a cube,
+`scale` acts before `transform`; a mesh cannot specify both. See the sphere
+and cube in [compound.scenex](examples/models/compound.scenex).
 
-Sizes and mesh scale also accept `sample <distribution>`. Use a one-component
-uniform distribution for scalar sizes or three components for prism dimensions
-and mesh scale; size bounds must be finite and positive. A value is drawn once
-per run and reused wherever referenced. The robot example's optional
+Sizes and cube or mesh scale also accept `sample <distribution>`. Use a
+one-component uniform distribution for scalar sizes or three components for
+scale. A cube cannot sample both its side and scale. Bounds must be finite and
+positive. A value is drawn once per run and reused wherever referenced. The
+robot example's optional
 `[sampling].seed` makes runs repeatable, though the viewer and generated run
 may draw different values for the same seed.
 
@@ -135,14 +138,13 @@ motion-spec run examples/models/lab-sampled.robmot --headless --steps 5
 Use `--headless` with `view` to check compilation without opening a window.
 Generated runs use these shapes for visual and collision geometry. RDF export
 links shapes to frames with `shapes:attached-to-frame` and dimensions with
-`shapes:has-dimension`. A rectangular prism has one `geom-coord:VectorXYZ`
-dimension node with fixed `geom-coord:x/y/z` lengths or one sampled distribution.
-A scaled mesh has type `shapes:Scale`; fixed factors
-use `geom-coord:x/y/z` on that mesh, while sampled factors use
+`shapes:has-dimension`. A scaled cube or mesh has type `shapes:Scale`; fixed
+factors use `geom-coord:x/y/z` on the shape, while sampled factors use
 `distrib:from-distribution` on it. The companion metamodels repository validates
 these nodes. A `transform` is stored as `shapes:linear-transform`, an RDF list
-of nine row-major `xsd:double` values. MuJoCo renders transformed primitives
-as triangle meshes, so their curved surfaces are approximated.
+of nine row-major `xsd:double` values. MuJoCo keeps diagonal cube transforms
+as boxes; other transformed primitives use triangle meshes, so curved surfaces
+are approximated.
 
 ## Drawing the Kinematics
 

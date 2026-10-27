@@ -258,18 +258,15 @@ def _positive_size(value, sample: DistributionRef | None, count: int, name: str)
     return value
 
 
-def _positive_scale(scale, name: str, scalar_allowed=True):
+def _positive_scale(scale, name: str):
     if isinstance(scale, FloatVector):
         return _positive_size([float(v) for v in scale.values], None, 3, name)
     if isinstance(scale, DistributionRef):
         spec = scale.distribution.spec
-        allowed = (1, 3) if scalar_allowed else (3,)
-        if not isinstance(spec, UniformDistribution) or spec.dimension not in allowed:
-            raise ValueError(f"{name} requires a uniform distribution with {allowed} components")
+        if not isinstance(spec, UniformDistribution) or spec.dimension not in (1, 3):
+            raise ValueError(f"{name} requires a uniform distribution with 1 or 3 components")
         return _positive_size(None, scale, spec.dimension, name)
-    if scalar_allowed:
-        return _positive_size(float(scale), None, 1, name)
-    raise ValueError(f"{name} requires three components")
+    return _positive_size(float(scale), None, 1, name)
 
 
 class Sphere(BodyShape):
@@ -346,7 +343,7 @@ class FileBasedShape(BodyShape):
     ) -> None:
         super().__init__(parent, name, frame, color)
         self.path = path
-        self.scale = None if scale is None else _positive_scale(scale, f"file shape '{name}' scale", False)
+        self.scale = None if scale is None else _positive_scale(scale, f"file shape '{name}' scale")
         if not self.path:
             raise ValueError(f"file shape '{name}' needs a path")
         if not self.path.lower().endswith(".stl"):

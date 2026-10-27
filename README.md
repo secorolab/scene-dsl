@@ -119,7 +119,7 @@ Give each primitive a required positive, dimensionless scale. A scalar
 extents in metres. Different sphere factors make an ellipsoid; different
 cylinder X/Y factors make an elliptical cylinder; the same factors work for a
 cone, tetrahedron, or triangular prism. File-based shapes use `shape file` with a
-`.stl` `path` and may use three component scale. The STL mesh keeps its authored
+`.stl` `path` and may use scalar or three-component scale. The STL mesh keeps its authored
 origin; STL coordinates are interpreted as metres. Any shape may have an
 optional RGBA `color` in `[0, 1]`. Shapes do not supply mass or inertia.
 The primitive type describes the unit-base geometry before scaling. Scale acts
@@ -131,7 +131,7 @@ for Z scale. Shear and reflection are not supported.
 
 Primitive and file shape scale also accept `sample <distribution>`. Use a
 one-component uniform distribution for proportional primitive scale, or three
-components for independent X/Y/Z scale; file shape scale takes three components.
+components for independent X/Y/Z scale; both work for file shapes.
 Bounds must be finite and positive. A value is drawn once per run and reused
 wherever referenced. The robot example's optional
 `[sampling].seed` makes runs repeatable, though the viewer and generated run

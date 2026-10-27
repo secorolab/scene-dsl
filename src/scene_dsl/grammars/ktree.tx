@@ -103,7 +103,7 @@ FileBasedShape:
 'shape' 'file' name=IRI_TRUNK '{'
     'frame' ':' '<' frame=[Frame|FQN] '>'
     'path' ':' path=STRING
-    ('scale' ':' scale=PositionSpec)?
+    ('scale' ':' scale=ScaleSpec)?
     ('color' ':' color=FloatVector)?
 '}'
 ;

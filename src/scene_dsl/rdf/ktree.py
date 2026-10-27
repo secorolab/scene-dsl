@@ -115,7 +115,7 @@ from scene_dsl.rdf.geom import (
     add_position_coord,
 )
 
-SHAPES = Namespace("https://secorolab.github.io/metamodels/geometry/shape-resources#")
+SHAPES = Namespace("https://secorolab.github.io/metamodels/geometry/shapes#")
 QKIND = Namespace("http://qudt.org/vocab/quantitykind/")
 PROV = Namespace("http://www.w3.org/ns/prov#")
 PROV_EXT = Namespace("https://secorolab.github.io/metamodels/prov#")

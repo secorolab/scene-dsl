@@ -140,10 +140,12 @@ Generated runs use these shapes for visual and collision geometry. RDF export
 links shapes to frames with `shapes:attached-to-frame`. Each primitive has its
 corresponding `shapes:UnitCube`, `shapes:UnitCylinder`, or `shapes:UnitSphere`
 type; its base dimensions are fixed by that type.
-A scaled shape has type `shapes:ScaledShape`. A fixed scalar writes the same
-value to `shapes:scale-x`, `shapes:scale-y`, and `shapes:scale-z`; fixed XYZ
-factors write their respective values. Sampled factors use
-`distrib:from-distribution` on the shape.
+A scaled shape has type `shapes:ScaledShape`. Its `shapes:scale-x`,
+`shapes:scale-y`, and `shapes:scale-z` links point to dimensionless
+`qudt:Quantity` nodes. Fixed factors have `qudt:value`; sampled factors are
+also `distrib:SampledQuantity` nodes linked to scalar distributions. A scalar
+DSL scale shares one factor node across all three axes. A three-component
+DSL distribution exports three scalar distributions, one per axis.
 For an STL mesh, RDF links the shape to a `prov:Entity` for its source file.
 That entity has a `prov-ext:RelativeLocation`: its `rel-path` is relative to
 the authored `.scenex` directory. An absolute DSL path is represented by its

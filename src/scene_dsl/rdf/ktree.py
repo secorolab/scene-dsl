@@ -3,6 +3,7 @@ from decimal import Decimal
 from pathlib import Path
 from urllib.parse import quote
 
+from rdf_utils.collection import add_literal_list_pred
 from rdf_utils.models.vocab import (
     URI_ACT_PRED_COMMAND_INTERFACE,
     URI_ACT_PRED_GEAR_RATIO,
@@ -11,8 +12,13 @@ from rdf_utils.models.vocab import (
     URI_ACT_PRED_STATE_INTERFACE,
     URI_ACT_TYPE_ACTUATION,
     URI_ACT_TYPE_JOINT_CURRENT,
+    URI_DISTRIB_PRED_DIM,
     URI_DISTRIB_PRED_FROM_DISTRIB,
+    URI_DISTRIB_PRED_LOWER,
+    URI_DISTRIB_PRED_UPPER,
     URI_DISTRIB_TYPE_DISTRIB,
+    URI_DISTRIB_TYPE_SAMPLED_QUANTITY,
+    URI_DISTRIB_TYPE_UNIFORM,
     URI_DYN_PRED_ABOUT,
     URI_DYN_PRED_AS_SEEN_BY,
     URI_DYN_PRED_IXX,
@@ -110,6 +116,7 @@ from scene_dsl.rdf.geom import (
 )
 
 SHAPES = Namespace("https://secorolab.github.io/metamodels/geometry/shape-resources#")
+QKIND = Namespace("http://qudt.org/vocab/quantitykind/")
 PROV = Namespace("http://www.w3.org/ns/prov#")
 PROV_EXT = Namespace("https://secorolab.github.io/metamodels/prov#")
 COL = Namespace("https://secorolab.github.io/metamodels/color#")
@@ -119,17 +126,42 @@ def add_shape_scale(graph: Graph, shape: BodyShape) -> None:
     if shape.scale is None:
         return
     graph.add((shape.uri, RDF.type, SHAPES.ScaledShape))
-    if isinstance(shape.scale, DistributionRef):
+    sampled = isinstance(shape.scale, DistributionRef)
+    uniform = not isinstance(shape.scale, list) and (
+        not sampled or shape.scale.distribution.spec.dimension == 1
+    )
+    if sampled:
         distribution = shape.scale.distribution
         if (distribution.uri, RDF.type, URI_DISTRIB_TYPE_DISTRIB) not in graph:
             add_distribution(graph, distribution)
-        graph.add((shape.uri, URI_DISTRIB_PRED_FROM_DISTRIB, distribution.uri))
-    else:
-        values = shape.scale if isinstance(shape.scale, list) else [shape.scale] * 3
-        for axis, value in zip(
-            (SHAPES["scale-x"], SHAPES["scale-y"], SHAPES["scale-z"]), values
-        ):
-            graph.add((shape.uri, axis, Literal(value, datatype=XSD.double)))
+    for index, axis in enumerate("xyz"):
+        factor = URIRef(f"{shape.uri}/scale" if uniform else f"{shape.uri}/scale-{axis}")
+        graph.add((shape.uri, SHAPES[f"scale-{axis}"], factor))
+        graph.add((factor, RDF.type, URI_QUDT_TYPE_QUANTITY))
+        graph.add((factor, URI_QUDT_PRED_QUANTITY_KIND, QKIND.Dimensionless))
+        if sampled:
+            graph.add((factor, RDF.type, URI_DISTRIB_TYPE_SAMPLED_QUANTITY))
+            if uniform:
+                source = distribution.uri
+            else:
+                source = URIRef(f"{factor}/distribution")
+                spec = distribution.spec
+                graph.add((source, RDF.type, URI_DISTRIB_TYPE_DISTRIB))
+                graph.add((source, RDF.type, URI_DISTRIB_TYPE_UNIFORM))
+                graph.add((source, PROV.wasDerivedFrom, distribution.uri))
+                graph.add(
+                    (source, URI_DISTRIB_PRED_DIM, Literal(1, datatype=XSD.positiveInteger))
+                )
+                add_literal_list_pred(
+                    graph, source, URI_DISTRIB_PRED_LOWER, [spec.lower.values[index]]
+                )
+                add_literal_list_pred(
+                    graph, source, URI_DISTRIB_PRED_UPPER, [spec.upper.values[index]]
+                )
+            graph.add((factor, URI_DISTRIB_PRED_FROM_DISTRIB, source))
+        else:
+            value = shape.scale if uniform else shape.scale[index]
+            graph.add((factor, URI_QUDT_PRED_VALUE, Literal(value, datatype=XSD.double)))
 
 
 def add_shape_common(graph: Graph, shape: BodyShape) -> None:

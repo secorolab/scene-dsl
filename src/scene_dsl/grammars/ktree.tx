@@ -48,51 +48,27 @@ RigidBody:
 '}'
 ;
 
-Shape: Sphere | RectangularPrism | Cylinder | RightCircularCone | Tetrahedron | TriangularPrism | FileBasedShape ;
+Shape: UnitCube | UnitCylinder | UnitSphere | FileBasedShape ;
 ScaleSpec: FLOAT | FloatVector | DistributionRef ;
 
-Sphere:
-'shape' 'sphere' name=IRI_TRUNK '{'
+UnitCube:
+'shape' 'UnitCube' name=IRI_TRUNK '{'
     'frame' ':' '<' frame=[Frame|FQN] '>'
     'scale' ':' scale=ScaleSpec
     ('color' ':' color=FloatVector)?
 '}'
 ;
 
-RectangularPrism:
-'shape' 'rectangular-prism' name=IRI_TRUNK '{'
+UnitCylinder:
+'shape' 'UnitCylinder' name=IRI_TRUNK '{'
     'frame' ':' '<' frame=[Frame|FQN] '>'
     'scale' ':' scale=ScaleSpec
     ('color' ':' color=FloatVector)?
 '}'
 ;
 
-Cylinder:
-'shape' 'cylinder' name=IRI_TRUNK '{'
-    'frame' ':' '<' frame=[Frame|FQN] '>'
-    'scale' ':' scale=ScaleSpec
-    ('color' ':' color=FloatVector)?
-'}'
-;
-
-RightCircularCone:
-'shape' 'right-circular-cone' name=IRI_TRUNK '{'
-    'frame' ':' '<' frame=[Frame|FQN] '>'
-    'scale' ':' scale=ScaleSpec
-    ('color' ':' color=FloatVector)?
-'}'
-;
-
-Tetrahedron:
-'shape' 'tetrahedron' name=IRI_TRUNK '{'
-    'frame' ':' '<' frame=[Frame|FQN] '>'
-    'scale' ':' scale=ScaleSpec
-    ('color' ':' color=FloatVector)?
-'}'
-;
-
-TriangularPrism:
-'shape' 'triangular-prism' name=IRI_TRUNK '{'
+UnitSphere:
+'shape' 'UnitSphere' name=IRI_TRUNK '{'
     'frame' ':' '<' frame=[Frame|FQN] '>'
     'scale' ':' scale=ScaleSpec
     ('color' ':' color=FloatVector)?

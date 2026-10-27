@@ -92,46 +92,32 @@ Declare one or more shapes inside a body in `.scenex` or `.ktree`:
 ```text
 body ball {
     frame center { }
-    shape sphere surface { frame: <center> scale: 0.10 }
+    shape UnitSphere surface { frame: <center> scale: 0.10 }
 }
 ```
 
 Each shape references a frame on its body; pose that frame with `wrt` to place
-the shape. Primitive local frames sit at the midpoint of their axis-aligned
-bounds. The unit bases have full X/Y/Z extents of 1 m: a rectangular prism has
-1 m sides; a sphere has 0.5 m radius; a cylinder and right circular cone have
-0.5 m radius and 1 m height along local Z. The cone base is at local Z = -0.5 m
-and its apex at +0.5 m. The regular tetrahedron and right-isosceles triangular
-prism each have 1 m bounds along all axes. Their fixed `astro:length` denotes
-that unit extent, not an edge length. The triangular prism's bounds midpoint
-is not its volume centroid. The body frame can be elsewhere. Cube, sphere, and
-cylinder marker origins are centered in
-[ROS 2 RViz](https://github.com/ros2/ros2_documentation/blob/rolling/source/Developer-Tools/Visualization/RViz/Marker-Display-types/Marker-Display-types.rst).
-The cone, tetrahedron, and triangular prism origins here follow the stated
-bounds-midpoint convention.
-
-Author the cone as `shape right-circular-cone`; RDF gives its unit base type
-`shapes:RightCircularCone`, a subclass of `astro:circularCone`. Equal X/Y scale
-keeps the rendered cone circular; different X/Y factors make an elliptical cone.
+the shape. The only primitives are `UnitCube`, `UnitCylinder`, and `UnitSphere`.
+Their attached frames sit at their centroids. The cube has 1 m sides; the
+cylinder has radius 0.5 m and height 1 m along local Z; the sphere has radius
+0.5 m. The body frame can be elsewhere.
 
 Give each primitive a required positive, dimensionless scale. A scalar
 `scale: 0.05` keeps proportions; `scale: (0.2, 0.3, 0.01)` sets full X/Y/Z
-extents in metres. Different sphere factors make an ellipsoid; different
-cylinder X/Y factors make an elliptical cylinder; the same factors work for a
-cone, tetrahedron, or triangular prism. File-based shapes use `shape file` with a
-`.stl` `path` and may use scalar or three-component scale. The STL mesh keeps its authored
-origin; STL coordinates are interpreted as metres. Any shape may have an
-optional RGBA `color` in `[0, 1]`. Shapes do not supply mass or inertia.
-The primitive type describes the unit-base geometry before scaling. Scale acts
-before the attached frame pose. To migrate `shape cube`, use
-`shape rectangular-prism` and replace `side` with a scalar `scale` equal to the
-side length in metres. For older sphere and cylinder models, double each
-radius in metres to obtain X/Y scale, and use the cylinder height in metres
-for Z scale. Shear and reflection are not supported.
+extents in metres. Independent cube factors make a rectangular prism;
+independent sphere factors make an ellipsoid; different cylinder X/Y factors
+make an elliptical cylinder. The primitive type identifies the unit base
+before scaling. Scale acts before the frame pose. Shear and reflection are not
+supported.
+
+File-based shapes use `shape file` with a `.stl` `path` and optional scalar or
+three-component scale. The STL mesh keeps its authored origin; STL coordinates
+are interpreted as metres. Any shape may have an optional RGBA `color` in
+`[0, 1]`. Shapes do not supply mass or inertia.
 
 Primitive and file shape scale also accept `sample <distribution>`. Use a
-one-component uniform distribution for proportional primitive scale, or three
-components for independent X/Y/Z scale; both work for file shapes.
+one-component uniform distribution for proportional scale, or three components
+for independent X/Y/Z scale. Both work for file shapes.
 Bounds must be finite and positive. A value is drawn once per run and reused
 wherever referenced. The robot example's optional
 `[sampling].seed` makes runs repeatable, though the viewer and generated run
@@ -150,8 +136,9 @@ motion-spec run examples/models/lab-sampled.robmot --headless --steps 5
 
 Use `--headless` with `view` to check compilation without opening a window.
 Generated runs use these shapes for visual and collision geometry. RDF export
-links shapes to frames with `shapes:attached-to-frame` and dimensions with
-`shapes:has-dimension`. Each primitive carries fixed unit-base dimensions.
+links shapes to frames with `shapes:attached-to-frame`. Each primitive has its
+corresponding `shapes:UnitCube`, `shapes:UnitCylinder`, or `shapes:UnitSphere`
+type; its base dimensions are fixed by that type.
 A scaled shape has type `shapes:ScaledShape`. A fixed scalar writes the same
 value to `shapes:scale-x`, `shapes:scale-y`, and `shapes:scale-z`; fixed XYZ
 factors write their respective values. Sampled factors use
@@ -162,7 +149,7 @@ the authored `.scenex` directory. An absolute DSL path is represented by its
 parent directory and filename. Generated runs copy the STL beside the
 controller, so they no longer depend on the original checkout.
 The companion metamodels repository validates
-these nodes. MuJoCo keeps prisms as boxes and isotropically scaled spheres and
+these nodes. MuJoCo keeps cubes as boxes and isotropically scaled spheres and
 cylinders as native primitives. Non-uniform spheres and cylinders use triangle
 meshes, so curved surfaces are approximated.
 

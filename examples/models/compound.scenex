@@ -35,65 +35,34 @@ scene inst (ns=demo) compound_demo {
                     orientation: euler { axes: xyz angles: (0.0, 0.0, 1.5707963267948966) }
                 }
             }
-            frame cone_center {
-                pose cone_in_bin {
-                    wrt: <center>
-                    xyz: (0.3, 0.0, 0.0) m
-                    orientation: euler { angles: (0.0, 0.0, 0.0) }
-                }
-            }
-            frame tetra_center {
-                pose tetra_in_bin {
-                    wrt: <center>
-                    xyz: (-0.3, 0.0, 0.0) m
-                    orientation: euler { angles: (0.0, 0.0, 0.0) }
-                }
-            }
-            frame triangle_center {
-                pose triangle_in_bin {
-                    wrt: <center>
-                    xyz: (0.0, -0.3, 0.0) m
-                    orientation: euler { angles: (0.0, 0.0, 0.0) }
-                }
-            }
-            shape rectangular-prism floor {
+            shape UnitCube floor {
                 frame: <center>
                 scale: (0.2, 0.3, 0.01)
                 color: (0.5, 0.5, 0.5, 1.0)
             }
-            shape rectangular-prism wall {
+            shape UnitCube wall {
                 frame: <side>
                 scale: sample <wall_scale_range>
             }
-            shape sphere marker {
+            shape UnitSphere marker {
                 frame: <side>
                 scale: sample <sphere_scale_range>
             }
-            shape cylinder post {
+            shape UnitCylinder post {
                 frame: <center>
                 scale: (0.02, 0.03, 0.1)
             }
-            shape right-circular-cone cone {
-                frame: <cone_center>
-                scale: (0.08, 0.08, 0.12)
-                color: (0.9, 0.5, 0.1, 1.0)
-            }
-            shape tetrahedron solid {
-                frame: <tetra_center>
+            shape UnitCube solid {
+                frame: <side>
                 scale: 0.09
                 color: (0.6, 0.2, 0.9, 1.0)
-            }
-            shape triangular-prism wedge {
-                frame: <triangle_center>
-                scale: sample <sphere_scale_range>
-                color: (0.2, 0.8, 0.3, 1.0)
             }
             shape file tetra {
                 frame: <center>
                 path: "../assets/tetra.stl"
                 scale: sample <mesh_scale_range>
             }
-            shape rectangular-prism block {
+            shape UnitCube block {
                 frame: <center>
                 scale: sample <block_scale_range>
             }

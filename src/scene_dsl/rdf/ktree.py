@@ -66,7 +66,6 @@ from rdf_utils.models.vocab import (
     URI_QUDT_PRED_QUANTITY_KIND,
     URI_QUDT_PRED_UNIT,
     URI_QUDT_PRED_VALUE,
-    URI_QUDT_QK_DISTANCE,
     URI_QUDT_QK_ANG_ACCEL,
     URI_QUDT_QK_ANG_VEL,
     URI_QUDT_QK_ANGLE,
@@ -89,11 +88,9 @@ from textx import get_model
 from scene_dsl.classes.ktree import (
     Actuation,
     BodyShape,
-    RectangularPrism,
-    Cylinder,
-    RightCircularCone,
-    Tetrahedron,
-    TriangularPrism,
+    UnitCube,
+    UnitCylinder,
+    UnitSphere,
     FileBasedShape,
     FixedJoint,
     JointBase,
@@ -103,41 +100,19 @@ from scene_dsl.classes.ktree import (
     KinematicTreeModel,
     RevoluteJoint,
     SerialJoints,
-    Sphere,
 )
 from scene_dsl.classes.distrib import DistributionRef
 from scene_dsl.rdf.distrib import add_distribution
 from scene_dsl.rdf.geom import (
     ANGLE_UNITS,
-    LENGTH_UNITS,
     add_frame,
     add_position_coord,
 )
 
-ASTRO = Namespace("http://www.astro.umd.edu/~eshaya/astro-onto/owl/geometry.owl#")
 SHAPES = Namespace("https://secorolab.github.io/metamodels/geometry/shape-resources#")
 PROV = Namespace("http://www.w3.org/ns/prov#")
 PROV_EXT = Namespace("https://secorolab.github.io/metamodels/prov#")
 COL = Namespace("https://secorolab.github.io/metamodels/color#")
-
-
-def add_sphere(graph: Graph, sphere: Sphere) -> None:
-    add_shape_common(graph, sphere)
-    graph.add((sphere.uri, RDF.type, ASTRO.sphere))
-    add_shape_dimension(graph, sphere, sphere.radius_uri, ASTRO.radius, 0.5, "m")
-    add_shape_scale(graph, sphere)
-
-
-def add_shape_dimension(
-    graph: Graph, shape: BodyShape, uri: URIRef, type_uri: URIRef,
-    value: float, unit: str
-) -> None:
-    graph.add((shape.uri, SHAPES["has-dimension"], uri))
-    graph.add((uri, RDF.type, type_uri))
-    graph.add((uri, RDF.type, URI_QUDT_TYPE_QUANTITY))
-    graph.add((uri, URI_QUDT_PRED_QUANTITY_KIND, URI_QUDT_QK_DISTANCE))
-    graph.add((uri, URI_QUDT_PRED_VALUE, Literal(value, datatype=XSD.double)))
-    graph.add((uri, URI_QUDT_PRED_UNIT, LENGTH_UNITS[unit]))
 
 
 def add_shape_scale(graph: Graph, shape: BodyShape) -> None:
@@ -158,9 +133,7 @@ def add_shape_scale(graph: Graph, shape: BodyShape) -> None:
 
 
 def add_shape_common(graph: Graph, shape: BodyShape) -> None:
-    graph.bind("astro", ASTRO)
     graph.bind("shapes", SHAPES)
-    graph.add((shape.uri, RDF.type, ASTRO["three-D_Shape"]))
     graph.add((shape.uri, SHAPES["attached-to-frame"], shape.frame.uri))
     if shape.color is not None:
         graph.bind("col", COL)
@@ -177,38 +150,14 @@ def add_shape_common(graph: Graph, shape: BodyShape) -> None:
 
 
 def add_shape(graph: Graph, shape: BodyShape) -> None:
-    if isinstance(shape, Sphere):
-        add_sphere(graph, shape)
-    elif isinstance(shape, RectangularPrism):
+    if isinstance(shape, (UnitCube, UnitCylinder, UnitSphere)):
         add_shape_common(graph, shape)
-        graph.add((shape.uri, RDF.type, ASTRO.rectangularPrism))
-        add_shape_dimension(
-            graph, shape, shape.unit_length_uri, ASTRO.length, 1.0, "m"
-        )
-        add_shape_scale(graph, shape)
-    elif isinstance(shape, Cylinder):
-        add_shape_common(graph, shape)
-        graph.add((shape.uri, RDF.type, SHAPES.Cylinder))
-        add_shape_dimension(
-            graph, shape, shape.radius_uri, ASTRO.radius, 0.5, "m"
-        )
-        add_shape_dimension(
-            graph, shape, shape.height_uri, ASTRO.height, 1.0, "m"
-        )
-        add_shape_scale(graph, shape)
-    elif isinstance(shape, RightCircularCone):
-        add_shape_common(graph, shape)
-        graph.add((shape.uri, RDF.type, SHAPES.RightCircularCone))
-        add_shape_dimension(graph, shape, shape.radius_uri, ASTRO.radius, 0.5, "m")
-        add_shape_dimension(graph, shape, shape.height_uri, ASTRO.height, 1.0, "m")
-        add_shape_scale(graph, shape)
-    elif isinstance(shape, (Tetrahedron, TriangularPrism)):
-        add_shape_common(graph, shape)
-        kind = (
-            SHAPES.Tetrahedron if isinstance(shape, Tetrahedron) else SHAPES.TriangularPrism
-        )
+        kind = {
+            UnitCube: SHAPES.UnitCube,
+            UnitCylinder: SHAPES.UnitCylinder,
+            UnitSphere: SHAPES.UnitSphere,
+        }[type(shape)]
         graph.add((shape.uri, RDF.type, kind))
-        add_shape_dimension(graph, shape, shape.unit_length_uri, ASTRO.length, 1.0, "m")
         add_shape_scale(graph, shape)
     elif isinstance(shape, FileBasedShape):
         add_shape_common(graph, shape)

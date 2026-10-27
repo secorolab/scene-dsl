@@ -340,17 +340,17 @@ class TriangularPrism(BodyShape):
         return URIRef(f"{self.uri}/unit-length")
 
 
-class MeshShape(BodyShape):
+class FileBasedShape(BodyShape):
     def __init__(
         self, parent, name, frame, path, scale=None, color=None
     ) -> None:
         super().__init__(parent, name, frame, color)
         self.path = path
-        self.scale = None if scale is None else _positive_scale(scale, f"mesh '{name}' scale", False)
+        self.scale = None if scale is None else _positive_scale(scale, f"file shape '{name}' scale", False)
         if not self.path:
-            raise ValueError(f"mesh '{name}' needs a file path")
+            raise ValueError(f"file shape '{name}' needs a path")
         if not self.path.lower().endswith(".stl"):
-            raise ValueError(f"mesh '{name}' requires a .stl path")
+            raise ValueError(f"file shape '{name}' requires a .stl path")
 
 
 class RigidBodyInertia:

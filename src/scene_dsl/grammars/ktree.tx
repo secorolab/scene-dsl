@@ -48,7 +48,7 @@ RigidBody:
 '}'
 ;
 
-Shape: Sphere | RectangularPrism | Cylinder | RightCircularCone | Tetrahedron | TriangularPrism | MeshShape ;
+Shape: Sphere | RectangularPrism | Cylinder | RightCircularCone | Tetrahedron | TriangularPrism | FileBasedShape ;
 ScaleSpec: FLOAT | FloatVector | DistributionRef ;
 
 Sphere:
@@ -99,8 +99,8 @@ TriangularPrism:
 '}'
 ;
 
-MeshShape:
-'shape' 'mesh' name=IRI_TRUNK '{'
+FileBasedShape:
+'shape' 'file' name=IRI_TRUNK '{'
     'frame' ':' '<' frame=[Frame|FQN] '>'
     'path' ':' path=STRING
     ('scale' ':' scale=PositionSpec)?

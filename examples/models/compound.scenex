@@ -88,7 +88,7 @@ scene inst (ns=demo) compound_demo {
                 scale: sample <sphere_scale_range>
                 color: (0.2, 0.8, 0.3, 1.0)
             }
-            shape mesh tetra {
+            shape file tetra {
                 frame: <center>
                 path: "../assets/tetra.stl"
                 scale: sample <mesh_scale_range>

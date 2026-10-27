@@ -94,7 +94,7 @@ from scene_dsl.classes.ktree import (
     RightCircularCone,
     Tetrahedron,
     TriangularPrism,
-    MeshShape,
+    FileBasedShape,
     FixedJoint,
     JointBase,
     JointLimits,
@@ -211,9 +211,9 @@ def add_shape(graph: Graph, shape: BodyShape) -> None:
         graph.add((shape.uri, RDF.type, kind))
         add_shape_dimension(graph, shape, shape.unit_length_uri, ASTRO.length, 1.0, "m")
         add_shape_scale(graph, shape)
-    elif isinstance(shape, MeshShape):
+    elif isinstance(shape, FileBasedShape):
         add_shape_common(graph, shape)
-        graph.add((shape.uri, RDF.type, SHAPES.MeshShape))
+        graph.add((shape.uri, RDF.type, SHAPES.FileBasedShape))
         graph.add((shape.uri, RDF.type, PROV.Entity))
         source = URIRef(f"{shape.uri}/source")
         location = URIRef(f"{source}/location")

@@ -1,5 +1,7 @@
 # SPDX-License-Identifier: MPL-2.0
 from decimal import Decimal
+from pathlib import Path
+from urllib.parse import quote
 
 from rdf_utils.models.vocab import (
     URI_ACT_PRED_COMMAND_INTERFACE,
@@ -82,6 +84,7 @@ from rdf_utils.models.vocab import (
     URI_QUDT_UNIT_RAD_PER_SEC2,
 )
 from rdflib import RDF, XSD, Graph, Literal, Namespace, URIRef
+from textx import get_model
 
 from scene_dsl.classes.ktree import (
     Actuation,
@@ -113,6 +116,8 @@ from scene_dsl.rdf.geom import (
 
 ASTRO = Namespace("http://www.astro.umd.edu/~eshaya/astro-onto/owl/geometry.owl#")
 SHAPES = Namespace("https://secorolab.github.io/metamodels/geometry/shape-resources#")
+PROV = Namespace("http://www.w3.org/ns/prov#")
+PROV_EXT = Namespace("https://secorolab.github.io/metamodels/prov#")
 COL = Namespace("https://secorolab.github.io/metamodels/color#")
 
 
@@ -209,7 +214,31 @@ def add_shape(graph: Graph, shape: BodyShape) -> None:
     elif isinstance(shape, MeshShape):
         add_shape_common(graph, shape)
         graph.add((shape.uri, RDF.type, SHAPES.MeshShape))
-        graph.add((shape.uri, SHAPES["source-path"], Literal(shape.path)))
+        graph.add((shape.uri, RDF.type, PROV.Entity))
+        source = URIRef(f"{shape.uri}/source")
+        location = URIRef(f"{source}/location")
+        authored = Path(shape.path).expanduser()
+        filename = getattr(get_model(shape), "_tx_filename", None)
+        base = authored.parent if authored.is_absolute() else (
+            Path(filename).resolve().parent if filename else Path.cwd()
+        )
+        base_uri = base.resolve().as_uri()
+        base_uri = URIRef(base_uri if base_uri.endswith("/") else f"{base_uri}/")
+        relative = authored.name if authored.is_absolute() else shape.path
+        graph.bind("prov", PROV)
+        graph.bind("prov-ext", PROV_EXT)
+        graph.add((shape.uri, PROV.wasDerivedFrom, source))
+        graph.add((source, RDF.type, PROV.Entity))
+        graph.add((source, PROV.atLocation, location))
+        graph.add((location, RDF.type, PROV_EXT.RelativeLocation))
+        graph.add((location, RDF.type, PROV.Location))
+        graph.add((location, RDF.type, PROV.Entity))
+        graph.add((
+            location, PROV_EXT["rel-path"],
+            Literal(quote(relative, safe="/-._~"), datatype=XSD.anyURI),
+        ))
+        graph.add((location, PROV.atLocation, base_uri))
+        graph.add((base_uri, RDF.type, PROV.Location))
         add_shape_scale(graph, shape)
     else:
         raise TypeError(f"Unhandled shape type: {type(shape).__name__}")

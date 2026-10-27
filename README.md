@@ -155,6 +155,11 @@ links shapes to frames with `shapes:attached-to-frame` and dimensions with
 A scaled shape has type `shapes:ScaledShape`. A fixed scalar uses
 `shapes:uniform-scale`; fixed XYZ factors use `shapes:scale-x/y/z`; sampled
 factors use `distrib:from-distribution` on the shape.
+For an STL mesh, RDF links the shape to a `prov:Entity` for its source file.
+That entity has a `prov-ext:RelativeLocation`: its `rel-path` is relative to
+the authored `.scenex` directory. An absolute DSL path is represented by its
+parent directory and filename. Generated runs copy the STL beside the
+controller, so they no longer depend on the original checkout.
 The companion metamodels repository validates
 these nodes. MuJoCo keeps prisms as boxes and isotropically scaled spheres and
 cylinders as native primitives. Non-uniform spheres and cylinders use triangle

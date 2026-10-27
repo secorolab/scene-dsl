@@ -99,16 +99,17 @@ body ball {
 Each shape references a frame on its body; pose that frame with `wrt` to place
 the shape. The only primitives are `UnitCube`, `UnitCylinder`, and `UnitSphere`.
 Their attached frames sit at their centroids. The cube has 1 m sides; the
-cylinder has radius 0.5 m and height 1 m along local Z; the sphere has radius
-0.5 m. The body frame can be elsewhere.
+cylinder has radius 1 m and height 1 m along local Z; the sphere has radius
+1 m. The body frame can be elsewhere.
 
 Give each primitive a required positive, dimensionless scale. A scalar
-`scale: 0.05` keeps proportions; `scale: (0.2, 0.3, 0.01)` sets full X/Y/Z
-extents in metres. Independent cube factors make a rectangular prism;
-independent sphere factors make an ellipsoid; different cylinder X/Y factors
-make an elliptical cylinder. The primitive type identifies the unit base
-before scaling. Scale acts before the frame pose. Shear and reflection are not
-supported.
+`scale: 0.05` keeps proportions. For `UnitCube`, the three factors set full
+X/Y/Z extents in metres. For `UnitSphere`, they set X/Y/Z radii; for
+`UnitCylinder`, X/Y radii and full Z height. Independent cube factors make a
+rectangular prism; independent sphere factors make an ellipsoid; different
+cylinder X/Y factors make an elliptical cylinder. The primitive type identifies
+the unit base before scaling. Scale acts before the frame pose. Shear and
+reflection are not supported.
 
 File-based shapes use `shape file` with a `.stl` `path` and optional scalar or
 three-component scale. The STL mesh keeps its authored origin; STL coordinates

@@ -1,11 +1,7 @@
-import "lab-sampled.scene"
+import "lab-shapes.scene"
 import "scene_dsl:robots/kinova_gen3_7dof.ktree"
 
 ns lab_rob='https://secorolab.github.io/models/acceptance-criteria/bdd/scenes/secorolab-mjc/robots/'
-
-distrib (ns=scene_lab_mjc) sphere_scale {
-    uniform { dimension: 1 lower: (0.05) upper: (0.09) }
-}
 
 ktree inst (ns=lab_rob) arm1 of <kinova_tree>
 
@@ -90,7 +86,7 @@ scene inst (ns=scene_lab_mjc) pickplace_scene_mjc {
             }
             shape UnitSphere ball {
                 frame: <sphere_center>
-                scale: sample <sphere_scale>
+                scale: (0.07, 0.05, 0.04)
                 color: (0.9, 0.2, 0.2, 1.0)
             }
             shape UnitCylinder cylinder {
@@ -99,7 +95,7 @@ scene inst (ns=scene_lab_mjc) pickplace_scene_mjc {
             }
             shape UnitCube cube {
                 frame: <cube_center>
-                scale: sample <sphere_scale>
+                scale: 0.07
             }
             inertia {
                 frame: <box1_root>
@@ -118,8 +114,9 @@ scene inst (ns=scene_lab_mjc) pickplace_scene_mjc {
                 orientation: euler { angles: (0.0, 0.0, 0.0) unit: rad }
             }
         }
-        shape UnitCube static_marker {
+        shape file static_marker {
             frame: <static_marker_frame>
+            path: "../assets/tetra.stl"
             scale: 0.05
         }
     }

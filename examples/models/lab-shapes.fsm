@@ -1,11 +1,11 @@
-ns demo_fsm = "https://secorolab.github.io/models/examples/lab-sampled/fsm/"
+ns demo_fsm = "https://secorolab.github.io/models/examples/lab-shapes/fsm/"
 
 evt loop (ns=demo_fsm) events {
     evt E_STEP
 }
 
-fsm (ns=demo_fsm) lab_sampled_fsm {
-    description: "Keep the scene running so each run has one sampled shape size."
+fsm (ns=demo_fsm) lab_shapes_fsm {
+    description: "Keep the robot scene running while its shapes are displayed."
     states { S_START, S_HOLD, S_DONE }
     evt loop: <events>
     start: <S_START>

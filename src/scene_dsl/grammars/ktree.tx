@@ -51,7 +51,7 @@ RigidBody:
 ;
 
 Shape: UnitCube | UnitCylinder | UnitSphere | FileBasedShape ;
-ScaleSpec: FLOAT | FloatVector | DistributionRef ;
+ScaleSpec: FLOAT | FloatVector ;
 
 UnitCube:
 'shape' 'UnitCube' name=IRI_TRUNK '{'

@@ -14,7 +14,6 @@ from scene_dsl.classes.common import (
     IHasNamespaceDeclare,
     IHasParent,
 )
-from scene_dsl.classes.distrib import DistributionRef, UniformDistribution
 from scene_dsl.classes.geom import Frame, FrameAxis, IDefaultFrame
 
 
@@ -248,32 +247,11 @@ class SceneShape(IHasNamespace):
         return URIRef(f"{self.uri}/color")
 
 
-def _positive_size(value, sample: DistributionRef | None, count: int, name: str):
-    if sample is not None:
-        spec = sample.distribution.spec
-        if not isinstance(spec, UniformDistribution) or spec.dimension != count:
-            raise ValueError(f"{name} requires a {count}-component uniform distribution")
-        if any(
-            not isfinite(lower) or not isfinite(upper) or lower <= 0
-            for lower, upper in zip(spec.lower.values, spec.upper.values)
-        ):
-            raise ValueError(f"{name} distribution bounds must be finite and positive")
-        return sample
-    values = value if isinstance(value, list) else [value]
-    if len(values) != count or any(not isfinite(v) or v <= 0 for v in values):
-        raise ValueError(f"{name} requires {count} finite positive value(s)")
-    return value
-
-
 def _positive_scale(scale, name: str):
-    if isinstance(scale, FloatVector):
-        return _positive_size([float(v) for v in scale.values], None, 3, name)
-    if isinstance(scale, DistributionRef):
-        spec = scale.distribution.spec
-        if not isinstance(spec, UniformDistribution) or spec.dimension not in (1, 3):
-            raise ValueError(f"{name} requires a uniform distribution with 1 or 3 components")
-        return _positive_size(None, scale, spec.dimension, name)
-    return _positive_size(float(scale), None, 1, name)
+    values = [float(v) for v in scale.values] if isinstance(scale, FloatVector) else [float(scale)]
+    if len(values) not in (1, 3) or any(not isfinite(v) or v <= 0 for v in values):
+        raise ValueError(f"{name} requires one or three finite positive values")
+    return values if isinstance(scale, FloatVector) else values[0]
 
 
 class UnitSphere(SceneShape):

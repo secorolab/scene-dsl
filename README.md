@@ -132,23 +132,15 @@ three-component scale. The STL mesh keeps its authored origin; STL coordinates
 are interpreted as metres. Any shape may have an optional RGBA `color` in
 `[0, 1]`. Shapes do not supply mass or inertia.
 
-Primitive and file shape scale also accept `sample <distribution>`. Use a
-one-component uniform distribution for proportional scale, or three components
-for independent X/Y/Z scale. Both work for file shapes.
-Bounds must be finite and positive. A value is drawn once per run and reused
-wherever referenced. The robot example's optional
-`[sampling].seed` makes runs repeatable, though the viewer and generated run
-may draw different values for the same seed.
-
 From this repository directory, view the [compound example](examples/models/compound.scenex)
-for fixed and sampled shapes, a free shape, local poses, and STL scale. With MuJoCo assets
-installed, the [robot example](examples/models/lab-sampled.scenex) shows the
+for multiple fixed shapes, a free shape, local poses, and STL scale. With MuJoCo assets
+installed, the [robot example](examples/models/lab-shapes.scenex) shows the
 new primitives on a body alongside a Kinova arm:
 
 ```bash
 motion-spec view examples/models/compound.scenex
-motion-spec view examples/models/lab-sampled.scenex --config examples/models/lab-sampled.toml
-motion-spec run examples/models/lab-sampled.robmot --headless --steps 5
+motion-spec view examples/models/lab-shapes.scenex --config examples/models/lab-shapes.toml
+motion-spec run examples/models/lab-shapes.robmot --headless --steps 5
 ```
 
 Use `--headless` with `view` to check compilation without opening a window.
@@ -158,10 +150,8 @@ corresponding `shapes:UnitCube`, `shapes:UnitCylinder`, or `shapes:UnitSphere`
 type; its base dimensions are fixed by that type.
 A scaled shape has type `shapes:ScaledShape`. Its `shapes:scale-x`,
 `shapes:scale-y`, and `shapes:scale-z` links point to dimensionless
-`qudt:Quantity` nodes. Fixed factors have `qudt:value`; sampled factors are
-also `distrib:SampledQuantity` nodes linked to scalar distributions. A scalar
-DSL scale shares one factor node across all three axes. A three-component
-DSL distribution exports three scalar distributions, one per axis.
+`qudt:Quantity` nodes with `qudt:value`. A scalar DSL scale shares one factor
+node across all three axes; three values create one factor per axis.
 For an STL mesh, RDF links the shape to a `prov:Entity` for its source file.
 That entity has a `prov-ext:RelativeLocation`: its `rel-path` is relative to
 the authored `.scenex` directory. An absolute DSL path is represented by its

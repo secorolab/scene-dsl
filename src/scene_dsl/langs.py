@@ -36,7 +36,7 @@ from scene_dsl.classes.geom import (
 )
 from scene_dsl.classes.ktree import (
     Actuation,
-    BodyShape,
+    SceneShape,
     UnitCube,
     UnitCylinder,
     UnitSphere,
@@ -310,7 +310,13 @@ def check_tree_topology(model, metamodel):
                 )
 
         declared = tree.root_frame if isinstance(tree, KinematicTreeModel) else tree.anchor
-        if declared is not None and declared.parent not in tree.roots:
+        free_anchor = (
+            not isinstance(tree, KinematicTreeModel)
+            and declared is not None
+            and declared.parent is tree
+            and declared in tree.frames
+        )
+        if declared is not None and declared.parent not in tree.roots and not free_anchor:
             hangs = "root" if isinstance(tree, KinematicTreeModel) else "anchor"
             raise TextXSemanticError(
                 f"'{tree.name}' declares {hangs} '{declared.name}' on body "
@@ -432,10 +438,10 @@ def check_unique_uris(model, metamodel):
 
 
 def check_shape_frames(model, metamodel):
-    for shape in get_children(lambda item: isinstance(item, BodyShape), model):
+    for shape in get_children(lambda item: isinstance(item, SceneShape), model):
         if shape.frame is not None and shape.frame.parent is not shape.parent:
             raise TextXSemanticError(
-                f"shape '{shape.name}' must use a frame owned by body '{shape.parent.name}'",
+                f"shape '{shape.name}' must use a frame owned by '{shape.parent.name}'",
                 **get_location(shape),
             )
 

@@ -35,7 +35,7 @@ class KinematicTreeTemplate(IHasParent):
 
 
 class KinematicGraph(IHasNamespaceDeclare, IDefaultFrame):
-    """Bodies, the joints between them, and the trees composed into them.
+    """Bodies, free frames and shapes, joints, and composed trees.
 
     A whole scene's kinematics: bodies may hang from nothing, and everything under it
     takes its namespace from it.
@@ -44,15 +44,20 @@ class KinematicGraph(IHasNamespaceDeclare, IDefaultFrame):
     name: str
     trees: list[KinematicTreeModel]
     _bodies: list[RigidBody]
+    frames: list[Frame]
+    shapes: list[SceneShape]
     joints_spec: JointsSpec | None
-    # The frame the graph stands on: where its ground meets the body everything else is
-    # placed against. A tree hangs from its root instead, so it declares none.
+    # The frame the scene stands on. A tree hangs from its root instead.
     anchor: Frame | None
 
-    def __init__(self, parent, ns, name, trees, bodies, joints_spec, anchor) -> None:
+    def __init__(
+        self, parent, ns, name, trees, bodies, joints_spec, anchor, frames=None, shapes=None
+    ) -> None:
         super().__init__(parent=parent, ns=ns, name=name)
         self.trees = trees
         self._bodies = bodies
+        self.frames = frames or []
+        self.shapes = shapes or []
         self._joints_spec = joints_spec
         self.anchor = anchor
 
@@ -99,6 +104,8 @@ class KinematicGraph(IHasNamespaceDeclare, IDefaultFrame):
 
     @property
     def default_frame(self) -> Frame:
+        if self.anchor is not None:
+            return self.anchor
         if not self.bodies:
             raise ValueError(f"default_frame: {self} has no body")
         return self.bodies[0].default_frame
@@ -169,7 +176,7 @@ class KinematicTreeInstance(KinematicTreeModel):
 class RigidBody(IHasNamespace, IDefaultFrame):
     name: str
     frames: list[Frame]
-    shapes: list[BodyShape]
+    shapes: list[SceneShape]
     inertia: RigidBodyInertia | None
 
     def __init__(self, parent, name, frames, shapes, inertia) -> None:
@@ -217,7 +224,7 @@ class RigidBody(IHasNamespace, IDefaultFrame):
         return self._inertia_coord_uri
 
 
-class BodyShape(IHasNamespace):
+class SceneShape(IHasNamespace):
     def __init__(self, parent, name, frame, color=None) -> None:
         super().__init__(parent=parent)
         self.name = name
@@ -269,25 +276,25 @@ def _positive_scale(scale, name: str):
     return _positive_size(float(scale), None, 1, name)
 
 
-class UnitSphere(BodyShape):
+class UnitSphere(SceneShape):
     def __init__(self, parent, name, frame, scale, color=None) -> None:
         super().__init__(parent, name, frame, color)
         self.scale = _positive_scale(scale, f"unit sphere '{name}' scale")
 
 
-class UnitCube(BodyShape):
+class UnitCube(SceneShape):
     def __init__(self, parent, name, frame, scale, color=None) -> None:
         super().__init__(parent, name, frame, color)
         self.scale = _positive_scale(scale, f"unit cube '{name}' scale")
 
 
-class UnitCylinder(BodyShape):
+class UnitCylinder(SceneShape):
     def __init__(self, parent, name, frame, scale, color=None) -> None:
         super().__init__(parent, name, frame, color)
         self.scale = _positive_scale(scale, f"unit cylinder '{name}' scale")
 
 
-class FileBasedShape(BodyShape):
+class FileBasedShape(SceneShape):
     def __init__(
         self, parent, name, frame, path, scale=None, color=None
     ) -> None:

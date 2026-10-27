@@ -111,6 +111,17 @@ scene inst (ns=scene_lab_mjc) pickplace_scene_mjc {
                 ) kg*m^2
             }
         }
+        frame static_marker_frame {
+            pose static_marker_in_world {
+                wrt: <world_tree.world_body.world>
+                xyz: (0.8, -0.4, 0.1) m
+                orientation: euler { angles: (0.0, 0.0, 0.0) unit: rad }
+            }
+        }
+        shape UnitCube static_marker {
+            frame: <static_marker_frame>
+            scale: 0.05
+        }
     }
 
     obj <pickplace_objects.box1> {

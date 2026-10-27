@@ -85,7 +85,7 @@ textx generate examples/models/lab.scenex --target graph -o examples/generated -
 The RDF generators accept `format` (`json-ld`, `ttl`, or `xml`) and `filename`.
 For JSON-LD, pass `--nocompact` to skip compacting IRIs.
 
-## Body shapes
+## Scene shapes
 
 Declare one or more shapes inside a body in `.scenex` or `.ktree`:
 
@@ -96,11 +96,27 @@ body ball {
 }
 ```
 
-Each shape references a frame on its body; pose that frame with `wrt` to place
-the shape. The only primitives are `UnitCube`, `UnitCylinder`, and `UnitSphere`.
+The body's inertia is optional, including when its shapes are used only for
+collision. For a static shape without a body, declare its frame and shape
+directly in the scene's `kgraph`:
+
+```text
+kgraph (ns=demo) world {
+    anchor: <origin>
+    frame origin { }
+    shape UnitSphere marker { frame: <origin> scale: 0.10 }
+}
+```
+
+Shapes declared directly in the graph render as fixed world geometry; their
+frame must have a placement from the graph anchor.
+
+Each shape references a frame under the same body or graph; pose that frame
+with `wrt` to place the shape. The only primitives are `UnitCube`,
+`UnitCylinder`, and `UnitSphere`.
 Their attached frames sit at their centroids. The cube has 1 m sides; the
 cylinder has radius 1 m and height 1 m along local Z; the sphere has radius
-1 m. The body frame can be elsewhere.
+1 m. An owning body's frame can be elsewhere.
 
 Give each primitive a required positive, dimensionless scale. A scalar
 `scale: 0.05` keeps proportions. For `UnitCube`, the three factors set full
@@ -125,7 +141,7 @@ wherever referenced. The robot example's optional
 may draw different values for the same seed.
 
 From this repository directory, view the [compound example](examples/models/compound.scenex)
-for fixed and sampled shapes, local poses, and STL scale. With MuJoCo assets
+for fixed and sampled shapes, a free shape, local poses, and STL scale. With MuJoCo assets
 installed, the [robot example](examples/models/lab-sampled.scenex) shows the
 new primitives on a body alongside a Kinova arm:
 

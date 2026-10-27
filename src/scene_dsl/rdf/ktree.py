@@ -93,7 +93,7 @@ from textx import get_model
 
 from scene_dsl.classes.ktree import (
     Actuation,
-    BodyShape,
+    SceneShape,
     UnitCube,
     UnitCylinder,
     UnitSphere,
@@ -122,7 +122,7 @@ PROV_EXT = Namespace("https://secorolab.github.io/metamodels/prov#")
 COL = Namespace("https://secorolab.github.io/metamodels/color#")
 
 
-def add_shape_scale(graph: Graph, shape: BodyShape) -> None:
+def add_shape_scale(graph: Graph, shape: SceneShape) -> None:
     if shape.scale is None:
         return
     graph.add((shape.uri, RDF.type, SHAPES.ScaledShape))
@@ -164,7 +164,7 @@ def add_shape_scale(graph: Graph, shape: BodyShape) -> None:
             graph.add((factor, URI_QUDT_PRED_VALUE, Literal(value, datatype=XSD.double)))
 
 
-def add_shape_common(graph: Graph, shape: BodyShape) -> None:
+def add_shape_common(graph: Graph, shape: SceneShape) -> None:
     graph.bind("shapes", SHAPES)
     graph.add((shape.uri, SHAPES["attached-to-frame"], shape.frame.uri))
     if shape.color is not None:
@@ -181,7 +181,7 @@ def add_shape_common(graph: Graph, shape: BodyShape) -> None:
         )
 
 
-def add_shape(graph: Graph, shape: BodyShape) -> None:
+def add_shape(graph: Graph, shape: SceneShape) -> None:
     if isinstance(shape, (UnitCube, UnitCylinder, UnitSphere)):
         add_shape_common(graph, shape)
         kind = {
@@ -503,6 +503,10 @@ def add_kinematic_graph(graph: Graph, kgraph: KinematicGraph, seen_trees: set[UR
         add_kinematic_tree(graph=graph, tree=tree, seen_trees=seen_trees)
     for body in kgraph.bodies:
         add_body(graph=graph, body=body)
+    for frame in kgraph.frames:
+        add_frame(graph, frame)
+    for shape in kgraph.shapes:
+        add_shape(graph, shape)
 
     # Every body no joint attaches, a graph hanging from many where a tree has one. This
     # is what says the bodies and the trees standing on them are this graph's.

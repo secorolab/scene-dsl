@@ -224,10 +224,11 @@ class RigidBody(IHasNamespace, IDefaultFrame):
 
 
 class SceneShape(IHasNamespace):
-    def __init__(self, parent, name, frame, color=None) -> None:
+    def __init__(self, parent, name, frame, unit, color=None) -> None:
         super().__init__(parent=parent)
         self.name = name
         self.frame = frame
+        self.unit = unit
         self.color = None if color is None else [float(value) for value in color.values]
         if self.color is not None and (
             len(self.color) != 4 or any(not isfinite(v) or not 0 <= v <= 1 for v in self.color)
@@ -255,28 +256,28 @@ def _positive_scale(scale, name: str):
 
 
 class UnitSphere(SceneShape):
-    def __init__(self, parent, name, frame, scale, color=None) -> None:
-        super().__init__(parent, name, frame, color)
+    def __init__(self, parent, name, frame, unit, scale, color=None) -> None:
+        super().__init__(parent, name, frame, unit, color)
         self.scale = _positive_scale(scale, f"unit sphere '{name}' scale")
 
 
 class UnitCube(SceneShape):
-    def __init__(self, parent, name, frame, scale, color=None) -> None:
-        super().__init__(parent, name, frame, color)
+    def __init__(self, parent, name, frame, unit, scale, color=None) -> None:
+        super().__init__(parent, name, frame, unit, color)
         self.scale = _positive_scale(scale, f"unit cube '{name}' scale")
 
 
 class UnitCylinder(SceneShape):
-    def __init__(self, parent, name, frame, scale, color=None) -> None:
-        super().__init__(parent, name, frame, color)
+    def __init__(self, parent, name, frame, unit, scale, color=None) -> None:
+        super().__init__(parent, name, frame, unit, color)
         self.scale = _positive_scale(scale, f"unit cylinder '{name}' scale")
 
 
 class FileBasedShape(SceneShape):
     def __init__(
-        self, parent, name, frame, path, scale=None, color=None
+        self, parent, name, frame, path, unit, scale=None, color=None
     ) -> None:
-        super().__init__(parent, name, frame, color)
+        super().__init__(parent, name, frame, unit, color)
         self.path = path
         self.scale = None if scale is None else _positive_scale(scale, f"file shape '{name}' scale")
         if not self.path:

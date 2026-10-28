@@ -86,16 +86,19 @@ scene inst (ns=scene_lab_mjc) pickplace_scene_mjc {
             }
             shape UnitSphere ball {
                 frame: <sphere_center>
+                unit: m
                 scale: (0.07, 0.05, 0.04)
                 color: (0.9, 0.2, 0.2, 1.0)
             }
             shape UnitCylinder cylinder {
                 frame: <cylinder_center>
-                scale: (0.05, 0.05, 0.09)
+                unit: mm
+                scale: (50, 50, 90)
             }
             shape UnitCube cube {
                 frame: <cube_center>
-                scale: 0.07
+                unit: cm
+                scale: 7
             }
             inertia {
                 frame: <box1_root>
@@ -117,7 +120,8 @@ scene inst (ns=scene_lab_mjc) pickplace_scene_mjc {
         shape file static_marker {
             frame: <static_marker_frame>
             path: "../assets/tetra.stl"
-            scale: 0.05
+            unit: cm
+            scale: 5
         }
     }
 

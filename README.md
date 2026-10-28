@@ -92,7 +92,7 @@ Declare one or more shapes inside a body in `.scenex` or `.ktree`:
 ```text
 body ball {
     frame center { }
-    shape UnitSphere surface { frame: <center> scale: 0.10 }
+    shape UnitSphere surface { frame: <center> unit: m scale: 0.10 }
 }
 ```
 
@@ -104,7 +104,7 @@ directly in the scene's `kgraph`:
 kgraph (ns=demo) world {
     anchor: <origin>
     frame origin { }
-    shape UnitSphere marker { frame: <origin> scale: 0.10 }
+    shape UnitSphere marker { frame: <origin> unit: m scale: 0.10 }
 }
 ```
 
@@ -114,13 +114,14 @@ frame must have a placement from the graph anchor.
 Each shape references a frame under the same body or graph; pose that frame
 with `wrt` to place the shape. The only primitives are `UnitCube`,
 `UnitCylinder`, and `UnitSphere`.
-Their attached frames sit at their centroids. The cube has 1 m sides; the
-cylinder has radius 1 m and height 1 m along local Z; the sphere has radius
-1 m. An owning body's frame can be elsewhere.
+Their attached frames sit at their centroids. The cube has sides of length 1;
+the cylinder has radius 1 and height 1 along local Z; the sphere has radius 1.
+These dimensions use each shape's required `unit: m`, `unit: cm`, or `unit: mm`.
+An owning body's frame can be elsewhere.
 
 Give each primitive a required positive, dimensionless scale. A scalar
 `scale: 0.05` keeps proportions. For `UnitCube`, the three factors set full
-X/Y/Z extents in metres. For `UnitSphere`, they set X/Y/Z radii; for
+X/Y/Z extents in the declared unit. For `UnitSphere`, they set X/Y/Z radii; for
 `UnitCylinder`, X/Y radii and full Z height. Independent cube factors make a
 rectangular prism; independent sphere factors make an ellipsoid; different
 cylinder X/Y factors make an elliptical cylinder. The primitive type identifies
@@ -128,9 +129,9 @@ the unit base before scaling. Scale acts before the frame pose. Shear and
 reflection are not supported.
 
 File-based shapes use `shape file` with a `.stl` `path` and optional scalar or
-three-component scale. The STL mesh keeps its authored origin; STL coordinates
-are interpreted as metres. Any shape may have an optional RGBA `color` in
-`[0, 1]`. Shapes do not supply mass or inertia.
+three-component scale. Declare the unit of the STL coordinates with `unit:`.
+The STL mesh keeps its authored origin. Any shape may have an optional RGBA
+`color` in `[0, 1]`. Shapes do not supply mass or inertia.
 
 From this repository directory, view the [compound example](examples/models/compound.scenex)
 for multiple fixed shapes, a free shape, local poses, and STL scale. With MuJoCo assets
@@ -147,7 +148,10 @@ Use `--headless` with `view` to check compilation without opening a window.
 Generated runs use these shapes for visual and collision geometry. RDF export
 links shapes to frames with `shapes:attached-to-frame`. Each primitive has its
 corresponding `shapes:UnitCube`, `shapes:UnitCylinder`, or `shapes:UnitSphere`
-type; its base dimensions are fixed by that type.
+type; its base numerical dimensions are fixed by that type.
+A shape's `qudt:unit` records the length unit for its base geometry or STL
+coordinates. Scale factors stay dimensionless; the renderer converts the
+resulting dimensions to metres.
 A scaled shape has type `shapes:ScaledShape`. Its `shapes:scale-x`,
 `shapes:scale-y`, and `shapes:scale-z` links point to dimensionless
 `qudt:Quantity` nodes with `qudt:value`. A scalar DSL scale shares one factor

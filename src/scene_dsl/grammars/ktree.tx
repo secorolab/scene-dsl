@@ -56,6 +56,7 @@ ScaleSpec: FLOAT | FloatVector ;
 UnitCube:
 'shape' 'UnitCube' name=IRI_TRUNK '{'
     'frame' ':' '<' frame=[Frame|FQN] '>'
+    'unit' ':' unit=LengthUnit
     'scale' ':' scale=ScaleSpec
     ('color' ':' color=FloatVector)?
 '}'
@@ -64,6 +65,7 @@ UnitCube:
 UnitCylinder:
 'shape' 'UnitCylinder' name=IRI_TRUNK '{'
     'frame' ':' '<' frame=[Frame|FQN] '>'
+    'unit' ':' unit=LengthUnit
     'scale' ':' scale=ScaleSpec
     ('color' ':' color=FloatVector)?
 '}'
@@ -72,6 +74,7 @@ UnitCylinder:
 UnitSphere:
 'shape' 'UnitSphere' name=IRI_TRUNK '{'
     'frame' ':' '<' frame=[Frame|FQN] '>'
+    'unit' ':' unit=LengthUnit
     'scale' ':' scale=ScaleSpec
     ('color' ':' color=FloatVector)?
 '}'
@@ -81,6 +84,7 @@ FileBasedShape:
 'shape' 'file' name=IRI_TRUNK '{'
     'frame' ':' '<' frame=[Frame|FQN] '>'
     'path' ':' path=STRING
+    'unit' ':' unit=LengthUnit
     ('scale' ':' scale=ScaleSpec)?
     ('color' ':' color=FloatVector)?
 '}'

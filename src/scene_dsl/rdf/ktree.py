@@ -101,6 +101,7 @@ from scene_dsl.classes.ktree import (
 )
 from scene_dsl.rdf.geom import (
     ANGLE_UNITS,
+    LENGTH_UNITS,
     add_frame,
     add_position_coord,
 )
@@ -129,6 +130,7 @@ def add_shape_scale(graph: Graph, shape: SceneShape) -> None:
 def add_shape_common(graph: Graph, shape: SceneShape) -> None:
     graph.bind("shapes", SHAPES)
     graph.add((shape.uri, SHAPES["attached-to-frame"], shape.frame.uri))
+    graph.add((shape.uri, URI_QUDT_PRED_UNIT, LENGTH_UNITS[shape.unit]))
     if shape.color is not None:
         graph.bind("col", COL)
         graph.add((shape.uri, COL["has-color"], shape.color_uri))

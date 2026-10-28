@@ -24,33 +24,40 @@ scene inst (ns=demo) compound_demo {
             }
             shape UnitCube floor {
                 frame: <center>
+                unit: m
                 scale: (0.2, 0.3, 0.01)
                 color: (0.5, 0.5, 0.5, 1.0)
             }
             shape UnitCube wall {
                 frame: <side>
-                scale: (0.015, 0.25, 0.10)
+                unit: cm
+                scale: (1.5, 25, 10)
             }
             shape UnitSphere marker {
                 frame: <side>
-                scale: (0.06, 0.03, 0.03)
+                unit: mm
+                scale: (60, 30, 30)
             }
             shape UnitCylinder post {
                 frame: <center>
+                unit: m
                 scale: (0.02, 0.03, 0.1)
             }
             shape UnitCube solid {
                 frame: <side>
+                unit: m
                 scale: 0.09
                 color: (0.6, 0.2, 0.9, 1.0)
             }
             shape file tetra {
                 frame: <center>
                 path: "../assets/tetra.stl"
+                unit: m
                 scale: (1.2, 1.0, 0.8)
             }
             shape UnitCube block {
                 frame: <center>
+                unit: m
                 scale: 0.04
             }
         }
@@ -63,6 +70,7 @@ scene inst (ns=demo) compound_demo {
         }
         shape UnitSphere free_marker {
             frame: <free_marker_frame>
+            unit: m
             scale: 0.04
         }
     }

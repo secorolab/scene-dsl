@@ -85,8 +85,6 @@ from textx import get_model
 
 from scene_dsl.classes.ktree import (
     Actuation,
-    SceneShape,
-    PrimitiveShape,
     FileBasedShape,
     FixedJoint,
     JointBase,
@@ -94,7 +92,9 @@ from scene_dsl.classes.ktree import (
     JointMimicSpec,
     KinematicGraph,
     KinematicTreeModel,
+    PrimitiveShape,
     RevoluteJoint,
+    SceneShape,
     SerialJoints,
 )
 from scene_dsl.rdf.geom import (

@@ -36,8 +36,6 @@ from scene_dsl.classes.geom import (
 )
 from scene_dsl.classes.ktree import (
     Actuation,
-    SceneShape,
-    PrimitiveShape,
     FileBasedShape,
     FixedJoint,
     JointBase,
@@ -50,9 +48,11 @@ from scene_dsl.classes.ktree import (
     KinematicTreeInstance,
     KinematicTreeModel,
     KinematicTreeTemplate,
+    PrimitiveShape,
     RevoluteJoint,
     RigidBody,
     RigidBodyInertia,
+    SceneShape,
     SerialJoints,
 )
 from scene_dsl.classes.scene import (

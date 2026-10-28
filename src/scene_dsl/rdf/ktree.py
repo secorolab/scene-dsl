@@ -160,29 +160,31 @@ def add_shape(graph: Graph, shape: SceneShape) -> None:
         graph.add((shape.uri, RDF.type, SHAPES.FileBasedShape))
         graph.add((shape.uri, RDF.type, PROV.Entity))
         source = URIRef(f"{shape.uri}/source")
-        location = URIRef(f"{source}/location")
         authored = Path(shape.path).expanduser()
-        filename = getattr(get_model(shape), "_tx_filename", None)
-        base = authored.parent if authored.is_absolute() else (
-            Path(filename).resolve().parent if filename else Path.cwd()
-        )
-        base_uri = base.resolve().as_uri()
-        base_uri = URIRef(base_uri if base_uri.endswith("/") else f"{base_uri}/")
-        relative = authored.name if authored.is_absolute() else shape.path
         graph.bind("prov", PROV)
-        graph.bind("prov-ext", PROV_EXT)
         graph.add((shape.uri, PROV.wasDerivedFrom, source))
         graph.add((source, RDF.type, PROV.Entity))
-        graph.add((source, PROV.atLocation, location))
-        graph.add((location, RDF.type, PROV_EXT.RelativeLocation))
-        graph.add((location, RDF.type, PROV.Location))
-        graph.add((location, RDF.type, PROV.Entity))
-        graph.add((
-            location, PROV_EXT["rel-path"],
-            Literal(quote(relative, safe="/-._~"), datatype=XSD.anyURI),
-        ))
-        graph.add((location, PROV.atLocation, base_uri))
-        graph.add((base_uri, RDF.type, PROV.Location))
+        if authored.is_absolute():
+            location = URIRef(authored.resolve().as_uri())
+            graph.add((source, PROV.atLocation, location))
+            graph.add((location, RDF.type, PROV.Location))
+        else:
+            location = URIRef(f"{source}/location")
+            filename = getattr(get_model(shape), "_tx_filename", None)
+            base = Path(filename).resolve().parent if filename else Path.cwd()
+            base_uri = base.resolve().as_uri()
+            base_uri = URIRef(base_uri if base_uri.endswith("/") else f"{base_uri}/")
+            graph.bind("prov-ext", PROV_EXT)
+            graph.add((source, PROV.atLocation, location))
+            graph.add((location, RDF.type, PROV_EXT.RelativeLocation))
+            graph.add((location, RDF.type, PROV.Location))
+            graph.add((location, RDF.type, PROV.Entity))
+            graph.add((
+                location, PROV_EXT["rel-path"],
+                Literal(quote(shape.path, safe="/-._~"), datatype=XSD.anyURI),
+            ))
+            graph.add((location, PROV.atLocation, base_uri))
+            graph.add((base_uri, RDF.type, PROV.Location))
         add_shape_scale(graph, shape)
     else:
         raise TypeError(f"Unhandled shape type: {type(shape).__name__}")

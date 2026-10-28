@@ -157,10 +157,10 @@ A scaled shape has type `shapes:ScaledShape`. Its `shapes:scale-x`,
 `qudt:Quantity` nodes with `qudt:value`. A scalar DSL scale shares one factor
 node across all three axes; three values create one factor per axis.
 For an STL mesh, RDF links the shape to a `prov:Entity` for its source file.
-That entity has a `prov-ext:RelativeLocation`: its `rel-path` is relative to
-the authored `.scenex` directory. An absolute DSL path is represented by its
-parent directory and filename. Generated runs copy the STL beside the
-controller, so they no longer depend on the original checkout.
+For a relative DSL path, the source has a `prov-ext:RelativeLocation` whose
+`rel-path` is relative to the authored `.scenex` directory. An absolute DSL
+path becomes a `file:` IRI typed `prov:Location`. Generated runs copy the STL
+beside the controller, so they no longer depend on the original checkout.
 The companion metamodels repository validates
 these nodes. MuJoCo keeps cubes as boxes and isotropically scaled spheres and
 cylinders as native primitives. Non-uniform spheres and cylinders use triangle

@@ -50,29 +50,12 @@ RigidBody:
 '}'
 ;
 
-Shape: UnitCube | UnitCylinder | UnitSphere | FileBasedShape ;
+Shape: PrimitiveShape | FileBasedShape ;
 ScaleSpec: FLOAT | FloatVector ;
+PrimitiveShapeType: 'UnitCube' | 'UnitCylinder' | 'UnitSphere' ;
 
-UnitCube:
-'shape' 'UnitCube' name=IRI_TRUNK '{'
-    'frame' ':' '<' frame=[Frame|FQN] '>'
-    'unit' ':' unit=LengthUnit
-    'scale' ':' scale=ScaleSpec
-    ('color' ':' color=FloatVector)?
-'}'
-;
-
-UnitCylinder:
-'shape' 'UnitCylinder' name=IRI_TRUNK '{'
-    'frame' ':' '<' frame=[Frame|FQN] '>'
-    'unit' ':' unit=LengthUnit
-    'scale' ':' scale=ScaleSpec
-    ('color' ':' color=FloatVector)?
-'}'
-;
-
-UnitSphere:
-'shape' 'UnitSphere' name=IRI_TRUNK '{'
+PrimitiveShape:
+'shape' shape_type=PrimitiveShapeType name=IRI_TRUNK '{'
     'frame' ':' '<' frame=[Frame|FQN] '>'
     'unit' ':' unit=LengthUnit
     'scale' ':' scale=ScaleSpec

@@ -86,9 +86,7 @@ from textx import get_model
 from scene_dsl.classes.ktree import (
     Actuation,
     SceneShape,
-    UnitCube,
-    UnitCylinder,
-    UnitSphere,
+    PrimitiveShape,
     FileBasedShape,
     FixedJoint,
     JointBase,
@@ -146,14 +144,9 @@ def add_shape_common(graph: Graph, shape: SceneShape) -> None:
 
 
 def add_shape(graph: Graph, shape: SceneShape) -> None:
-    if isinstance(shape, (UnitCube, UnitCylinder, UnitSphere)):
+    if isinstance(shape, PrimitiveShape):
         add_shape_common(graph, shape)
-        kind = {
-            UnitCube: SHAPES.UnitCube,
-            UnitCylinder: SHAPES.UnitCylinder,
-            UnitSphere: SHAPES.UnitSphere,
-        }[type(shape)]
-        graph.add((shape.uri, RDF.type, kind))
+        graph.add((shape.uri, RDF.type, SHAPES[shape.shape_type.value]))
         add_shape_scale(graph, shape)
     elif isinstance(shape, FileBasedShape):
         add_shape_common(graph, shape)

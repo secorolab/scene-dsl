@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from enum import StrEnum
 from math import isfinite
 from typing import Any
 
@@ -255,22 +256,17 @@ def _positive_scale(scale, name: str):
     return values if isinstance(scale, FloatVector) else values[0]
 
 
-class UnitSphere(SceneShape):
-    def __init__(self, parent, name, frame, unit, scale, color=None) -> None:
+class PrimitiveShapeType(StrEnum):
+    CUBE = "UnitCube"
+    CYLINDER = "UnitCylinder"
+    SPHERE = "UnitSphere"
+
+
+class PrimitiveShape(SceneShape):
+    def __init__(self, parent, name, frame, unit, scale, shape_type, color=None) -> None:
         super().__init__(parent, name, frame, unit, color)
-        self.scale = _positive_scale(scale, f"unit sphere '{name}' scale")
-
-
-class UnitCube(SceneShape):
-    def __init__(self, parent, name, frame, unit, scale, color=None) -> None:
-        super().__init__(parent, name, frame, unit, color)
-        self.scale = _positive_scale(scale, f"unit cube '{name}' scale")
-
-
-class UnitCylinder(SceneShape):
-    def __init__(self, parent, name, frame, unit, scale, color=None) -> None:
-        super().__init__(parent, name, frame, unit, color)
-        self.scale = _positive_scale(scale, f"unit cylinder '{name}' scale")
+        self.shape_type = PrimitiveShapeType(shape_type)
+        self.scale = _positive_scale(scale, f"{self.shape_type} '{name}' scale")
 
 
 class FileBasedShape(SceneShape):

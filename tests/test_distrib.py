@@ -1,5 +1,3 @@
-from pathlib import Path
-
 import numpy as np
 import pytest
 from rdf_utils.models.distribution import (
@@ -30,11 +28,11 @@ from scene_dsl.langs import scenex_metamodel
 from scene_dsl.rdf.geom import add_pose
 from scene_dsl.rdf.scenex import create_scenex_model_graph
 
-SAMPLED_POSES_FILE = Path(__file__).parent / "fixtures" / "sampled-poses.scenex"
+from .test_common import MODELS_DIR
 
 
 def test_shared_distributions_generate_sampled_quantity_links():
-    model = scenex_metamodel().model_from_file(SAMPLED_POSES_FILE)
+    model = scenex_metamodel().model_from_file(MODELS_DIR / "sampled-poses.scenex")
     graph = create_scenex_model_graph(model)
     distributions = {distribution.name: distribution for distribution in model.distributions}
     uniform_xyz = distributions["uniform-xyz"]
@@ -98,7 +96,7 @@ def test_shared_distributions_generate_sampled_quantity_links():
 
 
 def test_sampled_pose_adds_each_referenced_distribution_once():
-    model = scenex_metamodel().model_from_file(SAMPLED_POSES_FILE)
+    model = scenex_metamodel().model_from_file(MODELS_DIR / "sampled-poses.scenex")
     pose = next(
         pose
         for body in model.scene_insts[0].kgraph.bodies
@@ -122,7 +120,7 @@ def test_sampled_pose_adds_each_referenced_distribution_once():
 
 
 def test_non_three_dimensional_normal_is_rejected_for_xyz_sampling():
-    model = scenex_metamodel().model_from_file(SAMPLED_POSES_FILE)
+    model = scenex_metamodel().model_from_file(MODELS_DIR / "sampled-poses.scenex")
     next(
         distribution for distribution in model.distributions if distribution.name == "normal-xyz"
     ).spec.dimension = 2
@@ -131,7 +129,7 @@ def test_non_three_dimensional_normal_is_rejected_for_xyz_sampling():
 
 
 def test_pose_paths_resolve_concrete_and_sampled_coordinates():
-    model = scenex_metamodel().model_from_file(SAMPLED_POSES_FILE)
+    model = scenex_metamodel().model_from_file(MODELS_DIR / "sampled-poses.scenex")
     graph = create_scenex_model_graph(model)
     bodies = {body.name: body for body in model.scene_insts[0].kgraph.bodies}
     world = bodies["world"].default_frame

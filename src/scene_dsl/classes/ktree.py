@@ -35,7 +35,7 @@ class KinematicTreeTemplate(IHasParent):
 
 
 class KinematicGraph(IHasNamespaceDeclare, IDefaultFrame):
-    """Bodies, free frames and shapes, joints, and composed trees.
+    """Bodies, shapes, joints, and composed trees.
 
     A whole scene's kinematics: bodies may hang from nothing, and everything under it
     takes its namespace from it.
@@ -44,19 +44,17 @@ class KinematicGraph(IHasNamespaceDeclare, IDefaultFrame):
     name: str
     trees: list[KinematicTreeModel]
     _bodies: list[RigidBody]
-    frames: list[Frame]
     shapes: list[SceneShape]
     joints_spec: JointsSpec | None
     # The frame the scene stands on. A tree hangs from its root instead.
     anchor: Frame | None
 
     def __init__(
-        self, parent, ns, name, trees, bodies, joints_spec, anchor, frames=None, shapes=None
+        self, parent, ns, name, trees, bodies, joints_spec, anchor, shapes=None
     ) -> None:
         super().__init__(parent=parent, ns=ns, name=name)
         self.trees = trees
         self._bodies = bodies
-        self.frames = frames or []
         self.shapes = shapes or []
         self._joints_spec = joints_spec
         self.anchor = anchor

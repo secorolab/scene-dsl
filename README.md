@@ -97,21 +97,22 @@ body ball {
 ```
 
 The body's inertia is optional, including when its shapes are used only for
-collision. For a static shape without a body, declare its frame and shape
-directly in the scene's `kgraph`:
+collision. For a static shape outside a body, reference a frame on the scene's
+anchor body:
 
 ```text
 kgraph (ns=demo) world {
-    anchor: <origin>
-    frame origin { }
-    shape UnitSphere marker { frame: <origin> unit: m scale: 0.10 }
+    anchor: <ground.origin>
+    body ground { frame origin { } }
+    shape UnitSphere marker { frame: <ground.origin> unit: m scale: 0.10 }
 }
 ```
 
-Shapes declared directly in the graph render as fixed world geometry; their
-frame must have a placement from the graph anchor.
+This shape renders at the world's anchor. Graph-level shapes can reference
+frames on bodies in the graph or its composed trees.
 
-Each shape references a frame under the same body or graph; pose that frame
+Each shape references a frame on a body. A shape inside a body uses that body's
+frame; a graph-level shape can use any body frame in the graph. Pose the frame
 with `wrt` to place the shape. The only primitives are `UnitCube`,
 `UnitCylinder`, and `UnitSphere`.
 Their attached frames sit at their centroids. The cube has sides of length 1;

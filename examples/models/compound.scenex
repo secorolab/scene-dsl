@@ -6,7 +6,16 @@ scene inst (ns=demo) compound_demo {
     scene: <demo_scene>
     kgraph (ns=demo) world {
         anchor: <ground.origin>
-        body ground { frame origin { } }
+        body ground {
+            frame origin { }
+            frame free_marker_frame {
+                pose free_marker_in_world {
+                    wrt: <origin>
+                    xyz: (-0.3, 0.0, 0.1) m
+                    orientation: euler { angles: (0.0, 0.0, 0.0) }
+                }
+            }
+        }
         body bin {
             frame center {
                 pose bin_in_world {
@@ -61,15 +70,8 @@ scene inst (ns=demo) compound_demo {
                 scale: 0.04
             }
         }
-        frame free_marker_frame {
-            pose free_marker_in_world {
-                wrt: <ground.origin>
-                xyz: (-0.3, 0.0, 0.1) m
-                orientation: euler { angles: (0.0, 0.0, 0.0) }
-            }
-        }
         shape UnitSphere free_marker {
-            frame: <free_marker_frame>
+            frame: <ground.free_marker_frame>
             unit: m
             scale: 0.04
         }

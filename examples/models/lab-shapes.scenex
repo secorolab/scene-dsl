@@ -11,6 +11,13 @@ ktree (ns=scene_lab_mjc) world_tree {
 
     body world_body {
         frame world { }
+        frame static_marker_frame {
+            pose static_marker_in_world {
+                wrt: <world>
+                xyz: (0.8, -0.4, 0.1) m
+                orientation: euler { angles: (0.0, 0.0, 0.0) unit: rad }
+            }
+        }
     }
 
     body table_body {
@@ -110,15 +117,8 @@ scene inst (ns=scene_lab_mjc) pickplace_scene_mjc {
                 ) kg*m^2
             }
         }
-        frame static_marker_frame {
-            pose static_marker_in_world {
-                wrt: <world_tree.world_body.world>
-                xyz: (0.8, -0.4, 0.1) m
-                orientation: euler { angles: (0.0, 0.0, 0.0) unit: rad }
-            }
-        }
         shape file static_marker {
-            frame: <static_marker_frame>
+            frame: <world_tree.world_body.static_marker_frame>
             path: "../assets/tetra.stl"
             unit: cm
             scale: 5

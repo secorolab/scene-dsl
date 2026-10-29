@@ -308,13 +308,7 @@ def check_tree_topology(model, metamodel):
                 )
 
         declared = tree.root_frame if isinstance(tree, KinematicTreeModel) else tree.anchor
-        free_anchor = (
-            not isinstance(tree, KinematicTreeModel)
-            and declared is not None
-            and declared.parent is tree
-            and declared in tree.frames
-        )
-        if declared is not None and declared.parent not in tree.roots and not free_anchor:
+        if declared is not None and declared.parent not in tree.roots:
             hangs = "root" if isinstance(tree, KinematicTreeModel) else "anchor"
             raise TextXSemanticError(
                 f"'{tree.name}' declares {hangs} '{declared.name}' on body "
@@ -437,9 +431,18 @@ def check_unique_uris(model, metamodel):
 
 def check_shape_frames(model, metamodel):
     for shape in get_children(lambda item: isinstance(item, SceneShape), model):
-        if shape.frame is not None and shape.frame.parent is not shape.parent:
+        if shape.frame is None:
+            continue
+        owner = shape.frame.parent
+        if isinstance(shape.parent, KinematicGraph):
+            valid = isinstance(owner, RigidBody) and id(owner.parent) in shape.parent.subtrees
+            expected = f"a body in '{shape.parent.name}'"
+        else:
+            valid = owner is shape.parent
+            expected = f"'{shape.parent.name}'"
+        if not valid:
             raise TextXSemanticError(
-                f"shape '{shape.name}' must use a frame owned by '{shape.parent.name}'",
+                f"shape '{shape.name}' must use a frame owned by {expected}",
                 **get_location(shape),
             )
 

@@ -12,7 +12,6 @@ KinematicGraph:
     'anchor' ':' '<' anchor=[Frame|FQN] '>'
     ( 'tree' '<' trees+=[KinematicTreeModel|FQN] '>' )*
     bodies*=RigidBody
-    frames*=Frame
     shapes*=Shape
     (joints_spec=JointsSpec)?
 '}'

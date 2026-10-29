@@ -1,4 +1,5 @@
 import base
+import distrib
 import geom
 
 MassUnit: 'kg' | 'g' ;
@@ -11,6 +12,7 @@ KinematicGraph:
     'anchor' ':' '<' anchor=[Frame|FQN] '>'
     ( 'tree' '<' trees+=[KinematicTreeModel|FQN] '>' )*
     bodies*=RigidBody
+    shapes*=Shape
     (joints_spec=JointsSpec)?
 '}'
 ;
@@ -42,7 +44,31 @@ KinematicTreeModel:
 RigidBody:
 'body' name=IRI_TRUNK '{'
     frames*=Frame
+    shapes*=Shape
     inertia=RigidBodyInertia?
+'}'
+;
+
+Shape: PrimitiveShape | FileBasedShape ;
+ScaleSpec: FLOAT | FloatVector ;
+PrimitiveShapeType: 'UnitCube' | 'UnitCylinder' | 'UnitSphere' ;
+
+PrimitiveShape:
+'shape' shape_type=PrimitiveShapeType name=IRI_TRUNK '{'
+    'frame' ':' '<' frame=[Frame|FQN] '>'
+    'unit' ':' unit=LengthUnit
+    ('scale' ':' scale=ScaleSpec)?
+    ('color' ':' color=FloatVector)?
+'}'
+;
+
+FileBasedShape:
+'shape' 'file' name=IRI_TRUNK '{'
+    'frame' ':' '<' frame=[Frame|FQN] '>'
+    'path' ':' path=STRING
+    'unit' ':' unit=LengthUnit
+    ('scale' ':' scale=ScaleSpec)?
+    ('color' ':' color=FloatVector)?
 '}'
 ;
 

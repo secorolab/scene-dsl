@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from enum import StrEnum
+from math import isfinite
 from typing import Any
 
 import numpy as np
@@ -33,7 +35,7 @@ class KinematicTreeTemplate(IHasParent):
 
 
 class KinematicGraph(IHasNamespaceDeclare, IDefaultFrame):
-    """Bodies, the joints between them, and the trees composed into them.
+    """Bodies, shapes, joints, and composed trees.
 
     A whole scene's kinematics: bodies may hang from nothing, and everything under it
     takes its namespace from it.
@@ -42,15 +44,18 @@ class KinematicGraph(IHasNamespaceDeclare, IDefaultFrame):
     name: str
     trees: list[KinematicTreeModel]
     _bodies: list[RigidBody]
+    shapes: list[SceneShape]
     joints_spec: JointsSpec | None
-    # The frame the graph stands on: where its ground meets the body everything else is
-    # placed against. A tree hangs from its root instead, so it declares none.
+    # The frame the scene stands on. A tree hangs from its root instead.
     anchor: Frame | None
 
-    def __init__(self, parent, ns, name, trees, bodies, joints_spec, anchor) -> None:
+    def __init__(
+        self, parent, ns, name, trees, bodies, joints_spec, anchor, shapes=None
+    ) -> None:
         super().__init__(parent=parent, ns=ns, name=name)
         self.trees = trees
         self._bodies = bodies
+        self.shapes = shapes or []
         self._joints_spec = joints_spec
         self.anchor = anchor
 
@@ -97,6 +102,8 @@ class KinematicGraph(IHasNamespaceDeclare, IDefaultFrame):
 
     @property
     def default_frame(self) -> Frame:
+        if self.anchor is not None:
+            return self.anchor
         if not self.bodies:
             raise ValueError(f"default_frame: {self} has no body")
         return self.bodies[0].default_frame
@@ -167,12 +174,14 @@ class KinematicTreeInstance(KinematicTreeModel):
 class RigidBody(IHasNamespace, IDefaultFrame):
     name: str
     frames: list[Frame]
+    shapes: list[SceneShape]
     inertia: RigidBodyInertia | None
 
-    def __init__(self, parent, name, frames, inertia) -> None:
+    def __init__(self, parent, name, frames, shapes, inertia) -> None:
         super().__init__(parent=parent)
         self.name = name
         self.frames = frames
+        self.shapes = shapes
         self.inertia = inertia
         self._uri = None
         self._inertia_uri = None
@@ -211,6 +220,64 @@ class RigidBody(IHasNamespace, IDefaultFrame):
         if self._inertia_coord_uri is None:
             self._inertia_coord_uri = self.namespace[self.scoped("-inertia-coord")]
         return self._inertia_coord_uri
+
+
+class SceneShape(IHasNamespace):
+    def __init__(self, parent, name, frame, unit, color=None) -> None:
+        super().__init__(parent=parent)
+        self.name = name
+        self.frame = frame
+        self.unit = unit
+        self.color = None if color is None else [float(value) for value in color.values]
+        if self.color is not None and (
+            len(self.color) != 4 or any(not isfinite(v) or not 0 <= v <= 1 for v in self.color)
+        ):
+            raise ValueError(f"shape '{name}' color requires four RGBA channels in [0, 1]")
+
+    @property
+    def namespace(self) -> Namespace:
+        return self.parent.namespace
+
+    @property
+    def uri(self) -> URIRef:
+        return self.namespace[self.scoped()]
+
+    @property
+    def color_uri(self) -> URIRef:
+        return URIRef(f"{self.uri}/color")
+
+
+def _positive_scale(scale, name: str):
+    values = [float(v) for v in scale.values] if isinstance(scale, FloatVector) else [float(scale)]
+    if len(values) not in (1, 3) or any(not isfinite(v) or v <= 0 for v in values):
+        raise ValueError(f"{name} requires one or three finite positive values")
+    return values if isinstance(scale, FloatVector) else values[0]
+
+
+class PrimitiveShapeType(StrEnum):
+    CUBE = "UnitCube"
+    CYLINDER = "UnitCylinder"
+    SPHERE = "UnitSphere"
+
+
+class PrimitiveShape(SceneShape):
+    def __init__(self, parent, name, frame, unit, scale, shape_type, color=None) -> None:
+        super().__init__(parent, name, frame, unit, color)
+        self.shape_type = PrimitiveShapeType(shape_type)
+        self.scale = None if scale is None else _positive_scale(scale, f"{self.shape_type} '{name}' scale")
+
+
+class FileBasedShape(SceneShape):
+    def __init__(
+        self, parent, name, frame, path, unit, scale=None, color=None
+    ) -> None:
+        super().__init__(parent, name, frame, unit, color)
+        self.path = path
+        self.scale = None if scale is None else _positive_scale(scale, f"file shape '{name}' scale")
+        if not self.path:
+            raise ValueError(f"file shape '{name}' needs a path")
+        if not self.path.lower().endswith(".stl"):
+            raise ValueError(f"file shape '{name}' requires a .stl path")
 
 
 class RigidBodyInertia:

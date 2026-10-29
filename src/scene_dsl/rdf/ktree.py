@@ -1,4 +1,8 @@
 # SPDX-License-Identifier: MPL-2.0
+from decimal import Decimal
+from pathlib import Path
+from urllib.parse import quote
+
 from rdf_utils.models.vocab import (
     URI_ACT_PRED_COMMAND_INTERFACE,
     URI_ACT_PRED_GEAR_RATIO,
@@ -76,24 +80,102 @@ from rdf_utils.models.vocab import (
     URI_QUDT_UNIT_RAD_PER_SEC,
     URI_QUDT_UNIT_RAD_PER_SEC2,
 )
-from rdflib import RDF, XSD, Graph, Literal, URIRef
+from rdflib import RDF, XSD, Graph, Literal, Namespace, URIRef
+from textx import get_model
 
 from scene_dsl.classes.ktree import (
     Actuation,
+    FileBasedShape,
     FixedJoint,
     JointBase,
     JointLimits,
     JointMimicSpec,
     KinematicGraph,
     KinematicTreeModel,
+    PrimitiveShape,
     RevoluteJoint,
+    SceneShape,
     SerialJoints,
 )
 from scene_dsl.rdf.geom import (
     ANGLE_UNITS,
+    LENGTH_UNITS,
     add_frame,
     add_position_coord,
 )
+
+SHAPES = Namespace("https://secorolab.github.io/metamodels/geometry/shapes#")
+PROV = Namespace("http://www.w3.org/ns/prov#")
+PROV_EXT = Namespace("https://secorolab.github.io/metamodels/prov#")
+COL = Namespace("https://secorolab.github.io/metamodels/color#")
+
+
+def add_shape_scale(graph: Graph, shape: SceneShape) -> None:
+    if shape.scale is None:
+        return
+    graph.add((shape.uri, RDF.type, SHAPES.ScaledShape))
+    uniform = not isinstance(shape.scale, list)
+    for index, axis in enumerate("xyz"):
+        value = shape.scale if uniform else shape.scale[index]
+        graph.add((shape.uri, SHAPES[f"scale-{axis}"], Literal(value, datatype=XSD.double)))
+
+
+def add_shape_common(graph: Graph, shape: SceneShape) -> None:
+    graph.bind("shapes", SHAPES)
+    graph.add((shape.uri, SHAPES["attached-to-frame"], shape.frame.uri))
+    graph.add((shape.uri, URI_QUDT_PRED_UNIT, LENGTH_UNITS[shape.unit]))
+    if shape.color is not None:
+        graph.bind("col", COL)
+        graph.add((shape.uri, COL["has-color"], shape.color_uri))
+        graph.add((shape.color_uri, RDF.type, COL.Color))
+        graph.add((shape.color_uri, RDF.type, COL.RGBAScheme))
+        graph.add(
+            (
+                shape.color_uri,
+                COL.value,
+                Literal(" ".join(format(Decimal(str(abs(v))), "f") for v in shape.color)),
+            )
+        )
+
+
+def add_shape(graph: Graph, shape: SceneShape) -> None:
+    if isinstance(shape, PrimitiveShape):
+        add_shape_common(graph, shape)
+        graph.add((shape.uri, RDF.type, SHAPES[shape.shape_type.value]))
+        add_shape_scale(graph, shape)
+    elif isinstance(shape, FileBasedShape):
+        add_shape_common(graph, shape)
+        graph.add((shape.uri, RDF.type, SHAPES.FileBasedShape))
+        graph.add((shape.uri, RDF.type, PROV.Entity))
+        source = URIRef(f"{shape.uri}/source")
+        authored = Path(shape.path).expanduser()
+        graph.bind("prov", PROV)
+        graph.add((shape.uri, PROV.wasDerivedFrom, source))
+        graph.add((source, RDF.type, PROV.Entity))
+        if authored.is_absolute():
+            location = URIRef(authored.resolve().as_uri())
+            graph.add((source, PROV.atLocation, location))
+            graph.add((location, RDF.type, PROV.Location))
+        else:
+            location = URIRef(f"{source}/location")
+            filename = getattr(get_model(shape), "_tx_filename", None)
+            base = Path(filename).resolve().parent if filename else Path.cwd()
+            base_uri = base.resolve().as_uri()
+            base_uri = URIRef(base_uri if base_uri.endswith("/") else f"{base_uri}/")
+            graph.bind("prov-ext", PROV_EXT)
+            graph.add((source, PROV.atLocation, location))
+            graph.add((location, RDF.type, PROV_EXT.RelativeLocation))
+            graph.add((location, RDF.type, PROV.Location))
+            graph.add((location, RDF.type, PROV.Entity))
+            graph.add((
+                location, PROV_EXT["rel-path"],
+                Literal(quote(shape.path, safe="/-._~"), datatype=XSD.anyURI),
+            ))
+            graph.add((location, PROV.atLocation, base_uri))
+            graph.add((base_uri, RDF.type, PROV.Location))
+        add_shape_scale(graph, shape)
+    else:
+        raise TypeError(f"Unhandled shape type: {type(shape).__name__}")
 
 ACTUATION_INTERFACE_TYPES = {
     "position": URI_KC_STAT_JNT_POSITION,
@@ -128,6 +210,9 @@ def add_body(graph: Graph, body) -> None:
         add_frame(graph, frame)
         graph.add((body.uri, URI_GEOM_PRED_SIMPLICES, frame.uri))
         graph.add((body.uri, URI_GEOM_PRED_SIMPLICES, frame.origin_uri))
+
+    for shape in body.shapes:
+        add_shape(graph, shape)
 
     graph.add(triple=(body.uri, URI_KC_EXT_PRED_ROOT, body.default_frame.uri))
 
@@ -372,6 +457,8 @@ def add_kinematic_graph(graph: Graph, kgraph: KinematicGraph, seen_trees: set[UR
         add_kinematic_tree(graph=graph, tree=tree, seen_trees=seen_trees)
     for body in kgraph.bodies:
         add_body(graph=graph, body=body)
+    for shape in kgraph.shapes:
+        add_shape(graph, shape)
 
     # Every body no joint attaches, a graph hanging from many where a tree has one. This
     # is what says the bodies and the trees standing on them are this graph's.

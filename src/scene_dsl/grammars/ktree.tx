@@ -57,7 +57,7 @@ PrimitiveShape:
 'shape' shape_type=PrimitiveShapeType name=IRI_TRUNK '{'
     'frame' ':' '<' frame=[Frame|FQN] '>'
     'unit' ':' unit=LengthUnit
-    'scale' ':' scale=ScaleSpec
+    ('scale' ':' scale=ScaleSpec)?
     ('color' ':' color=FloatVector)?
 '}'
 ;

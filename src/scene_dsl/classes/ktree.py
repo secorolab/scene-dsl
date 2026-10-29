@@ -264,7 +264,7 @@ class PrimitiveShape(SceneShape):
     def __init__(self, parent, name, frame, unit, scale, shape_type, color=None) -> None:
         super().__init__(parent, name, frame, unit, color)
         self.shape_type = PrimitiveShapeType(shape_type)
-        self.scale = _positive_scale(scale, f"{self.shape_type} '{name}' scale")
+        self.scale = None if scale is None else _positive_scale(scale, f"{self.shape_type} '{name}' scale")
 
 
 class FileBasedShape(SceneShape):

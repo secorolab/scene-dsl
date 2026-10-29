@@ -120,8 +120,8 @@ the cylinder has radius 1 and height 1 along local Z; the sphere has radius 1.
 These dimensions use each shape's required `unit: m`, `unit: cm`, or `unit: mm`.
 An owning body's frame can be elsewhere.
 
-Give each primitive a required positive, dimensionless scale. A scalar
-`scale: 0.05` keeps proportions. For `UnitCube`, the three factors set full
+Scale is optional for primitives; omitting it keeps their unit dimensions.
+A scalar `scale: 0.05` keeps proportions. For `UnitCube`, the three factors set full
 X/Y/Z extents in the declared unit. For `UnitSphere`, they set X/Y/Z radii; for
 `UnitCylinder`, X/Y radii and full Z height. Independent cube factors make a
 rectangular prism; independent sphere factors make an ellipsoid; different

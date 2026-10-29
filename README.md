@@ -154,9 +154,9 @@ A shape's `qudt:unit` records the length unit for its base geometry or STL
 coordinates. Scale factors stay dimensionless; the renderer converts the
 resulting dimensions to metres.
 A scaled shape has type `shapes:ScaledShape`. Its `shapes:scale-x`,
-`shapes:scale-y`, and `shapes:scale-z` links point to dimensionless
-`qudt:Quantity` nodes with `qudt:value`. A scalar DSL scale shares one factor
-node across all three axes; three values create one factor per axis.
+`shapes:scale-y`, and `shapes:scale-z` values are dimensionless `xsd:double`
+literals. A scalar DSL scale writes the same value on all three axes; three
+values write the corresponding factor on each axis.
 For an STL mesh, RDF links the shape to a `prov:Entity` for its source file.
 For a relative DSL path, the source has a `prov-ext:RelativeLocation` whose
 `rel-path` is relative to the authored `.scenex` directory. An absolute DSL

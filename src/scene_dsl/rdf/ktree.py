@@ -105,7 +105,6 @@ from scene_dsl.rdf.geom import (
 )
 
 SHAPES = Namespace("https://secorolab.github.io/metamodels/geometry/shapes#")
-QKIND = Namespace("http://qudt.org/vocab/quantitykind/")
 PROV = Namespace("http://www.w3.org/ns/prov#")
 PROV_EXT = Namespace("https://secorolab.github.io/metamodels/prov#")
 COL = Namespace("https://secorolab.github.io/metamodels/color#")
@@ -117,12 +116,8 @@ def add_shape_scale(graph: Graph, shape: SceneShape) -> None:
     graph.add((shape.uri, RDF.type, SHAPES.ScaledShape))
     uniform = not isinstance(shape.scale, list)
     for index, axis in enumerate("xyz"):
-        factor = URIRef(f"{shape.uri}/scale" if uniform else f"{shape.uri}/scale-{axis}")
-        graph.add((shape.uri, SHAPES[f"scale-{axis}"], factor))
-        graph.add((factor, RDF.type, URI_QUDT_TYPE_QUANTITY))
-        graph.add((factor, URI_QUDT_PRED_QUANTITY_KIND, QKIND.Dimensionless))
         value = shape.scale if uniform else shape.scale[index]
-        graph.add((factor, URI_QUDT_PRED_VALUE, Literal(value, datatype=XSD.double)))
+        graph.add((shape.uri, SHAPES[f"scale-{axis}"], Literal(value, datatype=XSD.double)))
 
 
 def add_shape_common(graph: Graph, shape: SceneShape) -> None:

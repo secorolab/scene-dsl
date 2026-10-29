@@ -1,6 +1,6 @@
 from pathlib import Path
 
-MODELS_DIR = Path(__file__).parents[1] / "examples" / "models"
+MODELS_DIR = Path(__file__).parent / "fixtures"
 
 
 def write_example_scene(tmp_path: Path) -> None:

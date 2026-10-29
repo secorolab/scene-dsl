@@ -1,4 +1,4 @@
-import "lab-shapes.scene"
+import "kinova_with_objects.scene"
 import "scene_dsl:robots/kinova_gen3_7dof.ktree"
 
 ns lab_rob='https://secorolab.github.io/models/acceptance-criteria/bdd/scenes/secorolab-mjc/robots/'
@@ -14,7 +14,7 @@ ktree (ns=scene_lab_mjc) world_tree {
         frame static_marker_frame {
             pose static_marker_in_world {
                 wrt: <world>
-                xyz: (0.8, -0.4, 0.1) m
+                xyz: (0.65, -0.4, 0.7) m
                 orientation: euler { angles: (0.0, 0.0, 0.0) unit: rad }
             }
         }
@@ -24,7 +24,7 @@ ktree (ns=scene_lab_mjc) world_tree {
         frame table_top {
             pose table_in_world {
                 wrt: <world_body.world>
-                xyz: (0.0, 0.0, 0.0) m
+                xyz: (0.0, 0.0, 0.7) m
                 orientation: euler { angles: (0.0, 0.0, 0.0) unit: rad }
             }
         }
@@ -55,8 +55,8 @@ ktree (ns=scene_lab_mjc) world_tree {
     }
 }
 
-scene inst (ns=scene_lab_mjc) pickplace_scene_mjc {
-    scene: <pickplace_scene>
+scene inst (ns=scene_lab_mjc) kinova_with_objects {
+    scene: <kinova_with_objects_scene>
 
     kgraph (ns=scene_lab_mjc) lab_graph {
         anchor: <world_tree.world_body.world>
@@ -70,24 +70,25 @@ scene inst (ns=scene_lab_mjc) pickplace_scene_mjc {
                     orientation: euler { angles: (0.0, 0.0, 0.0) unit: rad }
                 }
             }
+            // Center offsets place each shape's bottom on the table top.
             frame sphere_center {
-                pose sphere_on_box {
+                pose sphere_offset {
                     wrt: <box1_root>
-                    xyz: (0.0, 0.0, 0.12) m
+                    xyz: (-0.18, 0.0, 0.02) m
                     orientation: euler { angles: (0.0, 0.0, 0.0) unit: rad }
                 }
             }
             frame cylinder_center {
-                pose cylinder_on_box {
+                pose cylinder_offset {
                     wrt: <box1_root>
-                    xyz: (0.1, 0.0, 0.08) m
+                    xyz: (0.18, 0.0, 0.025) m
                     orientation: euler { angles: (0.0, 0.0, 0.0) unit: rad }
                 }
             }
             frame cube_center {
-                pose cube_on_box {
+                pose cube_offset {
                     wrt: <box1_root>
-                    xyz: (-0.1, 0.0, 0.08) m
+                    xyz: (0.0, 0.18, 0.015) m
                     orientation: euler { angles: (0.0, 0.0, 0.0) unit: rad }
                 }
             }

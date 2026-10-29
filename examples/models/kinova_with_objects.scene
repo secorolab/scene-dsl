@@ -20,7 +20,7 @@ comp (ns=lab_env) comp_table_pickplace of ws <lab_workspaces.table_ws> {
     obj <ws_objects.dining_table>
 }
 
-scene (ns=scene_lab) pickplace_scene {
+scene (ns=scene_lab) kinova_with_objects_scene {
     obj set <pickplace_objects>
     agn set <isaac_agents>
     ws comp <comp_table_pickplace>

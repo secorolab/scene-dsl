@@ -1,2 +1,0 @@
-ns demo = "https://example.org/scene/"
-scene (ns=demo) demo_scene { }

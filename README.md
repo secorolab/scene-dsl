@@ -61,25 +61,25 @@ Example models live under `examples/models`.
 Print abstract scene RDF as Turtle:
 
 ```bash
-textx generate examples/models/lab.scene --target console --format ttl
+textx generate examples/models/kinova_with_objects.scene --target console --format ttl
 ```
 
-Write abstract scene RDF to `examples/generated/lab.scene.ttl`:
+Write abstract scene RDF to `examples/generated/kinova_with_objects.scene.ttl`:
 
 ```bash
-textx generate examples/models/lab.scene --target graph -o examples/generated --format ttl
+textx generate examples/models/kinova_with_objects.scene --target graph -o examples/generated --format ttl
 ```
 
 Print executable scenex RDF as Turtle:
 
 ```bash
-textx generate examples/models/lab.scenex --target console --format ttl
+textx generate examples/models/kinova_with_objects.scenex --target console --format ttl
 ```
 
-Write executable scenex RDF to `examples/generated/lab.scenex.ttl`:
+Write executable scenex RDF to `examples/generated/kinova_with_objects.scenex.ttl`:
 
 ```bash
-textx generate examples/models/lab.scenex --target graph -o examples/generated --format ttl
+textx generate examples/models/kinova_with_objects.scenex --target graph -o examples/generated --format ttl
 ```
 
 The RDF generators accept `format` (`json-ld`, `ttl`, or `xml`) and `filename`.
@@ -134,15 +134,12 @@ three-component scale. Declare the unit of the STL coordinates with `unit:`.
 The STL mesh keeps its authored origin. Any shape may have an optional RGBA
 `color` in `[0, 1]`. Shapes do not supply mass or inertia.
 
-From this repository directory, view the [compound example](examples/models/compound.scenex)
-for multiple fixed shapes, a free shape, local poses, and STL scale. With MuJoCo assets
-installed, the [robot example](examples/models/lab-shapes.scenex) shows the
-new primitives on a body alongside a Kinova arm:
+From this repository directory, view the
+[Kinova example](examples/models/kinova_with_objects.scenex) to see primitive
+and STL shapes on bodies alongside a Kinova arm. MuJoCo assets must be installed:
 
 ```bash
-motion-spec view examples/models/compound.scenex
-motion-spec view examples/models/lab-shapes.scenex --config examples/models/lab-shapes.toml
-motion-spec run examples/models/lab-shapes.robmot --headless --steps 5
+motion-spec view examples/models/kinova_with_objects.scenex
 ```
 
 Use `--headless` with `view` to check compilation without opening a window.
@@ -174,14 +171,14 @@ and any declared serial chain picked out. Needs [graphviz](https://graphviz.org)
 for anything but `dot`:
 
 ```bash
-textx generate examples/models/lab.scenex --target dot -o examples/generated --format png
+textx generate examples/models/kinova_with_objects.scenex --target dot -o examples/generated --format png
 ```
 
 `format` takes `dot` (the default), `png`, `svg`, or `pdf`. To print the graph
 instead of writing it:
 
 ```bash
-textx generate examples/models/lab.scenex --target dot-console
+textx generate examples/models/kinova_with_objects.scenex --target dot-console
 ```
 
 ## Development

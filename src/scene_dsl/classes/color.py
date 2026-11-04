@@ -21,25 +21,10 @@ class ColorScheme(StrEnum):
 class Color(IHasParent):
     scheme: ColorScheme
 
-    def range_error(self) -> str | None:
-        """What is out of range, if anything.
-
-        Checked by a model processor rather than here: during construction the colour's
-        parents are not yet linked up, so textX cannot place an error at its line.
-        """
-        return None
-
     @property
     def literal(self) -> str:
         """The `col:value` literal, in a form the metamodel's pattern for the scheme takes."""
         raise NotImplementedError(f"'literal' not implemented for '{self.__class__.__name__}'")
-
-
-def _byte_range_error(form: str, channels: dict[str, int]) -> str | None:
-    for name, channel in channels.items():
-        if not 0 <= channel <= 255:
-            return f"{form} {name} is {channel}, expected an integer in [0, 255]"
-    return None
 
 
 class RGBColor(Color):
@@ -47,15 +32,15 @@ class RGBColor(Color):
 
     def __init__(self, parent, red: int, green: int, blue: int) -> None:
         super().__init__(parent=parent)
-        self.channels = {"red": red, "green": green, "blue": blue}
-
-    def range_error(self) -> str | None:
-        return _byte_range_error("rgb", self.channels)
+        for name, channel in (("red", red), ("green", green), ("blue", blue)):
+            if not 0 <= channel <= 255:
+                raise ValueError(f"{name} is {channel}, expected an integer in [0, 255]")
+        self.red, self.green, self.blue = red, green, blue
 
     @property
     def literal(self) -> str:
         # Hex: 0-255 integers carry over exactly, where floats in [0, 1] would round.
-        return "#" + "".join(f"{channel:02X}" for channel in self.channels.values())
+        return f"#{self.red:02X}{self.green:02X}{self.blue:02X}"
 
 
 class RGBAColor(RGBColor):
@@ -63,18 +48,21 @@ class RGBAColor(RGBColor):
 
     def __init__(self, parent, red: int, green: int, blue: int, alpha: int) -> None:
         super().__init__(parent, red, green, blue)
-        self.channels["alpha"] = alpha
+        if not 0 <= alpha <= 255:
+            raise ValueError(f"alpha is {alpha}, expected an integer in [0, 255]")
+        self.alpha = alpha
 
-    def range_error(self) -> str | None:
-        return _byte_range_error("rgba", self.channels)
+    @property
+    def literal(self) -> str:
+        return super().literal + f"{self.alpha:02X}"
 
 
 class HexColor(Color):
-    """'#RRGGBB' or '#RRGGBBAA': the grammar admits only these, so no range to check."""
-
     def __init__(self, parent, code: str) -> None:
         super().__init__(parent=parent)
         self.code = code.upper()
+        # The grammar's HexCode regex admits only '#RRGGBB' or '#RRGGBBAA' (7 or 9
+        # characters), so the length picks the scheme.
         self.scheme = ColorScheme.RGBA if len(self.code) == 9 else ColorScheme.RGB
 
     @property
@@ -94,15 +82,12 @@ class HSVColor(Color):
 
     def __init__(self, parent, hue: float, saturation: float, value: float) -> None:
         super().__init__(parent=parent)
-        self.hue, self.saturation, self.value = hue, saturation, value
-
-    def range_error(self) -> str | None:
-        if not isfinite(self.hue) or not 0 <= self.hue < 360:
-            return f"hsv hue is {self.hue}, expected degrees in [0, 360)"
-        for name, channel in (("saturation", self.saturation), ("value", self.value)):
+        if not isfinite(hue) or not 0 <= hue < 360:
+            raise ValueError(f"hsv hue is {hue}, expected degrees in [0, 360)")
+        for name, channel in (("saturation", saturation), ("value", value)):
             if not isfinite(channel) or not 0 <= channel <= 1:
-                return f"hsv {name} is {channel}, expected a number in [0, 1]"
-        return None
+                raise ValueError(f"hsv {name} is {channel}, expected a number in [0, 1]")
+        self.hue, self.saturation, self.value = hue, saturation, value
 
     @property
     def literal(self) -> str:

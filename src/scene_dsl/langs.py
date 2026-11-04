@@ -15,6 +15,7 @@ from textx import (
 from textx.exceptions import TextXSemanticError
 from textx.scoping import Postponed
 
+from scene_dsl.classes.color import Color, HexColor, HSVColor, RGBAColor, RGBColor
 from scene_dsl.classes.common import FloatVector, IHasNamespace, IntVector
 from scene_dsl.classes.distrib import (
     Distribution,
@@ -447,6 +448,13 @@ def check_shape_frames(model, metamodel):
             )
 
 
+def check_colors(model, metamodel):
+    for color in get_children(lambda item: isinstance(item, Color), model):
+        error = color.range_error()
+        if error is not None:
+            raise TextXSemanticError(error, **get_location(color))
+
+
 # One per language: building another resets textx's stash on the shared user classes mid-import.
 @cache
 def scene_metamodel():
@@ -507,6 +515,10 @@ def scenex_metamodel():
             KinematicGraph,
             RigidBody,
             PrimitiveShape,
+            RGBColor,
+            RGBAColor,
+            HSVColor,
+            HexColor,
             FileBasedShape,
             RigidBodyInertia,
             JointsSpec,
@@ -541,5 +553,6 @@ def scenex_metamodel():
     mm_scenex.register_model_processor(check_element_model_refs)
     mm_scenex.register_model_processor(check_agent_set_membership)
     mm_scenex.register_model_processor(check_shape_frames)
+    mm_scenex.register_model_processor(check_colors)
     mm_scenex.register_model_processor(check_unique_uris)
     return mm_scenex

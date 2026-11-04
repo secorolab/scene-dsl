@@ -96,17 +96,19 @@ scene inst (ns=scene_lab_mjc) kinova_with_objects {
                 frame: <sphere_center>
                 unit: m
                 scale: (0.07, 0.05, 0.04)
-                color: (0.9, 0.2, 0.2, 1.0)
+                color: rgba(230, 51, 51, 255)
             }
             shape UnitCylinder cylinder {
                 frame: <cylinder_center>
                 unit: mm
                 scale: (50, 50, 90)
+                color: hsv(210, 0.6, 0.9)
             }
             shape UnitCube cube {
                 frame: <cube_center>
                 unit: cm
                 scale: 7
+                color: #33B34D
             }
             inertia {
                 frame: <box1_root>

@@ -9,6 +9,7 @@ from typing import Any
 import numpy as np
 from rdflib import Namespace, URIRef
 
+from scene_dsl.classes.color import Color
 from scene_dsl.classes.common import (
     FloatVector,
     IHasNamespace,
@@ -46,16 +47,17 @@ class KinematicGraph(IHasNamespaceDeclare, IDefaultFrame):
     _bodies: list[RigidBody]
     shapes: list[SceneShape]
     joints_spec: JointsSpec | None
-    # The frame the scene stands on. A tree hangs from its root instead.
+    # The frame the graph stands on: where its ground meets the body everything else is
+    # placed against. A tree hangs from its root instead, so it declares none
     anchor: Frame | None
 
     def __init__(
-        self, parent, ns, name, trees, bodies, joints_spec, anchor, shapes=None
+        self, parent, ns, name, trees, bodies, joints_spec, anchor, shapes
     ) -> None:
         super().__init__(parent=parent, ns=ns, name=name)
         self.trees = trees
         self._bodies = bodies
-        self.shapes = shapes or []
+        self.shapes = shapes
         self._joints_spec = joints_spec
         self.anchor = anchor
 
@@ -102,8 +104,6 @@ class KinematicGraph(IHasNamespaceDeclare, IDefaultFrame):
 
     @property
     def default_frame(self) -> Frame:
-        if self.anchor is not None:
-            return self.anchor
         if not self.bodies:
             raise ValueError(f"default_frame: {self} has no body")
         return self.bodies[0].default_frame
@@ -116,7 +116,8 @@ class KinematicTreeModel(KinematicGraph):
 
     def __init__(self, parent, ns, name, root_frame, trees, bodies, joints_spec) -> None:
         # A tree hangs from its root, so it declares no anchor: only a graph stands on one.
-        super().__init__(parent, ns, name, trees, bodies, joints_spec, anchor=None)
+        # Its shapes hang on its bodies: the grammar gives a tree none of its own.
+        super().__init__(parent, ns, name, trees, bodies, joints_spec, anchor=None, shapes=[])
         self._root_frame = root_frame
 
     @property
@@ -228,11 +229,7 @@ class SceneShape(IHasNamespace):
         self.name = name
         self.frame = frame
         self.unit = unit
-        self.color = None if color is None else [float(value) for value in color.values]
-        if self.color is not None and (
-            len(self.color) != 4 or any(not isfinite(v) or not 0 <= v <= 1 for v in self.color)
-        ):
-            raise ValueError(f"shape '{name}' color requires four RGBA channels in [0, 1]")
+        self.color: Color | None = color
 
     @property
     def namespace(self) -> Namespace:

@@ -131,8 +131,20 @@ reflection are not supported.
 
 File-based shapes use `shape file` with a `.stl` `path` and optional scalar or
 three-component scale. Declare the unit of the STL coordinates with `unit:`.
-The STL mesh keeps its authored origin. Any shape may have an optional RGBA
-`color` in `[0, 1]`. Shapes do not supply mass or inertia.
+The STL mesh keeps its authored origin. Shapes do not supply mass or inertia.
+
+Any shape may have an optional `color`, in one of the schemes of the
+[color metamodel](https://github.com/secorolab/metamodels/blob/main/color.shacl.ttl):
+
+| Form | Scheme | Channels |
+| --- | --- | --- |
+| `rgb(230, 51, 51)` | RGB | integers in `[0, 255]` |
+| `rgba(230, 51, 51, 255)` | RGBA | integers in `[0, 255]`, alpha included |
+| `#E63333` / `#E63333FF` | RGB / RGBA | the same channels in hex |
+| `hsv(210, 0.6, 0.9)` | HSV | hue in degrees `[0, 360)`, saturation and value in `[0, 1]` |
+
+RGB and RGBA colours are exported as hex, which carries 0-255 channels exactly; HSV
+is exported as written.
 
 From this repository directory, view the
 [Kinova example](examples/models/kinova_with_objects.scenex) to see primitive

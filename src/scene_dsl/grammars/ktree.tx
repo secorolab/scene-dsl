@@ -1,6 +1,7 @@
 import base
 import distrib
 import geom
+import color
 
 MassUnit: 'kg' | 'g' ;
 InertiaUnit: 'kg*m^2' ;
@@ -58,7 +59,7 @@ PrimitiveShape:
     'frame' ':' '<' frame=[Frame|FQN] '>'
     'unit' ':' unit=LengthUnit
     ('scale' ':' scale=ScaleSpec)?
-    ('color' ':' color=FloatVector)?
+    ('color' ':' color=Color)?
 '}'
 ;
 
@@ -68,7 +69,7 @@ FileBasedShape:
     'path' ':' path=STRING
     'unit' ':' unit=LengthUnit
     ('scale' ':' scale=ScaleSpec)?
-    ('color' ':' color=FloatVector)?
+    ('color' ':' color=Color)?
 '}'
 ;
 

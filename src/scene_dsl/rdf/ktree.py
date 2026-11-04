@@ -1,5 +1,4 @@
 # SPDX-License-Identifier: MPL-2.0
-from decimal import Decimal
 from pathlib import Path
 from urllib.parse import quote
 
@@ -97,6 +96,7 @@ from scene_dsl.classes.ktree import (
     SceneShape,
     SerialJoints,
 )
+from scene_dsl.rdf.color import add_color
 from scene_dsl.rdf.geom import (
     ANGLE_UNITS,
     LENGTH_UNITS,
@@ -107,7 +107,6 @@ from scene_dsl.rdf.geom import (
 SHAPES = Namespace("https://secorolab.github.io/metamodels/geometry/shapes#")
 PROV = Namespace("http://www.w3.org/ns/prov#")
 PROV_EXT = Namespace("https://secorolab.github.io/metamodels/prov#")
-COL = Namespace("https://secorolab.github.io/metamodels/color#")
 
 
 def add_shape_scale(graph: Graph, shape: SceneShape) -> None:
@@ -125,17 +124,7 @@ def add_shape_common(graph: Graph, shape: SceneShape) -> None:
     graph.add((shape.uri, SHAPES["attached-to-frame"], shape.frame.uri))
     graph.add((shape.uri, URI_QUDT_PRED_UNIT, LENGTH_UNITS[shape.unit]))
     if shape.color is not None:
-        graph.bind("col", COL)
-        graph.add((shape.uri, COL["has-color"], shape.color_uri))
-        graph.add((shape.color_uri, RDF.type, COL.Color))
-        graph.add((shape.color_uri, RDF.type, COL.RGBAScheme))
-        graph.add(
-            (
-                shape.color_uri,
-                COL.value,
-                Literal(" ".join(format(Decimal(str(abs(v))), "f") for v in shape.color)),
-            )
-        )
+        add_color(graph, shape.uri, shape.color_uri, shape.color)
 
 
 def add_shape(graph: Graph, shape: SceneShape) -> None:

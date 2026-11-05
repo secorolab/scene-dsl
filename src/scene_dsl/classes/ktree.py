@@ -241,7 +241,7 @@ class SceneShape(IHasNamespace):
 
     @property
     def color_uri(self) -> URIRef:
-        return URIRef(f"{self.uri}/color")
+        return self.namespace[self.scoped("-color")]
 
 
 def _positive_scale(scale, name: str) -> float | list[float]:
@@ -276,6 +276,16 @@ class FileBasedShape(SceneShape):
             raise ValueError(f"file shape '{name}' needs a path")
         if not self.path.lower().endswith(".stl"):
             raise ValueError(f"file shape '{name}' requires a .stl path")
+
+    @property
+    def file_uri(self) -> URIRef:
+        """The file the shape is derived from."""
+        return self.namespace[self.scoped("-file")]
+
+    @property
+    def file_relative_location_uri(self) -> URIRef:
+        """Where a relative `path` points: under the directory of the model naming it."""
+        return self.namespace[self.scoped("-file-relative-location")]
 
 
 class RigidBodyInertia:

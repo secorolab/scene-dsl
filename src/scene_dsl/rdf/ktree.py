@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MPL-2.0
 from pathlib import Path
-from urllib.parse import quote
 
+from rdf_utils.models.prov import add_entity, add_file_entity, add_relative_location
 from rdf_utils.models.vocab import (
     URI_ACT_PRED_COMMAND_INTERFACE,
     URI_ACT_PRED_GEAR_RATIO,
@@ -60,8 +60,6 @@ from rdf_utils.models.vocab import (
     URI_KC_TYPE_REVOLUTE_JOINT,
     URI_KC_TYPE_REVOLUTE_JOINT_ORIENTED_AXIS,
     URI_KC_TYPE_SERIAL,
-    URI_PROV_EXT_PRED_REL_PATH,
-    URI_PROV_EXT_TYPE_RELATIVE_LOCATION,
     URI_QUDT_PRED_QUANTITY_KIND,
     URI_QUDT_PRED_UNIT,
     URI_QUDT_PRED_VALUE,
@@ -137,36 +135,26 @@ def add_shape(graph: Graph, shape: SceneShape) -> None:
     elif isinstance(shape, FileBasedShape):
         add_shape_common(graph, shape)
         graph.add((shape.uri, RDF.type, SHAPES.FileBasedShape))
-        graph.add((shape.uri, RDF.type, PROV.Entity))
-        source = URIRef(f"{shape.uri}/source")
-        authored = Path(shape.path).expanduser()
+        add_entity(graph, shape.uri)
         graph.bind("prov", PROV)
-        graph.add((shape.uri, PROV.wasDerivedFrom, source))
-        graph.add((source, RDF.type, PROV.Entity))
+        graph.add((shape.uri, PROV.wasDerivedFrom, shape.file_uri))
+        authored = Path(shape.path).expanduser()
         if authored.is_absolute():
             location = URIRef(authored.resolve().as_uri())
-            graph.add((source, PROV.atLocation, location))
             graph.add((location, RDF.type, PROV.Location))
+            add_file_entity(graph, shape.file_uri, location)
         else:
-            location = URIRef(f"{source}/location")
-            filename = getattr(get_model(shape), "_tx_filename", None)
-            base = Path(filename).resolve().parent if filename else Path.cwd()
-            base_uri = base.resolve().as_uri()
-            base_uri = URIRef(base_uri if base_uri.endswith("/") else f"{base_uri}/")
             graph.bind("prov-ext", NS_MM_PROV_EXT)
-            graph.add((source, PROV.atLocation, location))
-            graph.add((location, RDF.type, URI_PROV_EXT_TYPE_RELATIVE_LOCATION))
-            graph.add((location, RDF.type, PROV.Location))
-            graph.add((location, RDF.type, PROV.Entity))
-            graph.add((
-                location, URI_PROV_EXT_PRED_REL_PATH,
-                Literal(quote(shape.path, safe="/-._~"), datatype=XSD.anyURI),
-            ))
-            graph.add((location, PROV.atLocation, base_uri))
-            graph.add((base_uri, RDF.type, PROV.Location))
+            add_relative_location(graph, shape.file_relative_location_uri, shape.path, root=_model_dir(shape))
+            add_file_entity(graph, shape.file_uri, shape.file_relative_location_uri)
         add_shape_scale(graph, shape)
     else:
         raise TypeError(f"Unhandled shape type: {type(shape).__name__}")
+
+def _model_dir(obj) -> Path:
+    """The directory of the model file `obj` came from: what its relative paths are under."""
+    filename = get_model(obj)._tx_filename
+    return Path(filename).resolve().parent if filename else Path.cwd()
 
 ACTUATION_INTERFACE_TYPES = {
     "position": URI_KC_STAT_JNT_POSITION,

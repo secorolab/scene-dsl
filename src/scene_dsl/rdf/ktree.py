@@ -119,10 +119,8 @@ def add_shape_scale(graph: Graph, shape: SceneShape) -> None:
     if shape.scale is None:
         return
     graph.add((shape.uri, RDF.type, SHAPES.ScaledShape))
-    uniform = not isinstance(shape.scale, list)
-    for index, axis in enumerate("xyz"):
-        value = shape.scale if uniform else shape.scale[index]
-        graph.add((shape.uri, SHAPES[f"scale-{axis}"], Literal(value, datatype=XSD.double)))
+    for axis, factor in zip("xyz", shape.scale, strict=True):
+        graph.add((shape.uri, SHAPES[f"scale-{axis}"], Literal(factor, datatype=XSD.double)))
 
 
 def add_shape_common(graph: Graph, shape: SceneShape) -> None:

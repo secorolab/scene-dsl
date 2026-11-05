@@ -118,7 +118,16 @@ class KinematicTreeModel(KinematicGraph):
     def __init__(self, parent, ns, name, root_frame, trees, bodies, joints_spec) -> None:
         # A tree hangs from its root, so it declares no anchor: only a graph stands on one.
         # Its shapes hang on its bodies: the grammar gives a tree none of its own.
-        super().__init__(parent, ns, name, trees, bodies, joints_spec, anchor=None, shapes=[])
+        super().__init__(
+            parent=parent,
+            ns=ns,
+            name=name,
+            trees=trees,
+            bodies=bodies,
+            joints_spec=joints_spec,
+            anchor=None,
+            shapes=[],
+        )
         self._root_frame = root_frame
 
     @property
@@ -155,7 +164,15 @@ class KinematicTreeInstance(KinematicTreeModel):
     def __init__(self, parent, ns, name, template) -> None:
         # The template's structure is copied in by copy_template, which is what fills the root
         # frame: an instance cannot name it before its own copy of that frame exists.
-        super().__init__(parent, ns, name, root_frame=None, trees=[], bodies=[], joints_spec=None)
+        super().__init__(
+            parent=parent,
+            ns=ns,
+            name=name,
+            root_frame=None,
+            trees=[],
+            bodies=[],
+            joints_spec=None,
+        )
         self.template = template
 
     def copy_template(self) -> None:
@@ -225,12 +242,23 @@ class RigidBody(IHasNamespace, IDefaultFrame):
 
 
 class SceneShape(IHasNamespace):
-    def __init__(self, parent, name, frame, unit, color=None) -> None:
+    kind: str
+    # One factor per axis, or None when unscaled: a scalar scale is the same factor on all three.
+    scale: list[float] | None
+
+    def __init__(self, parent, name, frame, unit, scale=None, color=None) -> None:
         super().__init__(parent=parent)
         self.name = name
         self.frame = frame
         self.unit = unit
         self.color: Color | None = color
+        self.scale = None
+        if scale is not None:
+            context = f"{self.kind} '{name}' scale"
+            self.scale = list(scale.as_xyz(context)) if isinstance(scale, FloatVector) else [scale] * 3
+            for factor in self.scale:
+                if not isfinite(factor) or factor <= 0:
+                    raise ValueError(f"{context} is {factor}, expected a finite positive number")
 
     @property
     def namespace(self) -> Namespace:
@@ -245,14 +273,6 @@ class SceneShape(IHasNamespace):
         return self.namespace[self.scoped("-color")]
 
 
-def _positive_scale(scale, name: str) -> float | list[float]:
-    values = list(scale.as_xyz(name)) if isinstance(scale, FloatVector) else [scale]
-    for v in values:
-        if not isfinite(v) or v <= 0:
-            raise ValueError(f"{name} is {v}, expected a finite positive number")
-    return values if isinstance(scale, FloatVector) else scale
-
-
 class PrimitiveShapeType(StrEnum):
     CUBE = "UnitCube"
     CYLINDER = "UnitCylinder"
@@ -261,19 +281,28 @@ class PrimitiveShapeType(StrEnum):
 
 class PrimitiveShape(SceneShape):
     def __init__(self, parent, name, frame, unit, scale, shape_type, color=None) -> None:
-        super().__init__(parent, name, frame, unit, color)
+        # Before super(): the scale's error messages name the primitive.
         self.shape_type = PrimitiveShapeType(shape_type)
-        self.scale = None if scale is None else _positive_scale(scale, f"{self.shape_type} '{name}' scale")
+        super().__init__(
+            parent=parent, name=name, frame=frame, unit=unit, scale=scale, color=color
+        )
+
+    @property
+    def kind(self) -> str:
+        return str(self.shape_type)
 
 
 class FileBasedShape(SceneShape):
+    kind = "file shape"
+
     def __init__(
         self, parent, name, frame, file, unit, scale=None, color=None
     ) -> None:
-        super().__init__(parent, name, frame, unit, color)
+        super().__init__(
+            parent=parent, name=name, frame=frame, unit=unit, scale=scale, color=color
+        )
         # A SystemPath or a RosPath, as an element model names its file.
         self.file = file
-        self.scale = None if scale is None else _positive_scale(scale, f"file shape '{name}' scale")
         if not self.path:
             raise ValueError(f"file shape '{name}' needs a path")
         if not self.path.lower().endswith(".stl"):

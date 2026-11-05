@@ -47,7 +47,7 @@ class RGBAColor(RGBColor):
     scheme = ColorScheme.RGBA
 
     def __init__(self, parent, red: int, green: int, blue: int, alpha: int) -> None:
-        super().__init__(parent, red, green, blue)
+        super().__init__(parent=parent, red=red, green=green, blue=blue)
         if not 0 <= alpha <= 255:
             raise ValueError(f"alpha is {alpha}, expected an integer in [0, 255]")
         self.alpha = alpha

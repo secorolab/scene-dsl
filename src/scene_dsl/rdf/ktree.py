@@ -1,12 +1,5 @@
 # SPDX-License-Identifier: MPL-2.0
-from pathlib import Path
-
-from rdf_utils.models.prov import (
-    add_directory_location,
-    add_entity,
-    add_file_entity,
-    load_pkg_prov,
-)
+from rdf_utils.models.prov import add_entity
 from rdf_utils.models.vocab import (
     URI_ACT_PRED_COMMAND_INTERFACE,
     URI_ACT_PRED_GEAR_RATIO,
@@ -83,12 +76,10 @@ from rdf_utils.models.vocab import (
     URI_QUDT_UNIT_RAD,
     URI_QUDT_UNIT_RAD_PER_SEC,
     URI_QUDT_UNIT_RAD_PER_SEC2,
-    URI_ROS_TYPE_PACKAGE,
 )
-from rdf_utils.namespace import NS_MM_PROV_EXT, NS_MM_ROS
+from rdf_utils.namespace import NS_MM_PROV_EXT
 from rdflib import RDF, XSD, Graph, Literal, Namespace, URIRef
 from rdflib.namespace import PROV
-from textx import get_model
 
 from scene_dsl.classes.ktree import (
     Actuation,
@@ -105,6 +96,7 @@ from scene_dsl.classes.ktree import (
     SerialJoints,
 )
 from scene_dsl.rdf.color import add_color
+from scene_dsl.rdf.common import add_file_spec
 from scene_dsl.rdf.geom import (
     ANGLE_UNITS,
     LENGTH_UNITS,
@@ -143,38 +135,10 @@ def add_shape(graph: Graph, shape: SceneShape) -> None:
         graph.bind("prov", PROV)
         graph.bind("prov-ext", NS_MM_PROV_EXT)
         graph.add((shape.uri, PROV.wasDerivedFrom, shape.file_uri))
-        add_file_spec(graph, shape)
+        add_file_spec(graph, shape.file_uri, shape.file)
         add_shape_scale(graph, shape)
     else:
         raise TypeError(f"Unhandled shape type: {type(shape).__name__}")
-
-
-def add_file_spec(graph: Graph, shape: FileBasedShape) -> None:
-    """The file a shape is derived from, located as its SystemPath or RosPath names it."""
-    file_spec = shape.file
-    file_spec_type = file_spec.__class__.__name__
-    if "RosPath" in file_spec_type:
-        # One IRI per package, its ROS index page, whichever scene names it.
-        root = NS_MM_ROS[file_spec.pkg]
-        load_pkg_prov(graph, root, file_spec.pkg, additional_types=(URI_ROS_TYPE_PACKAGE,))
-    elif "SystemPath" in file_spec_type:
-        if Path(file_spec.path).expanduser().is_absolute():
-            root = None
-        else:
-            root = add_directory_location(graph, _model_dir(shape))
-    else:
-        raise ValueError(f"Unhandled file specification type: {file_spec_type}")
-
-    add_file_entity(graph, shape.file_uri, root, file_spec.path)
-    if root is None:
-        # An absolute path is its own location.
-        graph.add((graph.value(shape.file_uri, PROV.atLocation), RDF.type, PROV.Location))
-
-
-def _model_dir(obj) -> Path:
-    """The directory of the model file `obj` came from: what its relative paths are under."""
-    filename = get_model(obj)._tx_filename
-    return Path(filename).resolve().parent if filename else Path.cwd()
 
 
 ACTUATION_INTERFACE_TYPES = {

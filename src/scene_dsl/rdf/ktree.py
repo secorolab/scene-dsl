@@ -76,9 +76,12 @@ from rdf_utils.models.vocab import (
     URI_QUDT_UNIT_RAD,
     URI_QUDT_UNIT_RAD_PER_SEC,
     URI_QUDT_UNIT_RAD_PER_SEC2,
+    URI_SHAPES_PRED_ATTACHED_TO_FRAME,
+    URI_SHAPES_TYPE_FILE_BASED_SHAPE,
+    URI_SHAPES_TYPE_SCALED_SHAPE,
 )
-from rdf_utils.namespace import NS_MM_PROV_EXT
-from rdflib import RDF, XSD, Graph, Literal, Namespace, URIRef
+from rdf_utils.namespace import NS_MM_PROV_EXT, NS_MM_SHAPES
+from rdflib import RDF, XSD, Graph, Literal, URIRef
 from rdflib.namespace import PROV
 
 from scene_dsl.classes.ktree import (
@@ -104,20 +107,18 @@ from scene_dsl.rdf.geom import (
     add_position_coord,
 )
 
-SHAPES = Namespace("https://secorolab.github.io/metamodels/geometry/shapes#")
-
 
 def add_shape_scale(graph: Graph, shape: SceneShape) -> None:
     if shape.scale is None:
         return
-    graph.add((shape.uri, RDF.type, SHAPES.ScaledShape))
+    graph.add((shape.uri, RDF.type, URI_SHAPES_TYPE_SCALED_SHAPE))
     for axis, factor in zip("xyz", shape.scale, strict=True):
-        graph.add((shape.uri, SHAPES[f"scale-{axis}"], Literal(factor, datatype=XSD.double)))
+        graph.add((shape.uri, NS_MM_SHAPES[f"scale-{axis}"], Literal(factor, datatype=XSD.double)))
 
 
 def add_shape_common(graph: Graph, shape: SceneShape) -> None:
-    graph.bind("shapes", SHAPES)
-    graph.add((shape.uri, SHAPES["attached-to-frame"], shape.frame.uri))
+    graph.bind("shapes", NS_MM_SHAPES)
+    graph.add((shape.uri, URI_SHAPES_PRED_ATTACHED_TO_FRAME, shape.frame.uri))
     graph.add((shape.uri, URI_QUDT_PRED_UNIT, LENGTH_UNITS[shape.unit]))
     if shape.color is not None:
         add_color(graph, shape.uri, shape.color_uri, shape.color)
@@ -126,11 +127,11 @@ def add_shape_common(graph: Graph, shape: SceneShape) -> None:
 def add_shape(graph: Graph, shape: SceneShape) -> None:
     if isinstance(shape, PrimitiveShape):
         add_shape_common(graph, shape)
-        graph.add((shape.uri, RDF.type, SHAPES[shape.shape_type.value]))
+        graph.add((shape.uri, RDF.type, NS_MM_SHAPES[shape.shape_type.value]))
         add_shape_scale(graph, shape)
     elif isinstance(shape, FileBasedShape):
         add_shape_common(graph, shape)
-        graph.add((shape.uri, RDF.type, SHAPES.FileBasedShape))
+        graph.add((shape.uri, RDF.type, URI_SHAPES_TYPE_FILE_BASED_SHAPE))
         add_entity(graph, shape.uri)
         graph.bind("prov", PROV)
         graph.bind("prov-ext", NS_MM_PROV_EXT)

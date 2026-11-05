@@ -122,7 +122,7 @@ scene inst (ns=scene_lab_mjc) kinova_with_objects {
         }
         shape file static_marker {
             frame: <world_tree.world_body.static_marker_frame>
-            path: "../assets/tetra.stl"
+            sys path = "../assets/tetra.stl"
             unit: cm
             scale: 5
         }

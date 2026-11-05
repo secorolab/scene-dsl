@@ -4,6 +4,7 @@ from __future__ import annotations
 from copy import deepcopy
 from enum import StrEnum
 from math import isfinite
+from pathlib import PurePath
 from typing import Any
 
 import numpy as np
@@ -267,25 +268,32 @@ class PrimitiveShape(SceneShape):
 
 class FileBasedShape(SceneShape):
     def __init__(
-        self, parent, name, frame, path, unit, scale=None, color=None
+        self, parent, name, frame, file, unit, scale=None, color=None
     ) -> None:
         super().__init__(parent, name, frame, unit, color)
-        self.path = path
+        # A SystemPath or a RosPath, as an element model names its file.
+        self.file = file
         self.scale = None if scale is None else _positive_scale(scale, f"file shape '{name}' scale")
         if not self.path:
             raise ValueError(f"file shape '{name}' needs a path")
         if not self.path.lower().endswith(".stl"):
             raise ValueError(f"file shape '{name}' requires a .stl path")
+        if self.ros_package is not None and PurePath(self.path).is_absolute():
+            raise ValueError(f"file shape '{name}' needs a path relative to its ROS package")
+
+    @property
+    def path(self) -> str:
+        return self.file.path
+
+    @property
+    def ros_package(self) -> str | None:
+        """The ROS package the path is relative to, if it names one."""
+        return getattr(self.file, "pkg", None)
 
     @property
     def file_uri(self) -> URIRef:
         """The file the shape is derived from."""
         return self.namespace[self.scoped("-file")]
-
-    @property
-    def file_relative_location_uri(self) -> URIRef:
-        """Where a relative `path` points: under the directory of the model naming it."""
-        return self.namespace[self.scoped("-file-relative-location")]
 
 
 class RigidBodyInertia:

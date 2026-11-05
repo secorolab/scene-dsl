@@ -129,8 +129,17 @@ cylinder X/Y factors make an elliptical cylinder. The primitive type identifies
 the unit base before scaling. Scale acts before the frame pose. Shear and
 reflection are not supported.
 
-File-based shapes use `shape file` with a `.stl` `path` and optional scalar or
-three-component scale. Declare the unit of the STL coordinates with `unit:`.
+File-based shapes use `shape file` with a `.stl` file and optional scalar or
+three-component scale. Name the file as an element model names its file: on
+this system, absolute or relative to the `.scenex` declaring the shape, or in a
+ROS package:
+
+```text
+shape file marker { frame: <f> sys path = "../assets/tetra.stl" unit: cm }
+shape file base { frame: <g> ros pkg = "kortex_description", path = "meshes/base_link.stl" unit: m }
+```
+
+Declare the unit of the STL coordinates with `unit:`.
 The STL mesh keeps its authored origin. Shapes do not supply mass or inertia.
 
 Any shape may have an optional `color`, in one of the schemes of the
@@ -166,10 +175,13 @@ A scaled shape has type `shapes:ScaledShape`. Its `shapes:scale-x`,
 `shapes:scale-y`, and `shapes:scale-z` values are dimensionless `xsd:double`
 literals. A scalar DSL scale writes the same value on all three axes; three
 values write the corresponding factor on each axis.
-For an STL mesh, RDF links the shape to a `prov:Entity` for its source file.
-For a relative DSL path, the source has a `prov-ext:RelativeLocation` whose
-`rel-path` is relative to the authored `.scenex` directory. An absolute DSL
-path becomes a `file:` IRI typed `prov:Location`. Generated runs copy the STL
+For an STL mesh, RDF links the shape to a `prov:Entity` for its source file,
+located with the [rdf-utils](https://github.com/minhnh/rdf-utils) PROV helpers.
+A relative `sys path` is a `prov-ext:RelativeLocation` under the authored
+`.scenex` directory; a `ros pkg` path is one under the package, a `ros:Package`
+named by its `https://index.ros.org/p/<pkg>` IRI. An absolute `sys path` becomes
+a `file:` IRI typed `prov:Location`. rdf-utils' `get_file_path` resolves any
+of them to a local file. Generated runs copy the STL
 beside the controller, so they no longer depend on the original checkout.
 The companion metamodels repository validates
 these nodes. MuJoCo keeps cubes as boxes and isotropically scaled spheres and

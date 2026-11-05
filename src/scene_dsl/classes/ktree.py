@@ -236,17 +236,15 @@ class RigidBody(IHasNamespace, IDefaultFrame):
 
 
 class SceneShape(IHasNamespace):
-    kind: str
-    # One factor per axis, or None when unscaled: a scalar scale is the same factor on all three.
-    scale: list[float] | None
-
-    def __init__(self, parent, name, frame, unit, scale=None, color=None) -> None:
+    def __init__(self, parent, name, frame, unit, kind, scale=None, color=None) -> None:
         super().__init__(parent=parent)
         self.name = name
         self.frame = frame
         self.unit = unit
+        self.kind: str = kind
         self.color: Color | None = color
-        self.scale = None
+        # One factor per axis, or None when unscaled: a scalar scale is the same factor on all three.
+        self.scale: list[float] | None = None
         if scale is not None:
             context = f"{self.kind} '{name}' scale"
             self.scale = list(scale.as_xyz(context)) if isinstance(scale, FloatVector) else [scale] * 3
@@ -275,25 +273,18 @@ class PrimitiveShapeType(StrEnum):
 
 class PrimitiveShape(SceneShape):
     def __init__(self, parent, name, frame, unit, scale, shape_type, color=None) -> None:
-        # Before super(): the scale's error messages name the primitive.
         self.shape_type = PrimitiveShapeType(shape_type)
         super().__init__(
-            parent=parent, name=name, frame=frame, unit=unit, scale=scale, color=color
+            parent=parent, name=name, frame=frame, unit=unit, kind=str(self.shape_type),
+            scale=scale, color=color,
         )
-
-    @property
-    def kind(self) -> str:
-        return str(self.shape_type)
 
 
 class FileBasedShape(SceneShape):
-    kind = "file shape"
-
-    def __init__(
-        self, parent, name, frame, file, unit, scale=None, color=None
-    ) -> None:
+    def __init__(self, parent, name, frame, file, unit, scale=None, color=None) -> None:
         super().__init__(
-            parent=parent, name=name, frame=frame, unit=unit, scale=scale, color=color
+            parent=parent, name=name, frame=frame, unit=unit, kind="file shape",
+            scale=scale, color=color,
         )
         # A SystemPath or a RosPath, as an element model names its file.
         self.file = file

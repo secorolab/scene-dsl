@@ -18,6 +18,12 @@ ktree (ns=scene_lab_mjc) world_tree {
                 orientation: euler { angles: (0.0, 0.0, 0.0) unit: rad }
             }
         }
+        shape file static_marker {
+            frame: <static_marker_frame>
+            sys path = "../assets/tetra.stl"
+            unit: cm
+            scale: 5
+        }
     }
 
     body table_body {
@@ -119,12 +125,6 @@ scene inst (ns=scene_lab_mjc) kinova_with_objects {
                     (0.0, 0.0, 0.001)
                 ) kg*m^2
             }
-        }
-        shape file static_marker {
-            frame: <world_tree.world_body.static_marker_frame>
-            sys path = "../assets/tetra.stl"
-            unit: cm
-            scale: 5
         }
     }
 

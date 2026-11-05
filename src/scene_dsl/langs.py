@@ -434,16 +434,10 @@ def check_shape_frames(model, metamodel):
     for shape in get_children(lambda item: isinstance(item, SceneShape), model):
         if shape.frame is None:
             continue
-        owner = shape.frame.parent
-        if isinstance(shape.parent, KinematicGraph):
-            valid = isinstance(owner, RigidBody) and id(owner.parent) in shape.parent.subtrees
-            expected = f"a body in '{shape.parent.name}'"
-        else:
-            valid = owner is shape.parent
-            expected = f"'{shape.parent.name}'"
-        if not valid:
+        # A shape hangs on its body, so its frame must be one of that body's.
+        if shape.frame.parent is not shape.parent:
             raise TextXSemanticError(
-                f"shape '{shape.name}' must use a frame owned by {expected}",
+                f"shape '{shape.name}' must use a frame owned by '{shape.parent.name}'",
                 **get_location(shape),
             )
 

@@ -451,8 +451,6 @@ def add_kinematic_graph(graph: Graph, kgraph: KinematicGraph, seen_trees: set[UR
         add_kinematic_tree(graph=graph, tree=tree, seen_trees=seen_trees)
     for body in kgraph.bodies:
         add_body(graph=graph, body=body)
-    for shape in kgraph.shapes:
-        add_shape(graph, shape)
 
     # Every body no joint attaches, a graph hanging from many where a tree has one. This
     # is what says the bodies and the trees standing on them are this graph's.

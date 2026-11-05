@@ -1,3 +1,5 @@
+import re
+
 import pytest
 from rdf_utils.constraints import check_shacl_constraints
 from rdf_utils.models.geom_coord import (
@@ -56,7 +58,9 @@ from scene_dsl.rdf.ktree import (
     ACTUATION_INTERFACE_TYPES,
     INERTIA_UNITS,
     MASS_UNITS,
+    SHAPES,
     add_body,
+    add_shape,
 )
 from scene_dsl.rdf.scenex import create_scenex_model_graph
 from scene_dsl.rdf_parser.kinematics import RigidBodyModel
@@ -367,6 +371,53 @@ def test_rigid_body_inertia_rejects_non_symmetric_matrix():
             row3=FloatVector(None, [0.0, 0.0, 1.0]),
             inertia_unit="kg*m^2",
         )
+
+
+def _scaled_shape(scale: str):
+    model = scenex_metamodel().model_from_str(
+        f"""ns n = "https://example.test/"
+ktree (ns=n) t {{ root: <b.f>
+    body b {{
+        frame f {{ }}
+        shape UnitCube box {{ frame: <f> unit: m scale: {scale} }}
+    }}
+    joints {{ }}
+}}
+"""
+    )
+    [shape] = model.ktrees[0].bodies[0].shapes
+    return shape
+
+
+@pytest.mark.parametrize(
+    ("authored", "per_axis"),
+    [
+        ("2", (2.0, 2.0, 2.0)),
+        ("(0.5, 1.0, 1.5)", (0.5, 1.0, 1.5)),
+    ],
+)
+def test_shape_scale_exports_one_factor_per_axis(authored, per_axis):
+    shape = _scaled_shape(authored)
+    graph = Graph()
+    add_shape(graph, shape)
+
+    assert (shape.uri, RDF.type, SHAPES.ScaledShape) in graph
+    for axis, factor in zip("xyz", per_axis, strict=True):
+        assert graph.value(shape.uri, SHAPES[f"scale-{axis}"]).toPython() == factor
+
+
+@pytest.mark.parametrize(
+    ("authored", "message"),
+    [
+        ("(2.0)", "UnitCube 'box' scale requires 3 values, got 1"),
+        ("(1.0, 2.0)", "UnitCube 'box' scale requires 3 values, got 2"),
+        ("0", "UnitCube 'box' scale is 0.0, expected a finite positive number"),
+        ("(1.0, -2.0, 3.0)", "UnitCube 'box' scale is -2.0, expected a finite positive number"),
+    ],
+)
+def test_bad_shape_scale_is_rejected(authored, message):
+    with pytest.raises(ValueError, match=re.escape(message)):
+        _scaled_shape(authored)
 
 
 def test_direction_cosine_orientation_rejects_non_orthogonal_matrix():

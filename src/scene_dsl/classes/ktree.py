@@ -244,11 +244,12 @@ class SceneShape(IHasNamespace):
         return URIRef(f"{self.uri}/color")
 
 
-def _positive_scale(scale, name: str):
-    values = [float(v) for v in scale.values] if isinstance(scale, FloatVector) else [float(scale)]
-    if len(values) not in (1, 3) or any(not isfinite(v) or v <= 0 for v in values):
-        raise ValueError(f"{name} requires one or three finite positive values")
-    return values if isinstance(scale, FloatVector) else values[0]
+def _positive_scale(scale, name: str) -> float | list[float]:
+    values = list(scale.as_xyz(name)) if isinstance(scale, FloatVector) else [scale]
+    for v in values:
+        if not isfinite(v) or v <= 0:
+            raise ValueError(f"{name} is {v}, expected a finite positive number")
+    return values if isinstance(scale, FloatVector) else scale
 
 
 class PrimitiveShapeType(StrEnum):

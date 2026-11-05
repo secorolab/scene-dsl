@@ -60,6 +60,8 @@ from rdf_utils.models.vocab import (
     URI_KC_TYPE_REVOLUTE_JOINT,
     URI_KC_TYPE_REVOLUTE_JOINT_ORIENTED_AXIS,
     URI_KC_TYPE_SERIAL,
+    URI_PROV_EXT_PRED_REL_PATH,
+    URI_PROV_EXT_TYPE_RELATIVE_LOCATION,
     URI_QUDT_PRED_QUANTITY_KIND,
     URI_QUDT_PRED_UNIT,
     URI_QUDT_PRED_VALUE,
@@ -79,7 +81,9 @@ from rdf_utils.models.vocab import (
     URI_QUDT_UNIT_RAD_PER_SEC,
     URI_QUDT_UNIT_RAD_PER_SEC2,
 )
+from rdf_utils.namespace import NS_MM_PROV_EXT
 from rdflib import RDF, XSD, Graph, Literal, Namespace, URIRef
+from rdflib.namespace import PROV
 from textx import get_model
 
 from scene_dsl.classes.ktree import (
@@ -105,8 +109,6 @@ from scene_dsl.rdf.geom import (
 )
 
 SHAPES = Namespace("https://secorolab.github.io/metamodels/geometry/shapes#")
-PROV = Namespace("http://www.w3.org/ns/prov#")
-PROV_EXT = Namespace("https://secorolab.github.io/metamodels/prov#")
 
 
 def add_shape_scale(graph: Graph, shape: SceneShape) -> None:
@@ -151,13 +153,13 @@ def add_shape(graph: Graph, shape: SceneShape) -> None:
             base = Path(filename).resolve().parent if filename else Path.cwd()
             base_uri = base.resolve().as_uri()
             base_uri = URIRef(base_uri if base_uri.endswith("/") else f"{base_uri}/")
-            graph.bind("prov-ext", PROV_EXT)
+            graph.bind("prov-ext", NS_MM_PROV_EXT)
             graph.add((source, PROV.atLocation, location))
-            graph.add((location, RDF.type, PROV_EXT.RelativeLocation))
+            graph.add((location, RDF.type, URI_PROV_EXT_TYPE_RELATIVE_LOCATION))
             graph.add((location, RDF.type, PROV.Location))
             graph.add((location, RDF.type, PROV.Entity))
             graph.add((
-                location, PROV_EXT["rel-path"],
+                location, URI_PROV_EXT_PRED_REL_PATH,
                 Literal(quote(shape.path, safe="/-._~"), datatype=XSD.anyURI),
             ))
             graph.add((location, PROV.atLocation, base_uri))

@@ -1,5 +1,4 @@
 import base
-import distrib
 import geom
 import color
 

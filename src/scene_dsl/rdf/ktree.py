@@ -143,26 +143,32 @@ def add_shape(graph: Graph, shape: SceneShape) -> None:
         graph.bind("prov", PROV)
         graph.bind("prov-ext", NS_MM_PROV_EXT)
         graph.add((shape.uri, PROV.wasDerivedFrom, shape.file_uri))
-        root = _file_root(graph, shape)
-        add_file_entity(graph, shape.file_uri, root, shape.path)
-        if root is None:
-            # An absolute path is its own location.
-            graph.add((graph.value(shape.file_uri, PROV.atLocation), RDF.type, PROV.Location))
+        add_file_spec(graph, shape)
         add_shape_scale(graph, shape)
     else:
         raise TypeError(f"Unhandled shape type: {type(shape).__name__}")
 
 
-def _file_root(graph: Graph, shape: FileBasedShape) -> URIRef | None:
-    """What a file shape's path is under: its ROS package, its model's directory, or None if absolute."""
-    if shape.ros_package is not None:
+def add_file_spec(graph: Graph, shape: FileBasedShape) -> None:
+    """The file a shape is derived from, located as its SystemPath or RosPath names it."""
+    file_spec = shape.file
+    file_spec_type = file_spec.__class__.__name__
+    if "RosPath" in file_spec_type:
         # One IRI per package, its ROS index page, whichever scene names it.
-        package = NS_MM_ROS[shape.ros_package]
-        load_pkg_prov(graph, package, shape.ros_package, additional_types=(URI_ROS_TYPE_PACKAGE,))
-        return package
-    if Path(shape.path).expanduser().is_absolute():
-        return None
-    return add_directory_location(graph, _model_dir(shape))
+        root = NS_MM_ROS[file_spec.pkg]
+        load_pkg_prov(graph, root, file_spec.pkg, additional_types=(URI_ROS_TYPE_PACKAGE,))
+    elif "SystemPath" in file_spec_type:
+        if Path(file_spec.path).expanduser().is_absolute():
+            root = None
+        else:
+            root = add_directory_location(graph, _model_dir(shape))
+    else:
+        raise ValueError(f"Unhandled file specification type: {file_spec_type}")
+
+    add_file_entity(graph, shape.file_uri, root, file_spec.path)
+    if root is None:
+        # An absolute path is its own location.
+        graph.add((graph.value(shape.file_uri, PROV.atLocation), RDF.type, PROV.Location))
 
 
 def _model_dir(obj) -> Path:

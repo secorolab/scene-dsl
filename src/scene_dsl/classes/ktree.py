@@ -297,21 +297,12 @@ class FileBasedShape(SceneShape):
         )
         # A SystemPath or a RosPath, as an element model names its file.
         self.file = file
-        if not self.path:
+        if not file.path:
             raise ValueError(f"file shape '{name}' needs a path")
-        if not self.path.lower().endswith(".stl"):
+        if not file.path.lower().endswith(".stl"):
             raise ValueError(f"file shape '{name}' requires a .stl path")
-        if self.ros_package is not None and PurePath(self.path).is_absolute():
+        if "RosPath" in type(file).__name__ and PurePath(file.path).is_absolute():
             raise ValueError(f"file shape '{name}' needs a path relative to its ROS package")
-
-    @property
-    def path(self) -> str:
-        return self.file.path
-
-    @property
-    def ros_package(self) -> str | None:
-        """The ROS package the path is relative to, if it names one."""
-        return getattr(self.file, "pkg", None)
 
     @property
     def file_uri(self) -> URIRef:

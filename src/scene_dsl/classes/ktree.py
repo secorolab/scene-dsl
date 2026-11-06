@@ -2,11 +2,15 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from enum import StrEnum
+from math import isfinite
+from pathlib import PurePath
 from typing import Any
 
 import numpy as np
 from rdflib import Namespace, URIRef
 
+from scene_dsl.classes.color import Color
 from scene_dsl.classes.common import (
     FloatVector,
     IHasNamespace,
@@ -33,7 +37,7 @@ class KinematicTreeTemplate(IHasParent):
 
 
 class KinematicGraph(IHasNamespaceDeclare, IDefaultFrame):
-    """Bodies, the joints between them, and the trees composed into them.
+    """Bodies, joints, and composed trees.
 
     A whole scene's kinematics: bodies may hang from nothing, and everything under it
     takes its namespace from it.
@@ -44,7 +48,7 @@ class KinematicGraph(IHasNamespaceDeclare, IDefaultFrame):
     _bodies: list[RigidBody]
     joints_spec: JointsSpec | None
     # The frame the graph stands on: where its ground meets the body everything else is
-    # placed against. A tree hangs from its root instead, so it declares none.
+    # placed against. A tree hangs from its root instead, so it declares none
     anchor: Frame | None
 
     def __init__(self, parent, ns, name, trees, bodies, joints_spec, anchor) -> None:
@@ -109,7 +113,15 @@ class KinematicTreeModel(KinematicGraph):
 
     def __init__(self, parent, ns, name, root_frame, trees, bodies, joints_spec) -> None:
         # A tree hangs from its root, so it declares no anchor: only a graph stands on one.
-        super().__init__(parent, ns, name, trees, bodies, joints_spec, anchor=None)
+        super().__init__(
+            parent=parent,
+            ns=ns,
+            name=name,
+            trees=trees,
+            bodies=bodies,
+            joints_spec=joints_spec,
+            anchor=None,
+        )
         self._root_frame = root_frame
 
     @property
@@ -146,7 +158,15 @@ class KinematicTreeInstance(KinematicTreeModel):
     def __init__(self, parent, ns, name, template) -> None:
         # The template's structure is copied in by copy_template, which is what fills the root
         # frame: an instance cannot name it before its own copy of that frame exists.
-        super().__init__(parent, ns, name, root_frame=None, trees=[], bodies=[], joints_spec=None)
+        super().__init__(
+            parent=parent,
+            ns=ns,
+            name=name,
+            root_frame=None,
+            trees=[],
+            bodies=[],
+            joints_spec=None,
+        )
         self.template = template
 
     def copy_template(self) -> None:
@@ -167,12 +187,14 @@ class KinematicTreeInstance(KinematicTreeModel):
 class RigidBody(IHasNamespace, IDefaultFrame):
     name: str
     frames: list[Frame]
+    shapes: list[SceneShape]
     inertia: RigidBodyInertia | None
 
-    def __init__(self, parent, name, frames, inertia) -> None:
+    def __init__(self, parent, name, frames, shapes, inertia) -> None:
         super().__init__(parent=parent)
         self.name = name
         self.frames = frames
+        self.shapes = shapes
         self.inertia = inertia
         self._uri = None
         self._inertia_uri = None
@@ -211,6 +233,72 @@ class RigidBody(IHasNamespace, IDefaultFrame):
         if self._inertia_coord_uri is None:
             self._inertia_coord_uri = self.namespace[self.scoped("-inertia-coord")]
         return self._inertia_coord_uri
+
+
+class SceneShape(IHasNamespace):
+    def __init__(self, parent, name, frame, unit, kind, scale=None, color=None) -> None:
+        super().__init__(parent=parent)
+        self.name = name
+        self.frame = frame
+        self.unit = unit
+        self.kind: str = kind
+        self.color: Color | None = color
+        # One factor per axis, or None when unscaled: a scalar scale is the same factor on all three.
+        self.scale: list[float] | None = None
+        if scale is not None:
+            context = f"{self.kind} '{name}' scale"
+            self.scale = list(scale.as_xyz(context)) if isinstance(scale, FloatVector) else [scale] * 3
+            for factor in self.scale:
+                if not isfinite(factor) or factor <= 0:
+                    raise ValueError(f"{context} is {factor}, expected a finite positive number")
+
+    @property
+    def namespace(self) -> Namespace:
+        return self.parent.namespace
+
+    @property
+    def uri(self) -> URIRef:
+        return self.namespace[self.scoped()]
+
+    @property
+    def color_uri(self) -> URIRef:
+        return self.namespace[self.scoped("-color")]
+
+
+class PrimitiveShapeType(StrEnum):
+    CUBE = "UnitCube"
+    CYLINDER = "UnitCylinder"
+    SPHERE = "UnitSphere"
+
+
+class PrimitiveShape(SceneShape):
+    def __init__(self, parent, name, frame, unit, scale, shape_type, color=None) -> None:
+        self.shape_type = PrimitiveShapeType(shape_type)
+        super().__init__(
+            parent=parent, name=name, frame=frame, unit=unit, kind=str(self.shape_type),
+            scale=scale, color=color,
+        )
+
+
+class FileBasedShape(SceneShape):
+    def __init__(self, parent, name, frame, file, unit, scale=None, color=None) -> None:
+        super().__init__(
+            parent=parent, name=name, frame=frame, unit=unit, kind="file shape",
+            scale=scale, color=color,
+        )
+        # A SystemPath or a RosPath, as an element model names its file.
+        self.file = file
+        if not file.path:
+            raise ValueError(f"file shape '{name}' needs a path")
+        if not file.path.lower().endswith(".stl"):
+            raise ValueError(f"file shape '{name}' requires a .stl path")
+        if "RosPath" in type(file).__name__ and PurePath(file.path).is_absolute():
+            raise ValueError(f"file shape '{name}' needs a path relative to its ROS package")
+
+    @property
+    def file_uri(self) -> URIRef:
+        """The file the shape is derived from."""
+        return self.namespace[self.scoped("-file")]
 
 
 class RigidBodyInertia:

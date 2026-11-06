@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: MPL-2.0
+from rdf_utils.models.prov import add_entity
 from rdf_utils.models.vocab import (
     URI_ACT_PRED_COMMAND_INTERFACE,
     URI_ACT_PRED_GEAR_RATIO,
@@ -75,25 +76,71 @@ from rdf_utils.models.vocab import (
     URI_QUDT_UNIT_RAD,
     URI_QUDT_UNIT_RAD_PER_SEC,
     URI_QUDT_UNIT_RAD_PER_SEC2,
+    URI_SHAPES_PRED_ATTACHED_TO_FRAME,
+    URI_SHAPES_TYPE_FILE_BASED_SHAPE,
+    URI_SHAPES_TYPE_SCALED_SHAPE,
 )
+from rdf_utils.namespace import NS_MM_PROV_EXT, NS_MM_SHAPES
 from rdflib import RDF, XSD, Graph, Literal, URIRef
+from rdflib.namespace import PROV
 
 from scene_dsl.classes.ktree import (
     Actuation,
+    FileBasedShape,
     FixedJoint,
     JointBase,
     JointLimits,
     JointMimicSpec,
     KinematicGraph,
     KinematicTreeModel,
+    PrimitiveShape,
     RevoluteJoint,
+    SceneShape,
     SerialJoints,
 )
+from scene_dsl.rdf.color import add_color
+from scene_dsl.rdf.common import add_file_spec
 from scene_dsl.rdf.geom import (
     ANGLE_UNITS,
+    LENGTH_UNITS,
     add_frame,
     add_position_coord,
 )
+
+
+def add_shape_scale(graph: Graph, shape: SceneShape) -> None:
+    if shape.scale is None:
+        return
+    graph.add((shape.uri, RDF.type, URI_SHAPES_TYPE_SCALED_SHAPE))
+    for axis, factor in zip("xyz", shape.scale, strict=True):
+        graph.add((shape.uri, NS_MM_SHAPES[f"scale-{axis}"], Literal(factor, datatype=XSD.double)))
+
+
+def add_shape_common(graph: Graph, shape: SceneShape) -> None:
+    graph.bind("shapes", NS_MM_SHAPES)
+    graph.add((shape.uri, URI_SHAPES_PRED_ATTACHED_TO_FRAME, shape.frame.uri))
+    graph.add((shape.uri, URI_QUDT_PRED_UNIT, LENGTH_UNITS[shape.unit]))
+    if shape.color is not None:
+        add_color(graph, shape.uri, shape.color_uri, shape.color)
+
+
+def add_shape(graph: Graph, shape: SceneShape) -> None:
+    if isinstance(shape, PrimitiveShape):
+        add_shape_common(graph, shape)
+        graph.add((shape.uri, RDF.type, NS_MM_SHAPES[shape.shape_type.value]))
+        add_shape_scale(graph, shape)
+    elif isinstance(shape, FileBasedShape):
+        add_shape_common(graph, shape)
+        graph.add((shape.uri, RDF.type, URI_SHAPES_TYPE_FILE_BASED_SHAPE))
+        add_entity(graph, shape.uri)
+        graph.bind("prov", PROV)
+        graph.bind("prov-ext", NS_MM_PROV_EXT)
+        graph.add((shape.uri, PROV.wasDerivedFrom, shape.file_uri))
+        add_file_spec(graph, shape.file_uri, shape.file)
+        add_shape_scale(graph, shape)
+    else:
+        raise TypeError(f"Unhandled shape type: {type(shape).__name__}")
+
 
 ACTUATION_INTERFACE_TYPES = {
     "position": URI_KC_STAT_JNT_POSITION,
@@ -128,6 +175,9 @@ def add_body(graph: Graph, body) -> None:
         add_frame(graph, frame)
         graph.add((body.uri, URI_GEOM_PRED_SIMPLICES, frame.uri))
         graph.add((body.uri, URI_GEOM_PRED_SIMPLICES, frame.origin_uri))
+
+    for shape in body.shapes:
+        add_shape(graph, shape)
 
     graph.add(triple=(body.uri, URI_KC_EXT_PRED_ROOT, body.default_frame.uri))
 

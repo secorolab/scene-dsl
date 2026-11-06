@@ -47,6 +47,9 @@ same way. Every other import is relative to the importing file.
 [`rdf-utils`](https://github.com/minhnh/rdf-utils), `textx`, `rdflib`, and
 `numpy`.
 
+Example meshes are stored with [Git LFS](https://git-lfs.com): install `git-lfs`
+before cloning, or run `git lfs pull` in an existing clone.
+
 For local development with sibling checkouts:
 
 ```bash
@@ -61,25 +64,25 @@ Example models live under `examples/models`.
 Print abstract scene RDF as Turtle:
 
 ```bash
-textx generate examples/models/lab.scene --target console --format ttl
+textx generate examples/models/kinova_with_objects.scene --target console --format ttl
 ```
 
-Write abstract scene RDF to `examples/generated/lab.scene.ttl`:
+Write abstract scene RDF to `examples/generated/kinova_with_objects.scene.ttl`:
 
 ```bash
-textx generate examples/models/lab.scene --target graph -o examples/generated --format ttl
+textx generate examples/models/kinova_with_objects.scene --target graph -o examples/generated --format ttl
 ```
 
 Print executable scenex RDF as Turtle:
 
 ```bash
-textx generate examples/models/lab.scenex --target console --format ttl
+textx generate examples/models/kinova_with_objects.scenex --target console --format ttl
 ```
 
-Write executable scenex RDF to `examples/generated/lab.scenex.ttl`:
+Write executable scenex RDF to `examples/generated/kinova_with_objects.scenex.ttl`:
 
 ```bash
-textx generate examples/models/lab.scenex --target graph -o examples/generated --format ttl
+textx generate examples/models/kinova_with_objects.scenex --target graph -o examples/generated --format ttl
 ```
 
 The RDF generators accept `format` (`json-ld`, `ttl`, or `xml`) and `filename`.
@@ -92,14 +95,14 @@ and any declared serial chain picked out. Needs [graphviz](https://graphviz.org)
 for anything but `dot`:
 
 ```bash
-textx generate examples/models/lab.scenex --target dot -o examples/generated --format png
+textx generate examples/models/kinova_with_objects.scenex --target dot -o examples/generated --format png
 ```
 
 `format` takes `dot` (the default), `png`, `svg`, or `pdf`. To print the graph
 instead of writing it:
 
 ```bash
-textx generate examples/models/lab.scenex --target dot-console
+textx generate examples/models/kinova_with_objects.scenex --target dot-console
 ```
 
 ## Development

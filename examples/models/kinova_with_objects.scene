@@ -1,0 +1,27 @@
+ns lab_env='https://secorolab.github.io/models/environments/secorolab/'
+ns isaac_agn='https://secorolab.github.io/models/agents/isaac-sim/'
+ns scene_lab='https://secorolab.github.io/models/acceptance-criteria/bdd/scenes/secorolab/'
+ns scene_lab_mjc='https://secorolab.github.io/models/acceptance-criteria/bdd/scenes/secorolab-mjc/'
+
+obj set (ns=lab_env) pickplace_objects {
+    object box1
+}
+obj set (ns=lab_env) ws_objects {
+    object dining_table
+}
+ws set (ns=lab_env) lab_workspaces {
+    workspace table_ws
+}
+agn set (ns=isaac_agn) isaac_agents {
+    agent arm1
+}
+
+comp (ns=lab_env) comp_table_pickplace of ws <lab_workspaces.table_ws> {
+    obj <ws_objects.dining_table>
+}
+
+scene (ns=scene_lab) kinova_with_objects_scene {
+    obj set <pickplace_objects>
+    agn set <isaac_agents>
+    ws comp <comp_table_pickplace>
+}

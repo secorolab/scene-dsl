@@ -15,6 +15,7 @@ from textx import (
 from textx.exceptions import TextXSemanticError
 from textx.scoping import Postponed
 
+from scene_dsl.classes.color import HexColor, HSVColor, RGBAColor, RGBColor
 from scene_dsl.classes.common import FloatVector, IHasNamespace, IntVector
 from scene_dsl.classes.distrib import (
     Distribution,
@@ -36,6 +37,7 @@ from scene_dsl.classes.geom import (
 )
 from scene_dsl.classes.ktree import (
     Actuation,
+    FileBasedShape,
     FixedJoint,
     JointBase,
     JointComposition,
@@ -47,9 +49,11 @@ from scene_dsl.classes.ktree import (
     KinematicTreeInstance,
     KinematicTreeModel,
     KinematicTreeTemplate,
+    PrimitiveShape,
     RevoluteJoint,
     RigidBody,
     RigidBodyInertia,
+    SceneShape,
     SerialJoints,
 )
 from scene_dsl.classes.scene import (
@@ -426,6 +430,18 @@ def check_unique_uris(model, metamodel):
         record(obj)
 
 
+def check_shape_frames(model, metamodel):
+    for shape in get_children(lambda item: isinstance(item, SceneShape), model):
+        if shape.frame is None:
+            continue
+        # A shape hangs on its body, so its frame must be one of that body's.
+        if shape.frame.parent is not shape.parent:
+            raise TextXSemanticError(
+                f"shape '{shape.name}' must use a frame owned by '{shape.parent.name}'",
+                **get_location(shape),
+            )
+
+
 # One per language: building another resets textx's stash on the shared user classes mid-import.
 @cache
 def scene_metamodel():
@@ -485,6 +501,12 @@ def scenex_metamodel():
             KinematicTreeTemplate,
             KinematicGraph,
             RigidBody,
+            PrimitiveShape,
+            RGBColor,
+            RGBAColor,
+            HSVColor,
+            HexColor,
+            FileBasedShape,
             RigidBodyInertia,
             JointsSpec,
             JointBase,
@@ -517,5 +539,6 @@ def scenex_metamodel():
     mm_scenex.register_model_processor(check_model_mappings)
     mm_scenex.register_model_processor(check_element_model_refs)
     mm_scenex.register_model_processor(check_agent_set_membership)
+    mm_scenex.register_model_processor(check_shape_frames)
     mm_scenex.register_model_processor(check_unique_uris)
     return mm_scenex

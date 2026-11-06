@@ -14,9 +14,6 @@ URI_URDF_ROBOT = NS_URDF["robot"]
 URI_MJCF_MUJOCO = NS_MJCF["mujoco"]
 URI_USD_STAGE = NS_USD["stage"]
 
-URI_ROS_TYPE_PACKAGE = NS_MM_ROS["Package"]
-URI_ROS_PRED_PACKAGE_NAME = NS_MM_ROS["package-name"]
-
 # Scene DSL historically uses these stable BDD vocabulary IRIs. They live here so
 # scene-dsl owns its RDF representation without depending on bdd-dsl.
 URI_BDD_TYPE_SCENE = NS_MM_BDD["Scene"]

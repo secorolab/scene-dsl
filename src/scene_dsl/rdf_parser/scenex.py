@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: MPL-2.0
 
 from rdf_utils.models.common import AttrLoaderProtocol, ModelBase, ModelLoader
-from rdf_utils.models.execution import load_attr_path
 from rdf_utils.models.geom_rel import FrameModel
 from rdf_utils.models.python import load_py_module_attr
 from rdf_utils.models.vocab import (
@@ -16,11 +15,10 @@ from rdf_utils.models.vocab import (
     URI_EXEC_PRED_HAS_MODELLED_AGN,
     URI_EXEC_PRED_HAS_MODELLED_OBJ,
     URI_EXEC_PRED_MODEL,
-    URI_EXEC_PRED_PATH,
     URI_EXEC_TYPE_SCENE_INST,
     URI_GEOM_TYPE_RIGID_BODY,
 )
-from rdflib import RDF, Graph, Literal, URIRef
+from rdflib import RDF, Graph, URIRef
 
 from scene_dsl.rdf_parser.common import ensure_one_obj_uri, load_attr_has_config
 from scene_dsl.rdf_parser.kinematics import (
@@ -33,43 +31,13 @@ from scene_dsl.rdf_parser.kinematics import (
     root_frame_of,
 )
 from scene_dsl.rdf_parser.scene import SceneModel
-from scene_dsl.rdf_parser.vocab import (
-    URI_BDD_PRED_OF_SCENE,
-    URI_ROS_PRED_PACKAGE_NAME,
-    URI_ROS_TYPE_PACKAGE,
-)
-
-
-def load_ros_path(graph: Graph, model: ModelBase, **kwargs: object) -> None:
-    """Load the ROS package name for a resource stored in a ROS package."""
-    if URI_ROS_TYPE_PACKAGE not in model.types:
-        return
-
-    package_name = graph.value(subject=model.id, predicate=URI_ROS_PRED_PACKAGE_NAME)
-    if not isinstance(package_name, Literal):
-        raise TypeError(f"ROS model '{model.id}' has no literal '{URI_ROS_PRED_PACKAGE_NAME}'")
-    model.set_attr(key=URI_ROS_PRED_PACKAGE_NAME, val=str(package_name.toPython()))
-
+from scene_dsl.rdf_parser.vocab import URI_BDD_PRED_OF_SCENE
 
 DEFAULT_MODEL_LOADERS: tuple[AttrLoaderProtocol, ...] = (
-    load_attr_path,
     load_py_module_attr,
-    load_ros_path,
     load_attr_has_config,
     load_attr_kinematic_mappings,
 )
-
-
-def get_ros_pkg_path(model: ModelBase) -> tuple[str, str] | None:
-    """Return ROS package and relative path metadata without resolving it."""
-    if URI_ROS_TYPE_PACKAGE not in model.types:
-        return None
-
-    package_name = model.get_attr(URI_ROS_PRED_PACKAGE_NAME)
-    path = model.get_attr(URI_EXEC_PRED_PATH)
-    if not isinstance(package_name, str) or not isinstance(path, str):
-        raise TypeError(f"ROS model '{model.id}' has invalid package or path metadata")
-    return package_name, path
 
 
 class SceneInstanceModel(ModelBase):

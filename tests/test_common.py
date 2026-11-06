@@ -1,6 +1,8 @@
 from pathlib import Path
 
 MODELS_DIR = Path(__file__).parents[1] / "examples" / "models"
+# The example as a test scene: every model in it names model.xml beside it, which is not there.
+TEST_MODELS_DIR = Path(__file__).parent / "models"
 
 
 def write_example_scene(tmp_path: Path) -> None:

@@ -1,12 +1,17 @@
 import re
 
 import pytest
+from rdf_utils.models.vocab import (
+    URI_COLOR_PRED_HAS_COLOR,
+    URI_COLOR_PRED_VALUE,
+    URI_COLOR_TYPE_COLOR,
+)
+from rdf_utils.namespace import NS_MM_COLOR
 from rdflib import RDF, Graph, Literal
 from textx.exceptions import TextXSyntaxError
 
 from scene_dsl.classes.color import ColorScheme
 from scene_dsl.langs import scenex_metamodel
-from scene_dsl.rdf.color import COL
 from scene_dsl.rdf.ktree import add_shape
 
 
@@ -49,10 +54,10 @@ def test_color_exports_its_scheme_and_value(authored, scheme, literal):
     add_shape(graph, shape)
 
     assert shape.color.scheme == scheme
-    assert (shape.uri, COL["has-color"], shape.color_uri) in graph
-    assert (shape.color_uri, RDF.type, COL.Color) in graph
-    assert (shape.color_uri, RDF.type, COL[scheme.value]) in graph
-    assert list(graph.objects(shape.color_uri, COL.value)) == [Literal(literal)]
+    assert (shape.uri, URI_COLOR_PRED_HAS_COLOR, shape.color_uri) in graph
+    assert (shape.color_uri, RDF.type, URI_COLOR_TYPE_COLOR) in graph
+    assert (shape.color_uri, RDF.type, NS_MM_COLOR[scheme.value]) in graph
+    assert list(graph.objects(shape.color_uri, URI_COLOR_PRED_VALUE)) == [Literal(literal)]
 
 
 def test_shape_without_color_exports_none():
@@ -72,7 +77,7 @@ ktree (ns=n) arm { root: <base.f>
     add_shape(graph, shape)
 
     assert shape.color is None
-    assert not list(graph.objects(shape.uri, COL["has-color"]))
+    assert not list(graph.objects(shape.uri, URI_COLOR_PRED_HAS_COLOR))
 
 
 @pytest.mark.parametrize(

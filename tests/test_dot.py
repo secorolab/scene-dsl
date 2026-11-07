@@ -3,7 +3,7 @@ from scene_dsl.dot import create_dot
 from scene_dsl.langs import scenex_metamodel
 from scene_dsl.rdf.scenex import create_scenex_model_graph
 
-from .test_common import MODELS_DIR
+from .test_common import TEST_MODELS_DIR
 
 CHAIN = 'color="#1a73e8", penwidth=2'
 
@@ -17,7 +17,7 @@ def test_dot_draws_the_chain_across_two_devices():
     """The chain is what the model claims, so it is what the picture picks out."""
     dot = create_dot(
         create_scenex_model_graph(
-            model=scenex_metamodel().model_from_file(MODELS_DIR / "lab.scenex")
+            model=scenex_metamodel().model_from_file(TEST_MODELS_DIR / "lab.scenex")
         )
     )
     edges = _edges(dot)
@@ -41,7 +41,7 @@ def test_dot_tells_a_fixed_joint_from_a_revolute_one():
     """What a joint is, and whether it is on a chain, are drawn separately."""
     dot = create_dot(
         create_scenex_model_graph(
-            model=scenex_metamodel().model_from_file(MODELS_DIR / "lab.scenex")
+            model=scenex_metamodel().model_from_file(TEST_MODELS_DIR / "lab.scenex")
         )
     )
     edges = _edges(dot)
@@ -57,7 +57,7 @@ def test_dot_draws_a_chain_tip_that_is_a_frame_on_its_body():
     """A chain may end anywhere on its last body, and that place is no body of its own."""
     dot = create_dot(
         create_scenex_model_graph(
-            model=scenex_metamodel().model_from_file(MODELS_DIR / "lab.scenex")
+            model=scenex_metamodel().model_from_file(TEST_MODELS_DIR / "lab.scenex")
         )
     )
 

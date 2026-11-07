@@ -1,0 +1,5 @@
+import "../../examples/models/lab.scene"
+scene inst (ns=scene_lab_mjc) usd_scene {
+    scene: <pickplace_scene>
+    model usd_stage as usd { sys path = "model.xml" }
+}

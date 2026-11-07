@@ -1,57 +1,49 @@
 # SPDX-License-Identifier: MPL-2.0
-from os.path import basename, dirname, exists, join, splitext
+from collections.abc import Callable
+from os.path import basename, exists, join, splitext
 from pathlib import Path
 from typing import Any
 
 from jinja2 import Environment, FileSystemLoader
+from rdf_utils import DatasetFormat
+from rdf_utils.models.prov import create_bundle, get_pkg_info, load_pkg_prov
 from rdf_utils.naming import get_valid_var_name
-from rdflib import Graph
-from rdflib.plugin import PluginException
+from rdflib import Dataset, Graph
 
 from scene_dsl.dot import create_dot
 from scene_dsl.kdl_tree import build_kdl_trees
+from scene_dsl.rdf.provenance import DOCUMENT_SUFFIX, build, render, write_bundle
 from scene_dsl.rdf.scene import create_scene_model_graph
 from scene_dsl.rdf.scenex import create_scenex_model_graph
 
-_GRAPH_FORMAT_EXT = {"json-ld": "json", "ttl": "ttl", "xml": "xml"}
 
-
-def parse_rdflib_serial_args(**kwargs):
-    g_format = kwargs.get("format", "json-ld")
-    if g_format not in _GRAPH_FORMAT_EXT:
-        raise ValueError(
-            f"file extension not handled for graph format '{g_format}', "
-            f"try {list(_GRAPH_FORMAT_EXT.keys())}"
-        )
-    ser_kwargs = {"format": g_format}
-    if g_format == "json-ld":
-        ser_kwargs["auto_compact"] = "nocompact" not in kwargs
-    return ser_kwargs
-
-
-def rdf_full_output_path(model, output_path: str, g_format: str, model_type: str, **kwargs: Any):
+def rdf_full_output_path(
+    model, output_path: str, dataset_format: DatasetFormat, model_type: str, **kwargs: Any
+):
     filename = kwargs.get("filename", basename(model._tx_filename)) or "graph"
-    full_filename = f"{splitext(filename)[0]}.{model_type}.{_GRAPH_FORMAT_EXT[g_format]}"
+    full_filename = f"{splitext(filename)[0]}.{model_type}.{dataset_format.extension}"
     return join("" if output_path is None else output_path, full_filename)
 
 
 def graph_gen_console(graph: Graph, **kwargs):
-    ser_kwargs = parse_rdflib_serial_args(**kwargs)
-    try:
-        print(graph.serialize(**ser_kwargs))
-    except PluginException as e:
-        raise ValueError(
-            f"serialization format '{ser_kwargs['format']}' not supported by rdflib, "
-            f"try {list(_GRAPH_FORMAT_EXT.keys())}: {e.msg}"
+    dataset = Dataset()
+    dataset.add_graph(graph)
+    print(
+        dataset.serialize(
+            format=DatasetFormat(kwargs.get("format", DatasetFormat.JSON_LD)),
+            auto_compact="nocompact" not in kwargs,
         )
+    )
 
 
-def graph_gen(graph: Graph, model, output_path, overwrite, model_type: str, **kwargs):
-    ser_kwargs = parse_rdflib_serial_args(**kwargs)
+def graph_gen(
+    create_graph: Callable[..., Graph], model, output_path, overwrite, model_type: str, **kwargs
+):
+    dataset_format = DatasetFormat(kwargs.get("format", DatasetFormat.JSON_LD))
     full_output_path = rdf_full_output_path(
         model=model,
         output_path=output_path,
-        g_format=ser_kwargs["format"],
+        dataset_format=dataset_format,
         model_type=model_type,
         **kwargs,
     )
@@ -59,8 +51,21 @@ def graph_gen(graph: Graph, model, output_path, overwrite, model_type: str, **kw
         print(f"not overwriting existing file '{full_output_path}'")
         return
 
-    with open(full_output_path, "w") as outfile:
-        outfile.write(graph.serialize(**ser_kwargs))
+    auto_compact = "nocompact" not in kwargs
+    if "provenance" in kwargs:
+        agent, version, revision, repository, dirty = get_pkg_info("scene_dsl")
+        bundle = create_bundle(agent)
+        load_pkg_prov(bundle, agent, "scene_dsl", version, revision, repository, dirty=dirty)
+        build(model, bundle, create_graph, full_output_path, dataset_format, auto_compact)
+        stem = splitext(kwargs.get("filename", basename(model._tx_filename)) or "graph")[0]
+        write_bundle(
+            bundle, Path(full_output_path).with_name(f"{stem}.{model_type}{DOCUMENT_SUFFIX}")
+        )
+    else:
+        dataset = Dataset()
+        dataset.add_graph(create_graph(model=model))
+        with open(full_output_path, "w") as outfile:
+            outfile.write(dataset.serialize(format=dataset_format, auto_compact=auto_compact))
     print(f"... wrote {full_output_path}")
 
 
@@ -70,7 +75,7 @@ def scene_graph_gen_console(metamodel, model, output_path, overwrite, debug, **k
 
 def scene_graph_gen(metamodel, model, output_path, overwrite, debug, **kwargs):
     graph_gen(
-        create_scene_model_graph(model=model),
+        create_scene_model_graph,
         model,
         output_path,
         overwrite,
@@ -85,7 +90,7 @@ def scenex_graph_gen_console(metamodel, model, output_path, overwrite, debug, **
 
 def scenex_graph_gen(metamodel, model, output_path, overwrite, debug, **kwargs):
     graph_gen(
-        create_scenex_model_graph(model=model),
+        create_scenex_model_graph,
         model,
         output_path,
         overwrite,
@@ -135,30 +140,47 @@ def scenex_dot_gen(metamodel, model, output_path, overwrite, debug, **kwargs):
     print(f"... wrote {full_output_path}")
 
 
-def scenex_kdl_gen(metamodel, model, output_path, overwrite, debug, **kwargs):
-    filename = kwargs.get("filename", basename(model._tx_filename)) or "kinematics"
-    full_output_path = join(
-        "" if output_path is None else output_path, f"{splitext(filename)[0]}.kdl.hpp"
-    )
-    if exists(full_output_path) and not overwrite:
-        print(f"not overwriting existing file '{full_output_path}'")
-        return
+def kdl_header_names(scene_file: str | Path) -> tuple[str, str]:
+    """The KDL header's file name and its C++ namespace, both named after SCENE_FILE."""
+    stem = Path(scene_file).stem
+    namespace = get_valid_var_name(stem)
+    # A C++ identifier cannot start with a digit, as a scene file like `2f85.scenex` would.
+    if namespace[0].isdigit():
+        namespace = f"scene_{namespace}"
+    return f"{stem}.kdl.hpp", namespace
 
-    # Model file paths are written relative to the model declaring them.
-    base_dir = dirname(model._tx_filename)
-    trees = build_kdl_trees(
-        create_scenex_model_graph(model=model), Path(base_dir) if base_dir else None
-    )
+
+def kdl_header(graph: Graph, name: str, source: str) -> str:
+    """The C++ header building the graph's KDL trees, in namespace NAME, naming SOURCE."""
+    trees = build_kdl_trees(graph)
 
     env = Environment(
         loader=FileSystemLoader(Path(__file__).parent / "templates"), keep_trailing_newline=True
     )
     template = env.get_template("kdl.hpp.jinja2")
+    return template.render({"data": {"name": name, "source": source, "trees": trees}})
+
+
+def scenex_kdl_gen(metamodel, model, output_path, overwrite, debug, **kwargs):
+    header, name = kdl_header_names(kwargs.get("filename") or model._tx_filename or "kinematics")
+    full_output_path = join("" if output_path is None else output_path, header)
+    if exists(full_output_path) and not overwrite:
+        print(f"not overwriting existing file '{full_output_path}'")
+        return
+
     source = basename(model._tx_filename) or "a scene model"
-    # The header holds one scene's kinematics, so that scene names its namespace -- as a
-    # C++ identifier, a file called `my.lab-v2.scenex` or `2f85.scenex` naming none.
-    name = get_valid_var_name(splitext(source)[0] or "scene")
-    name = f"scene_{name}" if name[0].isdigit() else name
-    with open(full_output_path, "w") as outfile:
-        outfile.write(template.render({"data": {"name": name, "source": source, "trees": trees}}))
+    if "provenance" in kwargs:
+        agent, version, revision, repository, dirty = get_pkg_info("scene_dsl")
+        bundle = create_bundle(agent)
+        load_pkg_prov(bundle, agent, "scene_dsl", version, revision, repository, dirty=dirty)
+        output_file = render(
+            build(model, bundle, create_scenex_model_graph),
+            bundle,
+            lambda g: kdl_header(g, name, source),
+            full_output_path,
+        )
+        write_bundle(bundle, f"{output_file}{DOCUMENT_SUFFIX}")
+    else:
+        with open(full_output_path, "w") as outfile:
+            outfile.write(kdl_header(create_scenex_model_graph(model=model), name, source))
     print(f"... wrote {full_output_path}")

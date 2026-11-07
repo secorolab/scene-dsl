@@ -16,7 +16,6 @@ import math
 from collections import deque
 from dataclasses import dataclass
 from itertools import pairwise
-from pathlib import Path
 
 import numpy as np
 from rdf_utils.constraints import ConstraintViolation
@@ -361,9 +360,7 @@ class RigidBodyModel(ModelBase):
                 poses[frame] = pose
         return poses
 
-    def mass_properties(
-        self, graph: Graph, owner: URIRef | None = None, base_dir: Path | None = None
-    ) -> MassProperties:
+    def mass_properties(self, graph: Graph, owner: URIRef | None = None) -> MassProperties:
         """What the body weighs, in its own frame.
 
         The scene answers, or the URDF or MJCF its model maps the body into does. A body
@@ -391,7 +388,7 @@ class RigidBodyModel(ModelBase):
                 f"nothing states the inertia of body '{self.id}': give it mass and "
                 f"inertia-matrix in the scene, or map it to a model file that states them",
             )
-        mass, com, tensor = read_body_inertia(mapped, graph, base_dir)
+        mass, com, tensor = read_body_inertia(mapped, graph)
         return MassProperties(mass=mass, com=com, tensor=tensor)
 
 
@@ -881,13 +878,11 @@ class KinematicTreeModel(ModelBase):
         graph: Graph,
         component: _ExpandedComponent,
         index: _KinematicIndex,
-        base_dir: Path | None = None,
     ) -> None:
         super().__init__(node_id=tree_id, graph=graph)
         if not self.types & {URI_GEOM_TYPE_KTREE, URI_GEOM_TYPE_KGRAPH}:
             raise TypeError(f"{self} is not a KinematicTree")
 
-        self.base_dir = base_dir
         self.root = component.root_body
         # Off the root body: a graph rooted at several bodies states no one frame.
         self.root_frame = component.bodies[self.root].root_frame
@@ -908,14 +903,10 @@ class KinematicTreeModel(ModelBase):
 
     def mass_properties(self, body: URIRef, graph: Graph) -> MassProperties:
         """Mass properties using the body's defining tree for mapped-model lookup."""
-        return self.bodies[body].mass_properties(
-            graph,
-            owner=self.defining_tree_by_body.get(body),
-            base_dir=self.base_dir,
-        )
+        return self.bodies[body].mass_properties(graph, owner=self.defining_tree_by_body.get(body))
 
 
-def kinematic_trees(graph: Graph, base_dir: Path | None = None) -> list[KinematicTreeModel]:
+def kinematic_trees(graph: Graph) -> list[KinematicTreeModel]:
     """Read all top-level kinematic components from the graph. A body the scene only
     places is articulated by nothing, so no tree is built for it."""
     index = _KinematicIndex(graph)
@@ -923,7 +914,7 @@ def kinematic_trees(graph: Graph, base_dir: Path | None = None) -> list[Kinemati
     _assign_chains(index, components)
     trees = ((component, _top_level_tree(component, index)) for component in components)
     return [
-        KinematicTreeModel(tree_id, graph, component, index, base_dir)
+        KinematicTreeModel(tree_id, graph, component, index)
         for component, tree_id in trees
         if tree_id is not None
     ]
@@ -959,16 +950,14 @@ class KinematicGraphModel(ModelBase):
         self,
         kgraph_id: URIRef,
         graph: Graph,
-        base_dir: Path | None = None,
         trees: list[KinematicTreeModel] | None = None,
     ) -> None:
         super().__init__(node_id=kgraph_id, graph=graph)
         if URI_GEOM_TYPE_KGRAPH not in self.types:
             raise TypeError(f"{self} is not a KinematicGraph")
 
-        self.base_dir = base_dir
         roots = root_bodies(self.id, graph)
-        built = kinematic_trees(graph, base_dir) if trees is None else trees
+        built = kinematic_trees(graph) if trees is None else trees
         self.trees = tuple(tree for tree in built if tree.root in roots)
 
         # A body a joint holds is carried by a tree, and belongs to it; what is left hangs
@@ -985,10 +974,10 @@ class KinematicGraphModel(ModelBase):
             self.nested_trees.update(tree.nested_trees)
 
 
-def kinematic_graphs(graph: Graph, base_dir: Path | None = None) -> list[KinematicGraphModel]:
+def kinematic_graphs(graph: Graph) -> list[KinematicGraphModel]:
     """Every kinematic graph the scene declares, with the trees below each already built."""
-    trees = kinematic_trees(graph, base_dir)
+    trees = kinematic_trees(graph)
     return [
-        KinematicGraphModel(kgraph_id, graph, base_dir, trees)
+        KinematicGraphModel(kgraph_id, graph, trees)
         for kgraph_id in sorted(uris(graph.subjects(RDF.type, URI_GEOM_TYPE_KGRAPH)), key=str)
     ]

@@ -1,9 +1,15 @@
 # SPDX-License-Identifier: MPL-2.0
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 from uuid import uuid4
 
-from rdf_utils.models.prov import add_file_entity, get_pkg_info, load_pkg_prov
+from rdf_utils.models.prov import (
+    add_directory_location,
+    add_file_entity,
+    get_pkg_info,
+    load_pkg_prov,
+)
 from rdf_utils.models.vocab import (
     URI_AGN_PRED_HAS_AGN_MODEL,
     URI_AGN_PRED_OF_AGN,
@@ -29,9 +35,8 @@ from rdf_utils.namespace import (
     NS_MM_GEOM_REL,
     NS_MM_QUDT_QTY,
     NS_MM_QUDT_UNIT,
-    NS_MM_ROS,
 )
-from rdflib import DCTERMS, PROV, RDF, Graph, Literal, URIRef
+from rdflib import DCTERMS, RDF, Graph, Literal, URIRef
 from textx import get_model
 
 from scene_dsl.classes.scenex import (
@@ -41,7 +46,9 @@ from scene_dsl.classes.scenex import (
     ModelledAgentSet,
     ModelledObject,
     ModelledObjectSet,
+    PackagePath,
     SceneInstance,
+    SystemPath,
     TreeMapping,
 )
 from scene_dsl.rdf.common import add_py_module_attr
@@ -75,43 +82,6 @@ def _bind_model_kind_namespaces(graph: Graph) -> None:
 
 
 def add_model_spec(graph: Graph, elem_model: ElementModel) -> None:
-    model_spec_type = elem_model.model_spec.__class__.__name__
-    if "PyModuleAttr" in model_spec_type:
-        add_py_module_attr(graph=graph, node_uri=elem_model.uri, py_model=elem_model.model_spec)
-    elif model_spec_type in ("SystemPath", "RosPath", "PyPath"):
-        path = Path(elem_model.model_spec.path).expanduser()
-        if model_spec_type == "RosPath":
-            root = NS_MM_ROS[f"{elem_model.model_spec.pkg}/"]
-            load_pkg_prov(
-                graph,
-                root,
-                elem_model.model_spec.pkg,
-                additional_types=(URI_ROS_TYPE_PACKAGE,),
-                dirty=False,
-            )
-        elif model_spec_type == "PyPath":
-            pkg = elem_model.model_spec.pkg
-            root, version, revision, repository, dirty = get_pkg_info(pkg)
-            load_pkg_prov(graph, root, pkg, version, revision, repository, dirty=dirty)
-        elif path.is_absolute():
-            root = None
-        else:
-            # A relative path is written beside the file declaring it.
-            scene_file = getattr(get_model(elem_model), "_tx_filename", None)
-            if scene_file is None:
-                raise ValueError(
-                    f"model '{elem_model.uri}' has relative path '{path}', and the scene it is "
-                    "declared in was not read from a file to resolve it against"
-                )
-            scene_path = Path(scene_file).resolve()
-            declared_in = add_file_entity(graph, None, scene_path)
-            root = graph.value(declared_in, PROV.atLocation)
-            assert isinstance(root, URIRef)
-        source = add_file_entity(graph, root, path)
-        graph.add((elem_model.uri, DCTERMS.source, source))
-    else:
-        raise ValueError(f"Unhandled model specification type: {model_spec_type}")
-
     if elem_model.model_kind == "urdf":
         graph.add((elem_model.uri, RDF.type, URI_XML_DOCUMENT))
         graph.add((elem_model.uri, RDF.type, URI_URDF_ROBOT))
@@ -122,6 +92,31 @@ def add_model_spec(graph: Graph, elem_model: ElementModel) -> None:
         graph.add((elem_model.uri, RDF.type, URI_USD_STAGE))
     elif elem_model.model_kind is not None:
         raise ValueError(f"Unhandled model kind: {elem_model.model_kind}")
+
+    spec = elem_model.model_spec
+    if not isinstance(spec, SystemPath | PackagePath):
+        add_py_module_attr(graph=graph, node_uri=elem_model.uri, py_model=spec)
+        return
+
+    if isinstance(spec, PackagePath) and spec.kind == "ros":
+        root = URIRef(f"pkg:ros/{quote(spec.pkg, safe='')}")
+        load_pkg_prov(graph, root, spec.pkg, additional_types=(URI_ROS_TYPE_PACKAGE,), dirty=False)
+    elif isinstance(spec, PackagePath):
+        root, version, revision, repository, dirty = get_pkg_info(spec.pkg)
+        load_pkg_prov(graph, root, spec.pkg, version, revision, repository, dirty=dirty)
+    elif Path(spec.path).expanduser().is_absolute():
+        root = None
+    else:
+        # A relative path is written beside the file declaring it.
+        scene_file = getattr(get_model(elem_model), "_tx_filename", None)
+        if scene_file is None:
+            raise ValueError(
+                f"model '{elem_model.uri}' has relative path '{spec.path}', and the scene it is "
+                "declared in was not read from a file to resolve it against"
+            )
+        root = add_directory_location(graph, Path(scene_file).resolve().parent)
+    source = add_file_entity(graph, root, spec.path)
+    graph.add((elem_model.uri, DCTERMS.source, source))
 
 
 def _ensure_unique_scene_uri(

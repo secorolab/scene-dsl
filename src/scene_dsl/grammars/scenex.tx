@@ -28,10 +28,10 @@ TreeMapping: 'map' 'tree' '<' tree=[KinematicTreeModel|FQN] '>' ('to' entity=STR
 BodyMapping: 'map' 'body' '<' body=[RigidBody|FQN] '>' ('to' entity=STRING)? ;
 
 ModelKind: 'urdf' | 'mjcf' | 'usd' ;
-ModelSpecification: SystemPath | RosPath | PyPath | PyModuleAttr ;
+ModelSpecification: SystemPath | PackagePath | PyModuleAttr ;
 SystemPath: 'sys' 'path' '=' path=STRING ;
-RosPath: 'ros' 'pkg' '=' pkg=STRING ',' 'path' '=' path=STRING ;
-PyPath: 'py' 'pkg' '=' pkg=STRING ',' 'path' '=' path=STRING ;
+PackagePath: kind=PackageKind 'pkg' '=' pkg=STRING ',' 'path' '=' path=STRING ;
+PackageKind: 'ros' | 'py' ;
 
 ElementModelRef:
 'model' '<' model=[ElementModel|FQN] '>'

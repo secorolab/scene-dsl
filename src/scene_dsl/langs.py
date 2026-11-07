@@ -72,7 +72,9 @@ from scene_dsl.classes.scenex import (
     ModelledAgentSet,
     ModelledObject,
     ModelledObjectSet,
+    PackagePath,
     SceneInstance,
+    SystemPath,
     TreeMapping,
 )
 from scene_dsl.classes.sensors import (
@@ -466,6 +468,8 @@ def scenex_metamodel():
             BodyMapping,
             ElementModel,
             ElementModelRef,
+            SystemPath,
+            PackagePath,
             TreeMapping,
             ModelledObject,
             ModelledObjectSet,

@@ -61,7 +61,7 @@ from scene_dsl.rdf.ktree import (
 from scene_dsl.rdf.scenex import create_scenex_model_graph
 from scene_dsl.rdf_parser.kinematics import RigidBodyModel
 
-from .test_common import MODELS_DIR, TEST_MODELS_DIR, write_example_scene
+from .test_common import MODELS_DIR, write_example_scene
 
 ZERO_POSE = (
     "pose default_pose { xyz: (0.0, 0.0, 0.0) m orientation: euler { angles: (0.0, 0.0, 0.0) } }"
@@ -880,7 +880,7 @@ scene inst (ns=lab) sx {
 
 def test_lab_scenex_composes_imported_device_trees():
     """lab.scenex mixes inline trees with imported ones and owns the assembly joints."""
-    model = scenex_metamodel().model_from_file(TEST_MODELS_DIR / "lab.scenex")
+    model = scenex_metamodel().model_from_file(MODELS_DIR / "lab.scenex")
     trees = {tree.name: tree for tree in model.scene_insts[0].kgraph.trees[0].trees}
 
     scene_ns = "https://secorolab.github.io/models/acceptance-criteria/bdd/scenes/secorolab-mjc/"
@@ -912,7 +912,7 @@ def test_lab_scenex_composes_imported_device_trees():
 
 
 def test_each_agent_model_names_its_kinematics():
-    model = scenex_metamodel().model_from_file(TEST_MODELS_DIR / "lab.scenex")
+    model = scenex_metamodel().model_from_file(MODELS_DIR / "lab.scenex")
     scene_inst = model.scene_insts[0]
     agents = {agent.agn.name: agent for agent in scene_inst.modelled_agns}
     graph = create_scenex_model_graph(model)
@@ -983,7 +983,7 @@ def test_assembled_agent_carries_a_model_file_per_device():
     Both shapes are agents: what differs is whether the kinematics are one device or
     several bolted together.
     """
-    model = scenex_metamodel().model_from_file(TEST_MODELS_DIR / "lab.scenex")
+    model = scenex_metamodel().model_from_file(MODELS_DIR / "lab.scenex")
     agents = {agent.agn.name: agent for agent in model.scene_insts[0].modelled_agns}
     graph = create_scenex_model_graph(model)
     robots_ns = (
@@ -1005,7 +1005,7 @@ def test_assembled_agent_carries_a_model_file_per_device():
 
 def test_arm_and_gripper_compose_into_one_chain():
     """Two devices bolted together are one chain: the arm's base to the gripper's TCP."""
-    model = scenex_metamodel().model_from_file(TEST_MODELS_DIR / "lab.scenex")
+    model = scenex_metamodel().model_from_file(MODELS_DIR / "lab.scenex")
     graph = create_scenex_model_graph(model)
     scene_ns = "https://secorolab.github.io/models/acceptance-criteria/bdd/scenes/secorolab-mjc/"
     assembled = {t.name: t for t in model.scene_insts[0].kgraph.trees[0].trees}["arm1_gripper"]
@@ -1160,7 +1160,7 @@ scene inst (ns=lab) sx {
 
 def test_lab_scenex_generated_geometry_validates_against_shacl():
     install_resolver()
-    model = scenex_metamodel().model_from_file(TEST_MODELS_DIR / "lab.scenex")
+    model = scenex_metamodel().model_from_file(MODELS_DIR / "lab.scenex")
 
     graph = create_scenex_model_graph(model)
     check_shacl_constraints(
@@ -1180,7 +1180,7 @@ def test_lab_scenex_generated_geometry_validates_against_shacl():
 
 
 def test_lab_scenex_generates_panda_joint_actuation():
-    model = scenex_metamodel().model_from_file(TEST_MODELS_DIR / "lab.scenex")
+    model = scenex_metamodel().model_from_file(MODELS_DIR / "lab.scenex")
     panda_tree = next(
         tree for tree in model.scene_insts[0].kgraph.trees[0].trees if tree.name == "panda_tree"
     )
@@ -1392,7 +1392,7 @@ def test_serial_chain_may_start_below_the_tree_root(tmp_path):
 
 def test_every_tree_carries_its_root():
     """The root comes from the joints, so a tree has one with or without a chain."""
-    model = scenex_metamodel().model_from_file(TEST_MODELS_DIR / "lab.scenex")
+    model = scenex_metamodel().model_from_file(MODELS_DIR / "lab.scenex")
     graph = create_scenex_model_graph(model)
     trees = set(graph.subjects(RDF.type, URI_GEOM_TYPE_KTREE))
     assert trees

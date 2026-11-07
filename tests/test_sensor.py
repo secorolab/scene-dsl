@@ -26,11 +26,11 @@ from scene_dsl.rdf.sensors import (
 )
 from scene_dsl.rdf_parser.sensors import get_update_rate
 
-from .test_common import TEST_MODELS_DIR
+from .test_common import MODELS_DIR
 
 
 def test_lab_scenex_agent_tree_link_and_sensors_emit_rdf():
-    model = scenex_metamodel().model_from_file(TEST_MODELS_DIR / "lab.scenex")
+    model = scenex_metamodel().model_from_file(MODELS_DIR / "lab.scenex")
     scene_inst = model.scene_insts[0]
     panda = next(agent for agent in scene_inst.modelled_agns if agent.agn.name == "panda")
     tree = panda.models[0].mappings[0].tree

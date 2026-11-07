@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 from rdf_utils import DatasetFormat
 from rdf_utils.models.prov import get_file_path
@@ -8,11 +10,14 @@ from rdf_utils.models.vocab import (
     URI_EXEC_PRED_MAPS,
     URI_EXEC_PRED_MODEL_ENTITY,
     URI_GEOM_TYPE_RIGID_BODY,
+    URI_PROV_EXT_PRED_REL_PATH,
+    URI_ROS_TYPE_PACKAGE,
 )
-from rdflib import DCTERMS, RDF, Dataset, Literal, Namespace, URIRef
+from rdflib import DCTERMS, PROV, RDF, SDO, Dataset, Literal, Namespace, URIRef
 from textx.exceptions import TextXSemanticError
 
 from scene_dsl.classes.common import IHasNamespace
+from scene_dsl.classes.scenex import PackagePath
 from scene_dsl.langs import scene_metamodel, scenex_metamodel
 from scene_dsl.rdf.scene import create_scene_model_graph
 from scene_dsl.rdf.scenex import URI_MJCF_MUJOCO, create_scenex_model_graph
@@ -20,7 +25,7 @@ from scene_dsl.rdf_parser.scene import SceneModel
 from scene_dsl.rdf_parser.scenex import SceneInstanceModel, get_kinematic_mappings
 from scene_dsl.rdf_parser.vocab import URI_BDD_TYPE_SCENE, URI_USD_STAGE
 
-from .test_common import MODELS_DIR, TEST_MODELS_DIR
+from .test_common import MODELS_DIR
 
 
 def test_namespace_must_be_declared_by_the_model_class():
@@ -72,7 +77,7 @@ def test_scene_parser_resolves_nested_workspace_compositions():
 
 
 def test_scenex_references_scene_and_generates_rdf():
-    model = scenex_metamodel().model_from_file(TEST_MODELS_DIR / "lab.scenex")
+    model = scenex_metamodel().model_from_file(MODELS_DIR / "lab.scenex")
     assert len(model.scene_insts) > 0
     graph = create_scenex_model_graph(model)
     assert len(graph) > 0
@@ -81,7 +86,7 @@ def test_scenex_references_scene_and_generates_rdf():
 @pytest.mark.parametrize("dataset_format", ["json-ld", "nquads", "trig"])
 def test_example_scenex_serializes(dataset_format):
     # orjson, which rdflib uses for JSON-LD when installed, refuses a numpy float64 left uncast.
-    model = scenex_metamodel().model_from_file(TEST_MODELS_DIR / "lab.scenex")
+    model = scenex_metamodel().model_from_file(MODELS_DIR / "lab.scenex")
     dataset = Dataset()
     dataset.add_graph(create_scenex_model_graph(model))
 
@@ -89,12 +94,20 @@ def test_example_scenex_serializes(dataset_format):
 
 
 def test_scenex_accepts_scene_level_usd_model():
-    model = scenex_metamodel().model_from_file(TEST_MODELS_DIR / "usd_scene.scenex")
+    model = scenex_metamodel().model_from_str(
+        """import "lab.scene"
+scene inst (ns=scene_lab_mjc) usd_scene {
+    scene: <pickplace_scene>
+    model usd_stage as usd { sys path = "/tmp/scene.usda" }
+}
+""",
+        file_name=str(MODELS_DIR / "usd_scene.scenex"),
+    )
 
     scene_instance = model.scene_insts[0]
     resource = scene_instance.models[0]
     assert resource.model_kind == "usd"
-    assert resource.model_spec.path == "model.xml"
+    assert resource.model_spec.path == "/tmp/scene.usda"
 
     graph = create_scenex_model_graph(model)
     parsed = SceneInstanceModel(scene_instance.uri, graph)
@@ -102,7 +115,7 @@ def test_scenex_accepts_scene_level_usd_model():
     assert URI_USD_STAGE in resource.types
     file = graph.value(resource.id, DCTERMS.source)
     assert isinstance(file, URIRef)
-    assert get_file_path(graph, file) == (TEST_MODELS_DIR / "model.xml").resolve()
+    assert get_file_path(graph, file) == Path("/tmp/scene.usda")
 
 
 @pytest.mark.parametrize("path", ["missing.usd", "/absent/missing.usd"])
@@ -139,7 +152,18 @@ def test_missing_model_file_still_generates_the_graph(tmp_path, path):
 
 
 def test_scene_parser_resolves_scene_entity_body_by_name():
-    model = scenex_metamodel().model_from_file(TEST_MODELS_DIR / "usd_scene_mapped.scenex")
+    model = scenex_metamodel().model_from_str(
+        """import "lab.scene"
+scene inst (ns=scene_lab_mjc) usd_scene {
+    scene: <pickplace_scene>
+    kgraph (ns=scene_lab_mjc) g { anchor: <world.root> body world { frame root { } } }
+    model usd_stage as usd { sys path = "/tmp/scene.usda"
+        map body <g.world> to "sim-world"
+    }
+}
+""",
+        file_name=str(MODELS_DIR / "usd_scene.scenex"),
+    )
     graph = create_scenex_model_graph(model)
     parsed = SceneInstanceModel(model.scene_insts[0].uri, graph)
 
@@ -150,7 +174,7 @@ def test_scene_parser_resolves_scene_entity_body_by_name():
 
 
 def test_scene_instance_accepts_only_its_linked_scene_model():
-    model = scenex_metamodel().model_from_file(TEST_MODELS_DIR / "lab.scenex")
+    model = scenex_metamodel().model_from_file(MODELS_DIR / "lab.scenex")
     graph = create_scenex_model_graph(model)
     scene_instance = model.scene_insts[0]
     scene_model = SceneModel(graph, scene_instance.scene.uri)
@@ -174,7 +198,7 @@ def test_scene_instance_accepts_only_its_linked_scene_model():
 
 
 def _parse_example_scene(index=0, loaders=None):
-    model = scenex_metamodel().model_from_file(TEST_MODELS_DIR / "lab.scenex")
+    model = scenex_metamodel().model_from_file(MODELS_DIR / "lab.scenex")
     scene_instance = model.scene_insts[index]
     return SceneInstanceModel(
         scene_instance.uri,
@@ -184,7 +208,7 @@ def _parse_example_scene(index=0, loaders=None):
 
 
 def test_scene_parser_loads_modelled_objects_and_agents():
-    model = scenex_metamodel().model_from_file(TEST_MODELS_DIR / "lab.scenex")
+    model = scenex_metamodel().model_from_file(MODELS_DIR / "lab.scenex")
     scene_instance = model.scene_insts[0]
     graph = create_scenex_model_graph(model)
     parsed = SceneInstanceModel(scene_instance.uri, graph)
@@ -203,10 +227,18 @@ def test_scene_parser_loads_modelled_objects_and_agents():
     assert not hasattr(parsed, "mapping_loader")
     assert not hasattr(parsed, "workspace_models")
 
-    # Every model names model.xml: one file, named by its bytes, beside the scene.
-    [file] = set(graph.objects(None, DCTERMS.source))
-    assert isinstance(file, URIRef)
-    assert get_file_path(graph, file) == (TEST_MODELS_DIR / "model.xml").resolve()
+    ros_model = next(
+        elem_model
+        for modelled in scene_instance.modelled_objs
+        for elem_model in modelled.models
+        if isinstance(elem_model.model_spec, PackagePath) and elem_model.model_spec.kind == "ros"
+    )
+    location = graph.value(graph.value(ros_model.uri, DCTERMS.source), PROV.atLocation)
+    package = graph.value(location, PROV.atLocation)
+    assert package == URIRef("pkg:ros/test_pkg")
+    assert (package, RDF.type, URI_ROS_TYPE_PACKAGE) in graph
+    assert str(graph.value(package, SDO.name)) == "test_pkg"
+    assert str(graph.value(location, URI_PROV_EXT_PRED_REL_PATH)) == "assets/table.xml"
 
 
 def test_scene_instance_resolves_modelled_elements_and_workspace_targets(monkeypatch):
@@ -233,7 +265,7 @@ def test_scene_instance_resolves_modelled_elements_and_workspace_targets(monkeyp
 
 
 def test_element_configuration_stays_on_its_resource():
-    model = scenex_metamodel().model_from_file(TEST_MODELS_DIR / "lab.scenex")
+    model = scenex_metamodel().model_from_file(MODELS_DIR / "lab.scenex")
     scene_instance = model.scene_insts[0]
     graph = create_scenex_model_graph(model)
     table = next(modelled for modelled in scene_instance.modelled_objs if len(modelled.models) > 1)
@@ -251,7 +283,29 @@ def test_element_configuration_stays_on_its_resource():
 
 
 def test_scene_instances_keep_models_out_of_supplied_scene():
-    model = scenex_metamodel().model_from_file(TEST_MODELS_DIR / "isolated_instances.scenex")
+    model = scenex_metamodel().model_from_str(
+        """import "lab.scene"
+scene inst (ns=scene_lab_mjc) first {
+    scene: <pickplace_scene>
+    obj <pickplace_objects.box1> {
+        model first-box as mjcf { sys path = "/tmp/first-box.xml" }
+    }
+    obj <ws_objects.container_1> {
+        model first-variable as mjcf { sys path = "/tmp/first-variable.xml" }
+    }
+}
+scene inst (ns=scene_lab_mjc) second {
+    scene: <pickplace_scene>
+    obj <pickplace_objects.box1> {
+        model second-box as mjcf { sys path = "/tmp/second-box.xml" }
+    }
+    obj <ws_objects.container_1> {
+        model second-variable as mjcf { sys path = "/tmp/second-variable.xml" }
+    }
+}
+""",
+        file_name=str(MODELS_DIR / "isolated_instances.scenex"),
+    )
     graph = create_scenex_model_graph(model)
     scene = SceneModel(graph, model.scene_insts[0].scene.uri)
     box_id = model.scene_insts[0].modelled_objs[0].obj.uri
@@ -269,7 +323,7 @@ def test_scene_instances_keep_models_out_of_supplied_scene():
 
 
 def test_scene_parser_loads_mappings_and_resolves_element_roots():
-    model = scenex_metamodel().model_from_file(TEST_MODELS_DIR / "lab.scenex")
+    model = scenex_metamodel().model_from_file(MODELS_DIR / "lab.scenex")
     scene_instance = model.scene_insts[0]
     graph = create_scenex_model_graph(model)
     parsed = SceneInstanceModel(scene_instance.uri, graph)
@@ -365,7 +419,7 @@ def test_modelled_object_reference_rejects_duplicate_body_mapping(tmp_path):
 
 
 def test_scene_parser_rejects_mapping_without_target():
-    model = scenex_metamodel().model_from_file(TEST_MODELS_DIR / "lab.scenex")
+    model = scenex_metamodel().model_from_file(MODELS_DIR / "lab.scenex")
     scene_instance = model.scene_insts[0]
     graph = create_scenex_model_graph(model)
     mapping_id = next(graph.objects(predicate=URI_EXEC_PRED_HAS_MAPPING))
@@ -399,7 +453,7 @@ def test_modelled_resources_use_custom_loaders_in_order():
 
 
 def test_object_set_without_body_mappings_returns_none():
-    model = scenex_metamodel().model_from_file(TEST_MODELS_DIR / "lab.scenex")
+    model = scenex_metamodel().model_from_file(MODELS_DIR / "lab.scenex")
     scene_instance = model.scene_insts[1]
     graph = create_scenex_model_graph(model)
     parsed = SceneInstanceModel(scene_instance.uri, graph)

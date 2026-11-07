@@ -236,15 +236,22 @@ class RigidBody(IHasNamespace, IDefaultFrame):
 
 
 class SceneShape(IHasNamespace):
+    name: str
+    frame: Frame
+    unit: str
+    kind: str
+    color: Color | None
+    # One factor per axis, or None when unscaled: a scalar scale is the same factor on all three.
+    scale: list[float] | None
+
     def __init__(self, parent, name, frame, unit, kind, scale=None, color=None) -> None:
         super().__init__(parent=parent)
         self.name = name
         self.frame = frame
         self.unit = unit
-        self.kind: str = kind
-        self.color: Color | None = color
-        # One factor per axis, or None when unscaled: a scalar scale is the same factor on all three.
-        self.scale: list[float] | None = None
+        self.kind = kind
+        self.color = color
+        self.scale = None
         if scale is not None:
             context = f"{self.kind} '{name}' scale"
             self.scale = list(scale.as_xyz(context)) if isinstance(scale, FloatVector) else [scale] * 3
@@ -272,6 +279,8 @@ class PrimitiveShapeType(StrEnum):
 
 
 class PrimitiveShape(SceneShape):
+    shape_type: PrimitiveShapeType
+
     def __init__(self, parent, name, frame, unit, scale, shape_type, color=None) -> None:
         self.shape_type = PrimitiveShapeType(shape_type)
         super().__init__(

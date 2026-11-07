@@ -17,6 +17,30 @@ from scene_dsl.classes.scene import (
 )
 
 
+class SystemPath:
+    """A model file at a path, absolute or relative to the scene declaring it."""
+
+    path: str
+
+    def __init__(self, parent, path) -> None:
+        self.parent = parent
+        self.path = path
+
+
+class PackagePath:
+    """A model file at a path inside a ROS or Python package."""
+
+    kind: str
+    pkg: str
+    path: str
+
+    def __init__(self, parent, kind, pkg, path) -> None:
+        self.parent = parent
+        self.kind = kind
+        self.pkg = pkg
+        self.path = path
+
+
 class ElementModel(IHasNamespace):
     model_spec: Any
     model_kind: str | None

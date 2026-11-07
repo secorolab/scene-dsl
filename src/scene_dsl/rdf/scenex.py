@@ -1,6 +1,14 @@
 # SPDX-License-Identifier: MPL-2.0
+from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 
+from rdf_utils.models.prov import (
+    add_directory_location,
+    add_file_entity,
+    get_pkg_info,
+    load_pkg_prov,
+)
 from rdf_utils.models.vocab import (
     URI_AGN_PRED_HAS_AGN_MODEL,
     URI_AGN_PRED_OF_AGN,
@@ -16,11 +24,9 @@ from rdf_utils.models.vocab import (
     URI_EXEC_PRED_MAPS,
     URI_EXEC_PRED_MODEL,
     URI_EXEC_PRED_MODEL_ENTITY,
-    URI_EXEC_PRED_PATH,
-    URI_EXEC_TYPE_RES_PATH,
     URI_EXEC_TYPE_SCENE_INST,
     URI_EXEC_TYPE_SCENE_MODEL,
-    URI_EXEC_TYPE_SYS_RES,
+    URI_ROS_TYPE_PACKAGE,
 )
 from rdf_utils.namespace import (
     NS_MM_GEOM,
@@ -29,7 +35,8 @@ from rdf_utils.namespace import (
     NS_MM_QUDT_QTY,
     NS_MM_QUDT_UNIT,
 )
-from rdflib import RDF, Graph, Literal, URIRef
+from rdflib import DCTERMS, RDF, Graph, Literal, URIRef
+from textx import get_model
 
 from scene_dsl.classes.scenex import (
     ElementModel,
@@ -38,7 +45,9 @@ from scene_dsl.classes.scenex import (
     ModelledAgentSet,
     ModelledObject,
     ModelledObjectSet,
+    PackagePath,
     SceneInstance,
+    SystemPath,
     TreeMapping,
 )
 from scene_dsl.rdf.common import add_py_module_attr
@@ -53,8 +62,6 @@ from scene_dsl.rdf_parser.vocab import (
     NS_XML,
     URI_BDD_PRED_OF_SCENE,
     URI_MJCF_MUJOCO,
-    URI_ROS_PRED_PACKAGE_NAME,
-    URI_ROS_TYPE_PACKAGE,
     URI_URDF_ROBOT,
     URI_USD_STAGE,
     URI_XML_DOCUMENT,
@@ -74,22 +81,6 @@ def _bind_model_kind_namespaces(graph: Graph) -> None:
 
 
 def add_model_spec(graph: Graph, elem_model: ElementModel) -> None:
-    model_spec_type = elem_model.model_spec.__class__.__name__
-    if "PyModuleAttr" in model_spec_type:
-        add_py_module_attr(graph=graph, node_uri=elem_model.uri, py_model=elem_model.model_spec)
-    elif "SystemPath" in model_spec_type:
-        graph.add((elem_model.uri, RDF.type, URI_EXEC_TYPE_RES_PATH))
-        graph.add((elem_model.uri, RDF.type, URI_EXEC_TYPE_SYS_RES))
-        graph.add((elem_model.uri, URI_EXEC_PRED_PATH, Literal(elem_model.model_spec.path)))
-    elif "RosPath" in model_spec_type:
-        graph.add((elem_model.uri, RDF.type, URI_EXEC_TYPE_RES_PATH))
-        graph.add((elem_model.uri, RDF.type, URI_EXEC_TYPE_SYS_RES))
-        graph.add((elem_model.uri, RDF.type, URI_ROS_TYPE_PACKAGE))
-        graph.add((elem_model.uri, URI_ROS_PRED_PACKAGE_NAME, Literal(elem_model.model_spec.pkg)))
-        graph.add((elem_model.uri, URI_EXEC_PRED_PATH, Literal(elem_model.model_spec.path)))
-    else:
-        raise ValueError(f"Unhandled model specification type: {model_spec_type}")
-
     if elem_model.model_kind == "urdf":
         graph.add((elem_model.uri, RDF.type, URI_XML_DOCUMENT))
         graph.add((elem_model.uri, RDF.type, URI_URDF_ROBOT))
@@ -100,6 +91,30 @@ def add_model_spec(graph: Graph, elem_model: ElementModel) -> None:
         graph.add((elem_model.uri, RDF.type, URI_USD_STAGE))
     elif elem_model.model_kind is not None:
         raise ValueError(f"Unhandled model kind: {elem_model.model_kind}")
+
+    spec = elem_model.model_spec
+    if not isinstance(spec, SystemPath | PackagePath):
+        add_py_module_attr(graph=graph, node_uri=elem_model.uri, py_model=spec)
+        return
+
+    if isinstance(spec, PackagePath) and spec.kind == "ros":
+        root = URIRef(f"pkg:ros/{quote(spec.pkg, safe='')}")
+        load_pkg_prov(graph, root, spec.pkg, additional_types=(URI_ROS_TYPE_PACKAGE,), dirty=False)
+    elif isinstance(spec, PackagePath):
+        root, version, revision, repository, dirty = get_pkg_info(spec.pkg)
+        load_pkg_prov(graph, root, spec.pkg, version, revision, repository, dirty=dirty)
+    elif Path(spec.path).expanduser().is_absolute():
+        root = None
+    else:
+        scene_file = getattr(get_model(elem_model), "_tx_filename", None)
+        if scene_file is None:
+            raise ValueError(
+                f"model '{elem_model.uri}' has relative path '{spec.path}', and the scene it is "
+                "declared in was not read from a file to resolve it against"
+            )
+        root = add_directory_location(graph, Path(scene_file).resolve().parent)
+    source = add_file_entity(graph, root, spec.path)
+    graph.add((elem_model.uri, DCTERMS.source, source))
 
 
 def _ensure_unique_scene_uri(

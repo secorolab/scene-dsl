@@ -2,7 +2,6 @@
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote
-from uuid import uuid4
 
 from rdf_utils.models.prov import (
     add_directory_location,
@@ -107,7 +106,6 @@ def add_model_spec(graph: Graph, elem_model: ElementModel) -> None:
     elif Path(spec.path).expanduser().is_absolute():
         root = None
     else:
-        # A relative path is written beside the file declaring it.
         scene_file = getattr(get_model(elem_model), "_tx_filename", None)
         if scene_file is None:
             raise ValueError(
@@ -276,7 +274,7 @@ def add_modelled_scene(
 
 def create_scenex_model_graph(model: Any, g: Graph | None = None) -> Graph:
     if g is None:
-        g = Graph(identifier=URIRef(uuid4().urn))
+        g = Graph()
 
     _bind_model_kind_namespaces(graph=g)
 

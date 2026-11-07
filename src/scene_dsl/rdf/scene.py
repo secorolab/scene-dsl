@@ -1,6 +1,5 @@
 # SPDX-License-Identifier: MPL-2.0
 from typing import Any
-from uuid import uuid4
 
 from rdf_utils.models.vocab import (
     URI_AGN_PRED_HAS_AGN,
@@ -224,7 +223,7 @@ def add_scene_model(
 
 def create_scene_model_graph(model: Any, g: Graph | None = None) -> Graph:
     if g is None:
-        g = Graph(identifier=URIRef(uuid4().urn))
+        g = Graph()
 
     scene_models = getattr(model, "scene_models", None)
     if scene_models is None or not isinstance(scene_models, list):

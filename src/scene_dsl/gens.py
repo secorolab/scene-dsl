@@ -1,12 +1,14 @@
 # SPDX-License-Identifier: MPL-2.0
+from collections.abc import Callable
 from os.path import basename, exists, join, splitext
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 from jinja2 import Environment, FileSystemLoader
 from rdf_utils import DatasetFormat
 from rdf_utils.naming import get_valid_var_name
-from rdflib import Dataset, Graph
+from rdflib import Dataset, Graph, URIRef
 
 from scene_dsl.dot import create_dot
 from scene_dsl.kdl_tree import build_kdl_trees
@@ -22,18 +24,26 @@ def rdf_full_output_path(
     return join("" if output_path is None else output_path, full_filename)
 
 
-def graph_gen_console(graph: Graph, **kwargs):
+def graph_gen_console(create_graph: Callable[[Any, Graph], Graph], model, **kwargs):
     dataset = Dataset()
-    dataset.add_graph(graph)
+    create_graph(model, dataset.graph(URIRef(uuid4().urn)))
     print(
         dataset.serialize(
             format=DatasetFormat(kwargs.get("format", DatasetFormat.JSON_LD)),
+            indent=2,
             auto_compact="nocompact" not in kwargs,
         )
     )
 
 
-def graph_gen(graph: Graph, model, output_path, overwrite, model_type: str, **kwargs):
+def graph_gen(
+    create_graph: Callable[[Any, Graph], Graph],
+    model,
+    output_path,
+    overwrite,
+    model_type: str,
+    **kwargs,
+):
     dataset_format = DatasetFormat(kwargs.get("format", DatasetFormat.JSON_LD))
     full_output_path = rdf_full_output_path(
         model=model,
@@ -47,21 +57,23 @@ def graph_gen(graph: Graph, model, output_path, overwrite, model_type: str, **kw
         return
 
     dataset = Dataset()
-    dataset.add_graph(graph)
+    create_graph(model, dataset.graph(URIRef(uuid4().urn)))
     with open(full_output_path, "w") as outfile:
         outfile.write(
-            dataset.serialize(format=dataset_format, auto_compact="nocompact" not in kwargs)
+            dataset.serialize(
+                format=dataset_format, indent=2, auto_compact="nocompact" not in kwargs
+            )
         )
     print(f"... wrote {full_output_path}")
 
 
 def scene_graph_gen_console(metamodel, model, output_path, overwrite, debug, **kwargs):
-    graph_gen_console(create_scene_model_graph(model=model), **kwargs)
+    graph_gen_console(create_scene_model_graph, model, **kwargs)
 
 
 def scene_graph_gen(metamodel, model, output_path, overwrite, debug, **kwargs):
     graph_gen(
-        create_scene_model_graph(model=model),
+        create_scene_model_graph,
         model,
         output_path,
         overwrite,
@@ -71,12 +83,12 @@ def scene_graph_gen(metamodel, model, output_path, overwrite, debug, **kwargs):
 
 
 def scenex_graph_gen_console(metamodel, model, output_path, overwrite, debug, **kwargs):
-    graph_gen_console(create_scenex_model_graph(model=model), **kwargs)
+    graph_gen_console(create_scenex_model_graph, model, **kwargs)
 
 
 def scenex_graph_gen(metamodel, model, output_path, overwrite, debug, **kwargs):
     graph_gen(
-        create_scenex_model_graph(model=model),
+        create_scenex_model_graph,
         model,
         output_path,
         overwrite,

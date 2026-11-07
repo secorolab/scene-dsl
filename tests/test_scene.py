@@ -1,4 +1,5 @@
 from pathlib import Path
+from uuid import uuid4
 
 import pytest
 from rdf_utils import DatasetFormat
@@ -88,7 +89,7 @@ def test_example_scenex_serializes(dataset_format):
     # orjson, which rdflib uses for JSON-LD when installed, refuses a numpy float64 left uncast.
     model = scenex_metamodel().model_from_file(MODELS_DIR / "lab.scenex")
     dataset = Dataset()
-    dataset.add_graph(create_scenex_model_graph(model))
+    create_scenex_model_graph(model, dataset.graph(URIRef(uuid4().urn)))
 
     assert dataset.serialize(format=DatasetFormat(dataset_format))
 

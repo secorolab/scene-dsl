@@ -1,57 +1,44 @@
 # SPDX-License-Identifier: MPL-2.0
-from os.path import basename, dirname, exists, join, splitext
+from os.path import basename, exists, join, splitext
 from pathlib import Path
 from typing import Any
 
 from jinja2 import Environment, FileSystemLoader
+from rdf_utils import DatasetFormat
 from rdf_utils.naming import get_valid_var_name
-from rdflib import Graph
-from rdflib.plugin import PluginException
+from rdflib import Dataset, Graph
 
 from scene_dsl.dot import create_dot
 from scene_dsl.kdl_tree import build_kdl_trees
 from scene_dsl.rdf.scene import create_scene_model_graph
 from scene_dsl.rdf.scenex import create_scenex_model_graph
 
-_GRAPH_FORMAT_EXT = {"json-ld": "json", "ttl": "ttl", "xml": "xml"}
 
-
-def parse_rdflib_serial_args(**kwargs):
-    g_format = kwargs.get("format", "json-ld")
-    if g_format not in _GRAPH_FORMAT_EXT:
-        raise ValueError(
-            f"file extension not handled for graph format '{g_format}', "
-            f"try {list(_GRAPH_FORMAT_EXT.keys())}"
-        )
-    ser_kwargs = {"format": g_format}
-    if g_format == "json-ld":
-        ser_kwargs["auto_compact"] = "nocompact" not in kwargs
-    return ser_kwargs
-
-
-def rdf_full_output_path(model, output_path: str, g_format: str, model_type: str, **kwargs: Any):
+def rdf_full_output_path(
+    model, output_path: str, dataset_format: DatasetFormat, model_type: str, **kwargs: Any
+):
     filename = kwargs.get("filename", basename(model._tx_filename)) or "graph"
-    full_filename = f"{splitext(filename)[0]}.{model_type}.{_GRAPH_FORMAT_EXT[g_format]}"
+    full_filename = f"{splitext(filename)[0]}.{model_type}.{dataset_format.extension}"
     return join("" if output_path is None else output_path, full_filename)
 
 
 def graph_gen_console(graph: Graph, **kwargs):
-    ser_kwargs = parse_rdflib_serial_args(**kwargs)
-    try:
-        print(graph.serialize(**ser_kwargs))
-    except PluginException as e:
-        raise ValueError(
-            f"serialization format '{ser_kwargs['format']}' not supported by rdflib, "
-            f"try {list(_GRAPH_FORMAT_EXT.keys())}: {e.msg}"
+    dataset = Dataset()
+    dataset.add_graph(graph)
+    print(
+        dataset.serialize(
+            format=DatasetFormat(kwargs.get("format", DatasetFormat.JSON_LD)),
+            auto_compact="nocompact" not in kwargs,
         )
+    )
 
 
 def graph_gen(graph: Graph, model, output_path, overwrite, model_type: str, **kwargs):
-    ser_kwargs = parse_rdflib_serial_args(**kwargs)
+    dataset_format = DatasetFormat(kwargs.get("format", DatasetFormat.JSON_LD))
     full_output_path = rdf_full_output_path(
         model=model,
         output_path=output_path,
-        g_format=ser_kwargs["format"],
+        dataset_format=dataset_format,
         model_type=model_type,
         **kwargs,
     )
@@ -59,8 +46,12 @@ def graph_gen(graph: Graph, model, output_path, overwrite, model_type: str, **kw
         print(f"not overwriting existing file '{full_output_path}'")
         return
 
+    dataset = Dataset()
+    dataset.add_graph(graph)
     with open(full_output_path, "w") as outfile:
-        outfile.write(graph.serialize(**ser_kwargs))
+        outfile.write(
+            dataset.serialize(format=dataset_format, auto_compact="nocompact" not in kwargs)
+        )
     print(f"... wrote {full_output_path}")
 
 
@@ -144,11 +135,7 @@ def scenex_kdl_gen(metamodel, model, output_path, overwrite, debug, **kwargs):
         print(f"not overwriting existing file '{full_output_path}'")
         return
 
-    # Model file paths are written relative to the model declaring them.
-    base_dir = dirname(model._tx_filename)
-    trees = build_kdl_trees(
-        create_scenex_model_graph(model=model), Path(base_dir) if base_dir else None
-    )
+    trees = build_kdl_trees(create_scenex_model_graph(model=model))
 
     env = Environment(
         loader=FileSystemLoader(Path(__file__).parent / "templates"), keep_trailing_newline=True

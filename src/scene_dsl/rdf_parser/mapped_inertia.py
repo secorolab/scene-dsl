@@ -12,35 +12,21 @@ from xml.etree import ElementTree
 
 import numpy as np
 from rdf_utils.constraints import ConstraintViolation
-from rdf_utils.models.execution import get_path_of_node
-from rdflib import RDF, Graph, URIRef
+from rdf_utils.models.prov import get_file_path
+from rdflib import DCTERMS, RDF, Graph, URIRef
 from scipy.spatial.transform import Rotation
 
 from scene_dsl.rdf_parser.vocab import URI_MJCF_MUJOCO, URI_URDF_ROBOT
 
 
-def model_path(model: URIRef, graph: Graph, base_dir: Path | None) -> Path:
-    """Where a model's path lands.
-
-    A relative path is read against the model declaring it, and against nothing else: the
-    directory a generator happens to run from is no part of what a scene states, and a
-    scene that resolves from one place and not another is not a model of anything.
-    """
-    literal = get_path_of_node(graph=graph, node_id=model)
-    path = Path(literal).expanduser()
-    if not path.is_absolute():
-        if base_dir is None:
-            raise ConstraintViolation(
-                "model file",
-                f"model '{model}' points at '{literal}', which is relative, and the caller "
-                f"named no directory to read it against",
-            )
-        path = base_dir / path
-
+def model_path(model: URIRef, graph: Graph) -> Path:
+    """The file a model is drawn from, its `dcterms:source`, where the scene locates it."""
+    source = graph.value(model, DCTERMS.source)
+    path = get_file_path(graph, source) if isinstance(source, URIRef) else None
+    if path is None:
+        raise ConstraintViolation("model file", f"model '{model}' states no file")
     if not path.is_file():
-        raise ConstraintViolation(
-            "model file", f"model '{model}' points at '{literal}', which is no file: '{path}'"
-        )
+        raise ConstraintViolation("model file", f"model '{model}' is at '{path}', which is no file")
     return path
 
 
@@ -159,12 +145,12 @@ def _read_mjcf(path: Path, entity: str) -> tuple[float, np.ndarray, np.ndarray]:
 
 
 def read_body_inertia(
-    mapped: tuple[URIRef, str], graph: Graph, base_dir: Path | None = None
+    mapped: tuple[URIRef, str], graph: Graph
 ) -> tuple[float, np.ndarray, np.ndarray]:
     """The mass, centre of mass and inertia tensor a model file states for the body it
     knows as `entity`, given the model and that name."""
     model, entity = mapped
-    path = model_path(model, graph, base_dir)
+    path = model_path(model, graph)
     if (model, RDF.type, URI_MJCF_MUJOCO) in graph:
         return _read_mjcf(path, entity)
     if (model, RDF.type, URI_URDF_ROBOT) in graph:

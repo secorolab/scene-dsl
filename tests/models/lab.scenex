@@ -1,0 +1,324 @@
+import "../../examples/models/lab.scene"
+import "scene_dsl:robots/kinova_gen3_7dof.ktree"
+import "scene_dsl:robots/robotiq_2f85.ktree"
+import "scene_dsl:robots/ur10e.ktree"
+
+ns lab_rob='https://secorolab.github.io/models/acceptance-criteria/bdd/scenes/secorolab-mjc/robots/'
+
+ktree inst (ns=lab_rob) arm1 of <kinova_tree>
+ktree inst (ns=lab_rob) arm2 of <kinova_tree>
+ktree inst (ns=lab_rob) gripper of <gripper_tree>
+ktree inst (ns=lab_rob) ur10 of <ur10e_tree>
+
+ktree (ns=lab_rob) arm1_gripper {
+    root: <arm1.base_link.base_link_origin>
+    tree <arm1>
+    tree <gripper>
+
+    joints {
+        fixed g_mount_on_pinch_site {
+            parent: <arm1.bracelet_link.pinch_site>
+            child: <gripper.g_base_mount.g_mount_interface>
+        }
+        serial {
+            root: <arm1.base_link.base_link_origin>
+            tip: <gripper.g_base.g_pinch>
+        }
+    }
+}
+
+ktree (ns=scene_lab_mjc) panda_tree {
+    root: <panda_base_body.base_link>
+    body panda_base_body {
+        frame base_link {
+            pose panda_on_table {
+                wrt: <world_tree.table_body.table_root>
+                xyz: (0.0, 0.0, 0.0) m
+                orientation: direction-cosine {
+                    x: (1.0, 0.0, 0.0)
+                    y: (0.0, 1.0, 0.0)
+                    z: (0.0, 0.0, 1.0)
+                }
+            }
+        }
+        frame bracelet_link {
+            pose bracelet_link_on_base_link {
+                wrt: <panda_base_body.base_link>
+                xyz: (0.0, 0.0, 0.0) m
+                orientation: euler { angles: (0.0, 0.0, 0.0) unit: rad }
+            }
+        }
+        frame tool0 {
+            pose tool0_on_base_link {
+                wrt: <panda_base_body.base_link>
+                xyz: (0.0, 0.0, 0.0) m
+                orientation: euler { angles: (0.0, 0.0, 0.0) unit: rad }
+            }
+        }
+        inertia {
+            frame: <base_link>
+            mass: 1.0 kg
+            inertia-matrix: (
+                (0.01, 0.0, 0.0),
+                (0.0, 0.01, 0.0),
+                (0.0, 0.0, 0.01)
+            ) kg*m^2
+        }
+    }
+    body gripper_body {
+        frame gripper_base {
+            pose gripper_on_tool {
+                wrt: <panda_base_body.tool0>
+                xyz: (0.0, 0.0, -0.061525) m
+                orientation: euler {
+                    axes: xyz extrinsic
+                    angles: (180.0, 0.0, 0.0)
+                    unit: deg
+                }
+            }
+        }
+        inertia {
+            frame: <gripper_base>
+            mass: 1.0 kg
+            inertia-matrix: (
+                (0.01, 0.0, 0.0),
+                (0.0, 0.01, 0.0),
+                (0.0, 0.0, 0.01)
+            ) kg*m^2
+        }
+    }
+    body panda_link1_body {
+        frame panda_joint1 { }
+        frame panda_link1 {
+            pose panda_link1_on_panda_joint1 {
+                wrt: <panda_link1_body.panda_joint1>
+                xyz: (0.0, 0.0, 0.0) m
+                orientation: euler { angles: (0.0, 0.0, 0.0) unit: rad }
+            }
+        }
+        inertia {
+            frame: <panda_joint1>
+            mass: 1.0 kg
+            inertia-matrix: (
+                (0.01, 0.0, 0.0),
+                (0.0, 0.01, 0.0),
+                (0.0, 0.0, 0.01)
+            ) kg*m^2
+        }
+    }
+    body panda_link2_body {
+        frame panda_joint2 { }
+        frame panda_tip {
+            pose panda_tip_on_panda_joint2 {
+                wrt: <panda_link2_body.panda_joint2>
+                xyz: (0.0, 0.0, 0.0) m
+                orientation: euler { angles: (0.0, 0.0, 0.0) unit: rad }
+            }
+        }
+        inertia {
+            frame: <panda_joint2>
+            mass: 1.0 kg
+            inertia-matrix: (
+                (0.01, 0.0, 0.0),
+                (0.0, 0.01, 0.0),
+                (0.0, 0.0, 0.01)
+            ) kg*m^2
+        }
+    }
+    joints {
+        fixed robotiq_2f85 {
+            parent: <panda_base_body.tool0>
+            child: <gripper_body.gripper_base>
+        }
+        revolute panda_joint1 {
+            parent: <panda_base_body.bracelet_link>.z
+            child: <panda_link1_body.panda_joint1>.z
+            actuation {
+                gear ratio: 1.0
+                command-interface: position velocity torque current
+                state-interface: position velocity torque
+            }
+            offset { xyz: (0.0, 0.0, 0.333) m }
+            polarity: PositivePolarity
+        }
+        revolute panda_joint2 {
+            parent: <panda_link1_body.panda_link1>.z
+            child: <panda_link2_body.panda_joint2>.z
+            mimic {
+                joint: <panda_joint1>
+                multiplier: 2.0
+                offset: 0.1
+            }
+            polarity: PositivePolarity
+        }
+        serial {
+            root: <panda_base_body.base_link>
+            tip: <panda_link2_body.panda_tip>
+        }
+    }
+}
+
+ktree (ns=scene_lab_mjc) world_tree {
+    root: <world_body.world>
+    tree <panda_tree>
+    tree <ur10>
+    tree <arm1_gripper>
+    tree <arm2>
+
+    body world_body {
+        frame world { }
+    }
+
+    body table_body {
+        frame table_root {
+            pose table_in_world {
+                wrt: <world_body.world>
+                xyz: (0.0, 0.0, 0.0) m
+                orientation: euler {
+                    angles: (0.0, 0.0, 0.0)
+                    unit: rad
+                }
+            }
+        }
+        inertia {
+            frame: <table_root>
+            mass: 10.0 kg
+            inertia-matrix: (
+                (1.0, 0.0, 0.0),
+                (0.0, 1.0, 0.0),
+                (0.0, 0.0, 1.0)
+            ) kg*m^2
+        }
+    }
+
+    joints {
+        // The table is placed by a pose, but a pose says where a body is, not what
+        // holds it: without this the table hangs from nothing.
+        fixed table_on_world {
+            parent: <world_body.world>
+            child: <table_body.table_root>
+        }
+        fixed ur10_on_table {
+            parent: <table_body.table_root>
+            child: <ur10.base.base_origin>
+        }
+        fixed panda_on_table {
+            parent: <table_body.table_root>
+            child: <panda_tree.panda_base_body.base_link>
+        }
+        fixed arm1_on_table {
+            parent: <table_body.table_root>
+            child: <arm1.base_link.base_link_origin>
+        }
+        fixed arm2_on_table {
+            parent: <table_body.table_root>
+            child: <arm2.base_link.base_link_origin>
+        }
+    }
+}
+
+scene inst (ns=scene_lab_mjc) pickplace_scene_mjc {
+    scene: <pickplace_scene>
+
+    kgraph (ns=scene_lab_mjc) lab_graph {
+        anchor: <world_tree.world_body.world>
+        tree <world_tree>
+
+        // a free body
+        body box1_body {
+            frame box1_root {
+                pose box1_on_table {
+                    wrt: <world_tree.table_body.table_root>
+                    xyz: (0.45, 0.1, 0.75) m
+                    orientation: euler {
+                        angles: (0.0, 0.0, 0.0)
+                        unit: rad
+                    }
+                }
+            }
+            inertia {
+                frame: <box1_root>
+                mass: 0.2 kg
+                inertia-matrix: (
+                    (0.001, 0.0, 0.0),
+                    (0.0, 0.001, 0.0),
+                    (0.0, 0.0, 0.001)
+                ) kg*m^2
+            }
+        }
+    }
+
+    obj <pickplace_objects.box1> {
+        model box1-mjc as mjcf { sys path = 'model.xml'
+            map body <lab_graph.box1_body> to "cube"
+        }
+    }
+
+    obj <ws_objects.dining_table> {
+        model mjc-table as mjcf { sys path = 'model.xml' }
+        model mjc-dining-table as mjcf { sys path = 'model.xml'
+            map body <world_tree.table_body> to "table"
+        }
+    }
+
+    agn <isaac_agents.panda> {
+        model panda-mjc as mjcf {
+            sys path = 'model.xml'
+            map tree <panda_tree> to "panda"
+        }
+        camera wrist_cam {
+            frame: <panda_tree.panda_base_body.base_link>
+            type: rgb
+            resolution: (640, 480)
+            fov: 1.2 rad
+            update-rate: 30.0 Hz
+        }
+        force-torque wrist_ft {
+            frame: <panda_tree.panda_base_body.tool0>
+            observes: force torque
+            update-rate: 100.0 Hz
+        }
+        imu wrist_imu {
+            frame: <panda_tree.panda_base_body.bracelet_link>
+            observes: angular-velocity linear-acceleration orientation
+            update-rate: 200.0 Hz
+        }
+    }
+
+    agn <isaac_agents.ur10> {
+        model ur10-mjc as mjcf {
+            sys path = 'model.xml'
+            map tree <ur10> to "ur10e"
+        }
+    }
+
+    agn <isaac_agents.arm1_gripper> {
+        model arm1-mjc as mjcf {
+            sys path = 'model.xml'
+            map tree <arm1> to "gen3"
+        }
+        model gripper-mjc as mjcf {
+            sys path = 'model.xml'
+            map tree <gripper> to "2f85"
+        }
+    }
+
+    agn <isaac_agents.kinova2> {
+        model kinova2-mjc as mjcf {
+            sys path = 'model.xml'
+            map tree <arm2> to "gen3"
+        }
+    }
+}
+
+scene inst (ns=scene_lab_mjc) setting_scene_mjc {
+    scene: <setting_scene>
+
+    obj set <balls> {
+        model ball-mjc as mjcf { sys path = 'model.xml' }
+    }
+
+    obj set <cubes> {
+        model cube-mjc as mjcf { sys path = 'model.xml' }
+    }
+}

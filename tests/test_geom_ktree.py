@@ -454,27 +454,29 @@ ktree (ns=n) t {{ root: <b.f>
 def test_relative_system_path_is_under_the_model_directory(tmp_path):
     shape, graph = _file_shape(tmp_path, 'sys path = "meshes/part.stl"')
 
-    assert (shape.uri, PROV.wasDerivedFrom, shape.file_uri) in graph
-    location = graph.value(shape.file_uri, PROV.atLocation)
+    file_id = graph.value(shape.uri, PROV.wasDerivedFrom)
+    assert (file_id, RDF.type, PROV.Entity) in graph
+    location = graph.value(file_id, PROV.atLocation)
     assert (location, RDF.type, URI_PROV_EXT_TYPE_RELATIVE_LOCATION) in graph
-    assert get_file_path(graph, shape.file_uri) == tmp_path.resolve() / "meshes" / "part.stl"
+    assert get_file_path(graph, file_id) == tmp_path.resolve() / "meshes" / "part.stl"
 
 
 def test_absolute_system_path_is_its_own_location(tmp_path):
     mesh = tmp_path / "part.stl"
     shape, graph = _file_shape(tmp_path, f'sys path = "{mesh}"')
 
-    location = graph.value(shape.file_uri, PROV.atLocation)
+    file_id = graph.value(shape.uri, PROV.wasDerivedFrom)
+    location = graph.value(file_id, PROV.atLocation)
     assert location == URIRef(mesh.as_uri())
     assert (location, RDF.type, PROV.Location) in graph
-    assert get_file_path(graph, shape.file_uri) == mesh
+    assert get_file_path(graph, file_id) == mesh
 
 
 def test_ros_path_is_under_its_package(tmp_path):
     shape, graph = _file_shape(tmp_path, 'ros pkg = "my_meshes", path = "meshes/part.stl"')
 
     package = NS_MM_ROS["my_meshes"]
-    location = graph.value(shape.file_uri, PROV.atLocation)
+    location = graph.value(graph.value(shape.uri, PROV.wasDerivedFrom), PROV.atLocation)
     assert graph.value(location, PROV.atLocation) == package
     assert str(graph.value(location, URI_PROV_EXT_PRED_REL_PATH)) == "meshes/part.stl"
     assert (package, RDF.type, URI_ROS_TYPE_PACKAGE) in graph

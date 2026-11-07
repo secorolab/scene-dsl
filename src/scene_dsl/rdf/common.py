@@ -38,16 +38,20 @@ def add_vector_xyz(graph: Graph, node: URIRef, vect: FloatVector) -> None:
     graph.add((node, URI_GEOM_PRED_Z, Literal(z)))
 
 
-def add_file_spec(graph: Graph, file_uri: URIRef, file_spec: Any) -> None:
+def add_file_spec(graph: Graph, file_spec: Any) -> URIRef:
     """A file named by a FileSpec (SystemPath or RosPath), as a `prov:Entity` at its location.
 
-    A relative system path is under the directory of the model file that names it.
+    A relative system path is under the directory of the model file that names it. Returns the
+    file's URI, which rdf-utils derives from its location.
     """
     file_spec_type = file_spec.__class__.__name__
     if "RosPath" in file_spec_type:
-        # One IRI per package, its ROS index page, whichever scene names it.
+        # One IRI per package, its ROS index page, whichever scene names it. No commit is
+        # recorded, so there is no identifier to mark dirty.
         root = NS_MM_ROS[file_spec.pkg]
-        load_pkg_prov(graph, root, file_spec.pkg, additional_types=(URI_ROS_TYPE_PACKAGE,))
+        load_pkg_prov(
+            graph, root, file_spec.pkg, additional_types=(URI_ROS_TYPE_PACKAGE,), dirty=False
+        )
     elif "SystemPath" in file_spec_type:
         if Path(file_spec.path).expanduser().is_absolute():
             root = None
@@ -56,10 +60,11 @@ def add_file_spec(graph: Graph, file_uri: URIRef, file_spec: Any) -> None:
     else:
         raise ValueError(f"Unhandled file specification type: {file_spec_type}")
 
-    add_file_entity(graph, file_uri, root, file_spec.path)
+    file_uri = add_file_entity(graph, root, file_spec.path)
     if root is None:
         # An absolute path is its own location.
         graph.add((graph.value(file_uri, PROV.atLocation), RDF.type, PROV.Location))
+    return file_uri
 
 
 def _model_dir(obj: Any) -> Path:

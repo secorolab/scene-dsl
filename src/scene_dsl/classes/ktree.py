@@ -304,11 +304,6 @@ class FileBasedShape(SceneShape):
         if "RosPath" in type(file).__name__ and PurePath(file.path).is_absolute():
             raise ValueError(f"file shape '{name}' needs a path relative to its ROS package")
 
-    @property
-    def file_uri(self) -> URIRef:
-        """The file the shape is derived from."""
-        return self.namespace[self.scoped("-file")]
-
 
 class RigidBodyInertia:
     frame: Frame

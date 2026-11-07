@@ -135,8 +135,7 @@ def add_shape(graph: Graph, shape: SceneShape) -> None:
         add_entity(graph, shape.uri)
         graph.bind("prov", PROV)
         graph.bind("prov-ext", NS_MM_PROV_EXT)
-        graph.add((shape.uri, PROV.wasDerivedFrom, shape.file_uri))
-        add_file_spec(graph, shape.file_uri, shape.file)
+        graph.add((shape.uri, PROV.wasDerivedFrom, add_file_spec(graph, shape.file)))
         add_shape_scale(graph, shape)
     else:
         raise TypeError(f"Unhandled shape type: {type(shape).__name__}")

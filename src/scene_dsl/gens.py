@@ -9,6 +9,7 @@ from jinja2 import Environment, FileSystemLoader
 from rdf_utils import DatasetFormat
 from rdf_utils.naming import get_valid_var_name
 from rdflib import Dataset, Graph, URIRef
+from textx import get_location
 
 from scene_dsl.dot import create_dot
 from scene_dsl.kdl_tree import build_kdl_trees
@@ -19,7 +20,7 @@ from scene_dsl.rdf.scenex import create_scenex_model_graph
 def rdf_full_output_path(
     model, output_path: str, dataset_format: DatasetFormat, model_type: str, **kwargs: Any
 ):
-    filename = kwargs.get("filename", basename(model._tx_filename)) or "graph"
+    filename = kwargs.get("filename", basename(get_location(model)["filename"])) or "graph"
     full_filename = f"{splitext(filename)[0]}.{model_type}.{dataset_format.extension}"
     return join("" if output_path is None else output_path, full_filename)
 
@@ -121,7 +122,7 @@ def scenex_dot_gen(metamodel, model, output_path, overwrite, debug, **kwargs):
             f"unhandled format '{img_format}' for kinematics graph, "
             f"try {['dot', *_DOT_RENDER_FORMATS]}"
         )
-    filename = kwargs.get("filename", basename(model._tx_filename)) or "kinematics"
+    filename = kwargs.get("filename", basename(get_location(model)["filename"])) or "kinematics"
     full_output_path = join(
         "" if output_path is None else output_path, f"{splitext(filename)[0]}.{img_format}"
     )
@@ -139,7 +140,7 @@ def scenex_dot_gen(metamodel, model, output_path, overwrite, debug, **kwargs):
 
 
 def scenex_kdl_gen(metamodel, model, output_path, overwrite, debug, **kwargs):
-    filename = kwargs.get("filename", basename(model._tx_filename)) or "kinematics"
+    filename = kwargs.get("filename", basename(get_location(model)["filename"])) or "kinematics"
     full_output_path = join(
         "" if output_path is None else output_path, f"{splitext(filename)[0]}.kdl.hpp"
     )
@@ -153,7 +154,7 @@ def scenex_kdl_gen(metamodel, model, output_path, overwrite, debug, **kwargs):
         loader=FileSystemLoader(Path(__file__).parent / "templates"), keep_trailing_newline=True
     )
     template = env.get_template("kdl.hpp.jinja2")
-    source = basename(model._tx_filename) or "a scene model"
+    source = basename(get_location(model)["filename"]) or "a scene model"
     # The header holds one scene's kinematics, so that scene names its namespace -- as a
     # C++ identifier, a file called `my.lab-v2.scenex` or `2f85.scenex` naming none.
     name = get_valid_var_name(splitext(source)[0] or "scene")

@@ -36,7 +36,7 @@ from rdf_utils.namespace import (
     NS_MM_QUDT_UNIT,
 )
 from rdflib import DCTERMS, RDF, Graph, Literal, URIRef
-from textx import get_model
+from textx import get_location
 
 from scene_dsl.classes.scenex import (
     ElementModel,
@@ -106,7 +106,7 @@ def add_model_spec(graph: Graph, elem_model: ElementModel) -> None:
     elif Path(spec.path).expanduser().is_absolute():
         root = None
     else:
-        scene_file = getattr(get_model(elem_model), "_tx_filename", None)
+        scene_file = get_location(elem_model)["filename"]
         if scene_file is None:
             raise ValueError(
                 f"model '{elem_model.uri}' has relative path '{spec.path}', and the scene it is "

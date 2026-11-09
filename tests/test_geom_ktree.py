@@ -956,9 +956,9 @@ scene inst (ns=n) sx {{
 
 def test_modelled_agent_set_contains_modelled_agents(tmp_path):
     _agent_set_scene(tmp_path)
-    model = scenex_metamodel().model_from_str(
-        _agent_set_scenex("robots.robot1"), file_name=str(tmp_path / "robots.scenex")
-    )
+    path = tmp_path / "robots.scenex"
+    path.write_text(_agent_set_scenex("robots.robot1"))
+    model = scenex_metamodel().model_from_file(path)
 
     agent_set = model.scene_insts[0].modelled_agn_sets[0]
     assert [agent.agn.name for agent in agent_set.models] == ["robot0", "robot1"]

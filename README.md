@@ -58,31 +58,33 @@ pip install -e .
 
 Example models live under `examples/models`.
 
-Print abstract scene RDF as Turtle:
+Print abstract scene RDF as TriG:
 
 ```bash
-textx generate examples/models/lab.scene --target console --format ttl
+textx generate examples/models/lab.scene --target console --format trig
 ```
 
-Write abstract scene RDF to `examples/generated/lab.scene.ttl`:
+Write abstract scene RDF to `examples/generated/lab.scene.trig`:
 
 ```bash
-textx generate examples/models/lab.scene --target graph -o examples/generated --format ttl
+textx generate examples/models/lab.scene --target graph -o examples/generated --format trig
 ```
 
-Print executable scenex RDF as Turtle:
+Print executable scenex RDF as TriG:
 
 ```bash
-textx generate examples/models/lab.scenex --target console --format ttl
+textx generate examples/models/lab.scenex --target console --format trig
 ```
 
-Write executable scenex RDF to `examples/generated/lab.scenex.ttl`:
+Write executable scenex RDF to `examples/generated/lab.scenex.trig`:
 
 ```bash
-textx generate examples/models/lab.scenex --target graph -o examples/generated --format ttl
+textx generate examples/models/lab.scenex --target graph -o examples/generated --format trig
 ```
 
-The RDF generators accept `format` (`json-ld`, `ttl`, or `xml`) and `filename`.
+The RDF generators write the model graph as one named graph, named by a fresh
+`urn:uuid:`, and accept `format` (`json-ld`, the default, as `.ld.json`;
+`nquads` as `.nq`; `trig` as `.trig`) and `filename`.
 For JSON-LD, pass `--nocompact` to skip compacting IRIs.
 
 ## Drawing the Kinematics

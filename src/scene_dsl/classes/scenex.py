@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: MPL-2.0
 from __future__ import annotations
 
+from enum import StrEnum
 from typing import Any
 
 from rdflib import Namespace, URIRef
@@ -15,6 +16,35 @@ from scene_dsl.classes.scene import (
     SimilarAgentSet,
     SimilarObjectSet,
 )
+
+
+class SystemPath:
+    """A model file at a path, absolute or relative to the scene declaring it."""
+
+    path: str
+
+    def __init__(self, parent, path) -> None:
+        self.parent = parent
+        self.path = path
+
+
+class PackageKind(StrEnum):
+    ROS = "ros"
+    PY = "py"
+
+
+class PackagePath:
+    """A model file at a path inside a ROS or Python package."""
+
+    kind: PackageKind
+    pkg: str
+    path: str
+
+    def __init__(self, parent, kind, pkg, path) -> None:
+        self.parent = parent
+        self.kind = PackageKind(kind)
+        self.pkg = pkg
+        self.path = path
 
 
 class ElementModel(IHasNamespace):

@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import numpy as np
 from rdf_utils.constraints import ConstraintViolation
 from rdf_utils.models.geom_coord import (
@@ -324,10 +322,10 @@ def _placed_body_tree(kgraph: KinematicGraphModel, body: RigidBodyModel, graph: 
     }
 
 
-def build_kdl_trees(graph: Graph, base_dir: Path | None = None) -> list[dict]:
+def build_kdl_trees(graph: Graph) -> list[dict]:
     """Read scene kinematics into a JSON-serializable representation."""
     result = []
-    for tree in kinematic_trees(graph, base_dir):
+    for tree in kinematic_trees(graph):
         segments = []
         for child in tree.topological_order[1:]:
             parent = tree.parent[child]
@@ -376,7 +374,7 @@ def build_kdl_trees(graph: Graph, base_dir: Path | None = None) -> list[dict]:
             }
         )
 
-    for kgraph in kinematic_graphs(graph, base_dir):
+    for kgraph in kinematic_graphs(graph):
         for body in kgraph.free_bodies.values():
             result.append(_placed_body_tree(kgraph, body, graph))
     _ensure_names_are_distinct(result)

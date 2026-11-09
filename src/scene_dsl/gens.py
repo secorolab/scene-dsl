@@ -13,6 +13,7 @@ from textx import get_location
 
 from scene_dsl.dot import create_dot
 from scene_dsl.kdl_tree import build_kdl_trees
+from scene_dsl.rdf.provenance import build, create_scene_dsl_bundle, render
 from scene_dsl.rdf.scene import create_scene_model_graph
 from scene_dsl.rdf.scenex import create_scenex_model_graph
 
@@ -58,7 +59,10 @@ def graph_gen(
         return
 
     dataset = Dataset()
-    create_graph(model, dataset.graph(URIRef(uuid4().urn)))
+    if "provenance" in kwargs:
+        build(model, dataset, *create_scene_dsl_bundle(dataset), create_graph)
+    else:
+        create_graph(model, dataset.graph(URIRef(uuid4().urn)))
     with open(full_output_path, "w") as outfile:
         outfile.write(
             dataset.serialize(
@@ -139,6 +143,17 @@ def scenex_dot_gen(metamodel, model, output_path, overwrite, debug, **kwargs):
     print(f"... wrote {full_output_path}")
 
 
+def kdl_header(graph: Graph, name: str, source: str) -> str:
+    """The C++ header building the graph's KDL trees, in namespace NAME, naming SOURCE."""
+    trees = build_kdl_trees(graph)
+
+    env = Environment(
+        loader=FileSystemLoader(Path(__file__).parent / "templates"), keep_trailing_newline=True
+    )
+    template = env.get_template("kdl.hpp.jinja2")
+    return template.render({"data": {"name": name, "source": source, "trees": trees}})
+
+
 def scenex_kdl_gen(metamodel, model, output_path, overwrite, debug, **kwargs):
     filename = kwargs.get("filename", basename(get_location(model)["filename"])) or "kinematics"
     full_output_path = join(
@@ -148,17 +163,30 @@ def scenex_kdl_gen(metamodel, model, output_path, overwrite, debug, **kwargs):
         print(f"not overwriting existing file '{full_output_path}'")
         return
 
-    trees = build_kdl_trees(create_scenex_model_graph(model=model))
-
-    env = Environment(
-        loader=FileSystemLoader(Path(__file__).parent / "templates"), keep_trailing_newline=True
-    )
-    template = env.get_template("kdl.hpp.jinja2")
     source = basename(get_location(model)["filename"]) or "a scene model"
     # The header holds one scene's kinematics, so that scene names its namespace -- as a
     # C++ identifier, a file called `my.lab-v2.scenex` or `2f85.scenex` naming none.
     name = get_valid_var_name(splitext(source)[0] or "scene")
     name = f"scene_{name}" if name[0].isdigit() else name
-    with open(full_output_path, "w") as outfile:
-        outfile.write(template.render({"data": {"name": name, "source": source, "trees": trees}}))
+    if "provenance" in kwargs:
+        dataset_format = DatasetFormat(kwargs.get("format", DatasetFormat.JSON_LD))
+        dataset = Dataset()
+        bundle_id, agent_id = create_scene_dsl_bundle(dataset)
+        graph_id = build(model, dataset, bundle_id, agent_id, create_scenex_model_graph)
+        render(
+            dataset,
+            graph_id,
+            bundle_id,
+            agent_id,
+            lambda graph: kdl_header(graph, name, source),
+            full_output_path,
+        )
+        Path(f"{full_output_path}.{dataset_format.extension}").write_text(
+            dataset.serialize(
+                format=dataset_format, indent=2, auto_compact="nocompact" not in kwargs
+            )
+        )
+    else:
+        with open(full_output_path, "w") as outfile:
+            outfile.write(kdl_header(create_scenex_model_graph(model=model), name, source))
     print(f"... wrote {full_output_path}")

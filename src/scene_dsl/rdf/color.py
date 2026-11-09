@@ -12,7 +12,6 @@ from scene_dsl.classes.color import Color
 
 def add_color(graph: Graph, owner: URIRef, color_uri: URIRef, color: Color) -> None:
     """Draw `owner` in `color`, typed as `col:Color` and its scheme so either can be required."""
-    graph.bind("col", NS_MM_COLOR)
     graph.add((owner, URI_COLOR_PRED_HAS_COLOR, color_uri))
     graph.add((color_uri, RDF.type, URI_COLOR_TYPE_COLOR))
     graph.add((color_uri, RDF.type, NS_MM_COLOR[color.scheme.value]))

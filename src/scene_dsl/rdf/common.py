@@ -56,7 +56,9 @@ def add_file_spec(graph: Graph, file_spec: Any) -> URIRef:
         if Path(file_spec.path).expanduser().is_absolute():
             root = None
         else:
-            root = add_directory_location(graph, _model_dir(file_spec))
+            # A model parsed from a string has no file: paths are under the working directory.
+            filename = get_model(file_spec)._tx_filename
+            root = add_directory_location(graph, Path(filename).parent if filename else Path.cwd())
     else:
         raise ValueError(f"Unhandled file specification type: {file_spec_type}")
 
@@ -65,9 +67,3 @@ def add_file_spec(graph: Graph, file_spec: Any) -> URIRef:
         # An absolute path is its own location.
         graph.add((graph.value(file_uri, PROV.atLocation), RDF.type, PROV.Location))
     return file_uri
-
-
-def _model_dir(obj: Any) -> Path:
-    """The directory of the model file `obj` came from: what its relative paths are under."""
-    filename = get_model(obj)._tx_filename
-    return Path(filename).resolve().parent if filename else Path.cwd()

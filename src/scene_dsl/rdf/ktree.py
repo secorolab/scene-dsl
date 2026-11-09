@@ -80,7 +80,7 @@ from rdf_utils.models.vocab import (
     URI_SHAPES_TYPE_FILE_BASED_SHAPE,
     URI_SHAPES_TYPE_SCALED_SHAPE,
 )
-from rdf_utils.namespace import NS_MM_PROV_EXT, NS_MM_SHAPES
+from rdf_utils.namespace import NS_MM_SHAPES
 from rdflib import RDF, XSD, Graph, Literal, URIRef
 from rdflib.namespace import PROV
 
@@ -117,7 +117,6 @@ def add_shape_scale(graph: Graph, shape: SceneShape) -> None:
 
 
 def add_shape_common(graph: Graph, shape: SceneShape) -> None:
-    graph.bind("shapes", NS_MM_SHAPES)
     graph.add((shape.uri, URI_SHAPES_PRED_ATTACHED_TO_FRAME, shape.frame.uri))
     graph.add((shape.uri, URI_QUDT_PRED_UNIT, LENGTH_UNITS[shape.unit]))
     if shape.color is not None:
@@ -133,8 +132,6 @@ def add_shape(graph: Graph, shape: SceneShape) -> None:
         add_shape_common(graph, shape)
         graph.add((shape.uri, RDF.type, URI_SHAPES_TYPE_FILE_BASED_SHAPE))
         add_entity(graph, shape.uri)
-        graph.bind("prov", PROV)
-        graph.bind("prov-ext", NS_MM_PROV_EXT)
         graph.add((shape.uri, PROV.wasDerivedFrom, add_file_spec(graph, shape.file)))
         add_shape_scale(graph, shape)
     else:

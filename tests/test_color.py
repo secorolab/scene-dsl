@@ -45,7 +45,7 @@ def _shape(color: str):
         ("hsv(210, 0.6, 0.9)", ColorScheme.HSV, "210 0.6 0.9"),
         ("hsv(359.5, 1, 0)", ColorScheme.HSV, "359.5 1 0"),
         # No '-0' or exponent, which the metamodel's pattern refuses.
-        ("hsv(0.0, -0.0, 1e-1)", ColorScheme.HSV, "0.0 0.0 0.1"),
+        ("hsv(0.0, -0.0, 1e-5)", ColorScheme.HSV, "0.0 0.0 0.00001"),
     ],
 )
 def test_color_exports_its_scheme_and_value(authored, scheme, literal):

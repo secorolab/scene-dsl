@@ -23,11 +23,14 @@ from rdf_utils.models.vocab import (
     URI_EXEC_TYPE_SYS_RES,
 )
 from rdf_utils.namespace import (
+    NS_MM_COLOR,
     NS_MM_GEOM,
     NS_MM_GEOM_COORD,
     NS_MM_GEOM_REL,
+    NS_MM_PROV_EXT,
     NS_MM_QUDT_QTY,
     NS_MM_QUDT_UNIT,
+    NS_MM_SHAPES,
 )
 from rdflib import RDF, Graph, Literal, URIRef
 
@@ -71,6 +74,9 @@ def _bind_model_kind_namespaces(graph: Graph) -> None:
     graph.bind(prefix="geom-coord", namespace=NS_MM_GEOM_COORD)
     graph.bind(prefix="quantitykind", namespace=NS_MM_QUDT_QTY)
     graph.bind(prefix="unit", namespace=NS_MM_QUDT_UNIT)
+    graph.bind(prefix="shapes", namespace=NS_MM_SHAPES)
+    graph.bind(prefix="col", namespace=NS_MM_COLOR)
+    graph.bind(prefix="prov-ext", namespace=NS_MM_PROV_EXT)
 
 
 def add_model_spec(graph: Graph, elem_model: ElementModel) -> None:

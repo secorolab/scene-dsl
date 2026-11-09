@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: MPL-2.0
 from pathlib import Path
 from typing import Any
-from xml.etree import ElementTree
 
 from packageurl import PackageURL
 from rdf_utils.models.prov import (
@@ -37,7 +36,7 @@ from rdf_utils.namespace import (
     NS_MM_QUDT_UNIT,
 )
 from rdflib import DCTERMS, RDF, Graph, Literal, URIRef
-from textx import get_location
+from textx import get_location, get_metamodel, textx_isinstance
 
 from scene_dsl.classes.scenex import (
     ElementModel,
@@ -95,12 +94,14 @@ def add_model_spec(graph: Graph, elem_model: ElementModel) -> None:
         raise ValueError(f"Unhandled model kind: {elem_model.model_kind}")
 
     spec = elem_model.model_spec
-    if not isinstance(spec, SystemPath | PackagePath):
+    if textx_isinstance(spec, get_metamodel(spec)["PyModuleAttr"]):
         add_py_module_attr(graph=graph, node_uri=elem_model.uri, py_model=spec)
         return
 
     if isinstance(spec, PackagePath) and spec.kind is PackageKind.ROS:
         try:
+            from xml.etree import ElementTree
+
             from ament_index_python.packages import get_package_share_directory
 
             manifest = Path(get_package_share_directory(spec.pkg)) / "package.xml"
@@ -120,9 +121,9 @@ def add_model_spec(graph: Graph, elem_model: ElementModel) -> None:
     elif isinstance(spec, PackagePath):
         root, version, revision, repository, dirty = get_pkg_info(spec.pkg)
         load_pkg_prov(graph, root, spec.pkg, version, revision, repository, dirty=dirty)
-    elif Path(spec.path).expanduser().is_absolute():
+    elif isinstance(spec, SystemPath) and Path(spec.path).expanduser().is_absolute():
         root = None
-    else:
+    elif isinstance(spec, SystemPath):
         scene_file = get_location(elem_model)["filename"]
         if scene_file is None:
             raise ValueError(
@@ -130,6 +131,8 @@ def add_model_spec(graph: Graph, elem_model: ElementModel) -> None:
                 "declared in was not read from a file to resolve it against"
             )
         root = add_directory_location(graph, Path(scene_file).resolve().parent)
+    else:
+        raise ValueError(f"Unhandled model specification type: {type(spec).__name__}")
     source = add_file_entity(graph, root, spec.path)
     graph.add((elem_model.uri, DCTERMS.source, source))
 

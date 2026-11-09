@@ -98,41 +98,45 @@ def add_model_spec(graph: Graph, elem_model: ElementModel) -> None:
         add_py_module_attr(graph=graph, node_uri=elem_model.uri, py_model=spec)
         return
 
-    if isinstance(spec, PackagePath) and spec.kind is PackageKind.ROS:
-        try:
-            from xml.etree import ElementTree
+    if isinstance(spec, PackagePath):
+        if spec.kind is PackageKind.ROS:
+            try:
+                from xml.etree import ElementTree
 
-            from ament_index_python.packages import get_package_share_directory
+                from ament_index_python.packages import get_package_share_directory
 
-            manifest = Path(get_package_share_directory(spec.pkg)) / "package.xml"
-            version = ElementTree.parse(manifest).findtext("version")
-        # ament's PackageNotFoundError is a KeyError; naming it would fail when ament is missing.
-        except (ImportError, KeyError):
-            version = None
-        root = URIRef(PackageURL(type="ros", name=spec.pkg, version=version).to_string())
-        load_pkg_prov(
-            graph,
-            root,
-            spec.pkg,
-            version,
-            additional_types=(URI_ROS_TYPE_PACKAGE,),
-            dirty=False,
-        )
-    elif isinstance(spec, PackagePath):
-        root, version, revision, repository, dirty = get_pkg_info(spec.pkg)
-        load_pkg_prov(graph, root, spec.pkg, version, revision, repository, dirty=dirty)
-    elif isinstance(spec, SystemPath) and Path(spec.path).expanduser().is_absolute():
-        root = None
-    elif isinstance(spec, SystemPath):
-        scene_file = get_location(elem_model)["filename"]
-        if scene_file is None:
-            raise ValueError(
-                f"model '{elem_model.uri}' has relative path '{spec.path}', and the scene it is "
-                "declared in was not read from a file to resolve it against"
+                manifest = Path(get_package_share_directory(spec.pkg)) / "package.xml"
+                version = ElementTree.parse(manifest).findtext("version")
+            # ament's PackageNotFoundError is a KeyError; naming it would fail when ament is missing.
+            except (ImportError, KeyError):
+                version = None
+            root = URIRef(PackageURL(type="ros", name=spec.pkg, version=version).to_string())
+            load_pkg_prov(
+                graph,
+                root,
+                spec.pkg,
+                version,
+                additional_types=(URI_ROS_TYPE_PACKAGE,),
+                dirty=False,
             )
-        root = add_directory_location(graph, Path(scene_file).resolve().parent)
+        elif spec.kind is PackageKind.PY:
+            root, version, revision, repository, dirty = get_pkg_info(spec.pkg)
+            load_pkg_prov(graph, root, spec.pkg, version, revision, repository, dirty=dirty)
+        else:
+            raise ValueError(f"Unhandled package kind: {spec.kind}")
+    elif isinstance(spec, SystemPath):
+        if Path(spec.path).expanduser().is_absolute():
+            root = None
+        else:
+            scene_file = get_location(elem_model)["filename"]
+            if scene_file is None:
+                raise ValueError(
+                    f"model '{elem_model.uri}' has relative path '{spec.path}', and the scene it "
+                    "is declared in was not read from a file to resolve it against"
+                )
+            root = add_directory_location(graph, Path(scene_file).resolve().parent)
     else:
-        raise ValueError(f"Unhandled model specification type: {type(spec).__name__}")
+        raise TypeError(f"Unhandled model specification type: {type(spec).__name__}")
     source = add_file_entity(graph, root, spec.path)
     graph.add((elem_model.uri, DCTERMS.source, source))
 

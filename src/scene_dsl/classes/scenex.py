@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: MPL-2.0
 from __future__ import annotations
 
+from enum import StrEnum
 from typing import Any
 
 from rdflib import Namespace, URIRef
@@ -27,16 +28,21 @@ class SystemPath:
         self.path = path
 
 
+class PackageKind(StrEnum):
+    ROS = "ros"
+    PY = "py"
+
+
 class PackagePath:
     """A model file at a path inside a ROS or Python package."""
 
-    kind: str
+    kind: PackageKind
     pkg: str
     path: str
 
     def __init__(self, parent, kind, pkg, path) -> None:
         self.parent = parent
-        self.kind = kind
+        self.kind = PackageKind(kind)
         self.pkg = pkg
         self.path = path
 

@@ -1,8 +1,9 @@
 # SPDX-License-Identifier: MPL-2.0
 from pathlib import Path
 from typing import Any
-from urllib.parse import quote
+from xml.etree import ElementTree
 
+from packageurl import PackageURL
 from rdf_utils.models.prov import (
     add_directory_location,
     add_file_entity,
@@ -45,6 +46,7 @@ from scene_dsl.classes.scenex import (
     ModelledAgentSet,
     ModelledObject,
     ModelledObjectSet,
+    PackageKind,
     PackagePath,
     SceneInstance,
     SystemPath,
@@ -97,9 +99,24 @@ def add_model_spec(graph: Graph, elem_model: ElementModel) -> None:
         add_py_module_attr(graph=graph, node_uri=elem_model.uri, py_model=spec)
         return
 
-    if isinstance(spec, PackagePath) and spec.kind == "ros":
-        root = URIRef(f"pkg:ros/{quote(spec.pkg, safe='')}")
-        load_pkg_prov(graph, root, spec.pkg, additional_types=(URI_ROS_TYPE_PACKAGE,), dirty=False)
+    if isinstance(spec, PackagePath) and spec.kind is PackageKind.ROS:
+        try:
+            from ament_index_python.packages import get_package_share_directory
+
+            manifest = Path(get_package_share_directory(spec.pkg)) / "package.xml"
+            version = ElementTree.parse(manifest).findtext("version")
+        # ament's PackageNotFoundError is a KeyError; naming it would fail when ament is missing.
+        except (ImportError, KeyError):
+            version = None
+        root = URIRef(PackageURL(type="ros", name=spec.pkg, version=version).to_string())
+        load_pkg_prov(
+            graph,
+            root,
+            spec.pkg,
+            version,
+            additional_types=(URI_ROS_TYPE_PACKAGE,),
+            dirty=False,
+        )
     elif isinstance(spec, PackagePath):
         root, version, revision, repository, dirty = get_pkg_info(spec.pkg)
         load_pkg_prov(graph, root, spec.pkg, version, revision, repository, dirty=dirty)

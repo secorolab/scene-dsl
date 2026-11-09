@@ -87,12 +87,12 @@ The RDF generators write the model graph as one named graph, named by a fresh
 `nquads` as `.nq`; `trig` as `.trig`) and `filename`.
 For JSON-LD, pass `--nocompact` to skip compacting IRIs.
 
-The `graph` and `kdl` targets take `--provenance`, which also writes the PROV
-bundle of the run: `<model>.scene.prov.ld.json` or `<model>.scenex.prov.ld.json`
-for the graph, and `<output>.prov.ld.json` for the KDL header, with both steps in
-one bundle. A tool calls the same steps, `build` and `render`, from
-`scene_dsl.rdf.provenance`, each adding itself to a bundle the tool creates with
-rdf-utils `create_bundle` and fills with `load_pkg_prov`.
+The `graph` and `kdl` targets take `--provenance`, which also records the PROV
+bundle of the run as a second named graph beside the model graph: in the graph
+file itself for `graph`, and in `<output>.ld.json` (or the extension of
+`format`) for the KDL header, with both steps in one bundle. A tool calls the
+same steps, `build` and `render`, from `scene_dsl.rdf.provenance`, in a
+`Dataset` holding the bundle that `create_scene_dsl_bundle` creates.
 
 ## Drawing the Kinematics
 

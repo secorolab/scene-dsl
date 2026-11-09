@@ -1,8 +1,0 @@
-import "../../examples/models/lab.scene"
-scene inst (ns=scene_lab_mjc) usd_scene {
-    scene: <pickplace_scene>
-    kgraph (ns=scene_lab_mjc) g { anchor: <world.root> body world { frame root { } } }
-    model usd_stage as usd { sys path = "model.xml"
-        map body <g.world> to "sim-world"
-    }
-}

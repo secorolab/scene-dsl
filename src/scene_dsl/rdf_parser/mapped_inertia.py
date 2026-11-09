@@ -24,9 +24,9 @@ def model_path(model: URIRef, graph: Graph) -> Path:
     source = graph.value(model, DCTERMS.source)
     path = get_file_path(graph, source) if isinstance(source, URIRef) else None
     if path is None:
-        raise ConstraintViolation("model file", f"model '{model}' states no file")
+        raise ValueError(f"model '{model}' states no file")
     if not path.is_file():
-        raise ConstraintViolation("model file", f"model '{model}' is at '{path}', which is no file")
+        raise FileNotFoundError(f"model '{model}' is at '{path}', which is no file")
     return path
 
 

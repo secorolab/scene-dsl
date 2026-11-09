@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: MPL-2.0
-"""The generation steps of scene-dsl, each recording itself in the bundle it is given.
+"""The generation steps of scene-dsl, each recording itself in a bundle in the dataset it is given.
 
-``build`` turns a model into a graph, saved when a file is given, and ``render`` turns that graph
-and a template into a KDL header. Each adds itself as a ``prov-ext:Transformation`` to the
-``prov:Bundle`` the caller gives it, attributed to the package and stating it. The graph is named
-by its ``urn:uuid:`` identifier and files by their location, with the hash of their bytes as
-``dcterms:identifier``.
+``build`` turns a model into a graph, and ``render`` turns that graph and a template into a KDL
+header. Both work in one ``Dataset``: the scene graph and the ``prov:Bundle`` are named graphs in
+it, and each step adds itself to the bundle as a ``prov-ext:Transformation`` associated with the
+package, which the caller states in the bundle first. Files are named by their location, with the
+hash of their bytes as ``dcterms:identifier``. Neither step writes the dataset.
 
 The package, named by its purl, is the agent, though PROV-DM 2.2.1.1 defines a software agent as
 running software.
@@ -15,14 +15,15 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 from importlib import resources
 from pathlib import Path
+from typing import Any
 from uuid import uuid4
 
-from rdf_utils import DatasetFormat
 from rdf_utils.models.prov import (
     add_directory_location,
     add_entity,
     add_file_entity,
     add_file_hash,
+    create_bundle,
     get_git_info,
     get_pkg_info,
     load_pkg_prov,
@@ -30,13 +31,27 @@ from rdf_utils.models.prov import (
 )
 from rdf_utils.models.time import add_wall_instant
 from rdflib import Dataset, Graph, Literal, URIRef
-from rdflib.namespace import PROV, SDO
+from rdflib.namespace import SDO
+from textx import get_location
 from textx.scoping import get_included_models
 
 from scene_dsl.langs import package_import
 
-DOCUMENT_SUFFIX = f".prov.{DatasetFormat.JSON_LD.extension}"
 KDL_TEMPLATE = "templates/kdl.hpp.jinja2"
+
+
+def create_scene_dsl_bundle(dataset: Dataset) -> tuple[URIRef, URIRef]:
+    """Create a bundle for scene_dsl in a dataset, stating the package as its agent.
+
+    Returns:
+        The IDs of the bundle and of the package, to pass to `build` and `render`
+    """
+    purl, version, revision, repository, dirty = get_pkg_info("scene_dsl")
+    bundle_id = create_bundle(dataset, purl)
+    load_pkg_prov(
+        dataset.graph(bundle_id), purl, "scene_dsl", version, revision, repository, dirty=dirty
+    )
+    return bundle_id, purl
 
 
 def source_paths(model) -> dict[Path, str | None]:
@@ -53,21 +68,20 @@ def source_paths(model) -> dict[Path, str | None]:
         path: next(
             (package for package, root in package_dirs.items() if path.is_relative_to(root)), None
         )
-        for path in (Path(item._tx_filename).resolve() for item in models)
+        for path in (Path(get_location(item)["filename"]).resolve() for item in models)
     }
 
 
 def _add_transformation(
     bundle: Graph,
+    agent: URIRef,
     activity: URIRef,
     sources: list[URIRef],
     targets: list[URIRef],
     started_at: datetime,
     ended_at: datetime,
 ) -> None:
-    """Add a transformation by the package to a bundle, with its wall-clock instants."""
-    agent = bundle.value(bundle.identifier, PROV.wasAttributedTo)
-    assert isinstance(agent, URIRef)
+    """Add a transformation by an agent to a bundle, with its wall-clock instants."""
     beginning, end = URIRef(uuid4().urn), URIRef(uuid4().urn)
     add_wall_instant(bundle, beginning, started_at)
     add_wall_instant(bundle, end, ended_at)
@@ -76,35 +90,32 @@ def _add_transformation(
 
 def build(
     model,
-    bundle: Graph,
-    create_graph: Callable[..., Graph],
-    graph_file: Path | str | None = None,
-    dataset_format: DatasetFormat = DatasetFormat.JSON_LD,
-    auto_compact: bool = True,
-) -> Graph:
-    """Build the graph of a model and add how it was made to a bundle.
+    dataset: Dataset,
+    bundle_id: URIRef,
+    agent_id: URIRef,
+    create_graph: Callable[[Any, Graph], Graph],
+    graph_id: URIRef | None = None,
+) -> URIRef:
+    """Build the graph of a model in a dataset and add how it was made to a bundle.
 
     Parameters:
         model: the textX model, loaded from a file; that file and its imports are the sources
-        bundle: the `prov:Bundle` graph to add the transformation to, attributed to the package
-        create_graph: the language's graph builder, called with `model=model`
-        graph_file: the file to save the graph to; the graph is not saved when None
-        dataset_format: the format to save it in
-        auto_compact: compact JSON-LD with the graph's namespaces
+        dataset: the dataset holding the scene graph and the bundle
+        bundle_id: the `prov:Bundle` in the dataset to record in
+        agent_id: the scene_dsl package, stated in the bundle with `load_pkg_prov`
+        create_graph: the language's graph builder, called with the model and the graph to fill
+        graph_id: the graph to build into; a new `urn:uuid:` when None
 
     Returns:
-        The graph
+        The IRI of the scene graph
     """
+    graph_id = URIRef(uuid4().urn) if graph_id is None else graph_id
+    bundle = dataset.graph(bundle_id)
     started_at = datetime.now(UTC)
-    scene_graph = create_graph(model=model)
-    if graph_file is not None:
-        graph_file = Path(graph_file).resolve()
-        dataset = Dataset()
-        dataset.add_graph(scene_graph)
-        graph_file.write_text(dataset.serialize(format=dataset_format, auto_compact=auto_compact))
+    create_graph(model, dataset.graph(graph_id))
     ended_at = datetime.now(UTC)
 
-    model_dir = Path(model._tx_filename).resolve().parent
+    model_dir = Path(get_location(model)["filename"]).resolve().parent
     root = add_directory_location(bundle, model_dir)
     sources = []
     for path, package in source_paths(model).items():
@@ -124,48 +135,36 @@ def build(
         add_file_hash(bundle, source)
         sources.append(source)
     activity = URIRef(uuid4().urn)
-    assert isinstance(scene_graph.identifier, URIRef)
-    targets = [scene_graph.identifier]
-    if graph_file is not None:
-        file_id = add_file_entity(
-            bundle,
-            add_directory_location(bundle, graph_file.parent),
-            graph_file.name,
-            generated_by=activity,
-        )
-        add_file_hash(bundle, file_id)
-        bundle.add((file_id, PROV.wasDerivedFrom, scene_graph.identifier))
-        targets.append(file_id)
-    _add_transformation(bundle, activity, sources, targets, started_at, ended_at)
-    return scene_graph
+    _add_transformation(bundle, agent_id, activity, sources, [graph_id], started_at, ended_at)
+    return graph_id
 
 
 def render(
-    scene_graph: Graph,
-    bundle: Graph,
+    dataset: Dataset,
+    graph_id: URIRef,
+    bundle_id: URIRef,
+    agent_id: URIRef,
     create_header: Callable[[Graph], str],
     output_file: Path | str,
-) -> Path:
-    """Render a scene graph to a KDL header and add how it was made to a bundle.
+) -> None:
+    """Render a scene graph in a dataset to a KDL header and add how it was made to a bundle.
 
     Parameters:
-        scene_graph: the graph `build` returned
-        bundle: the `prov:Bundle` graph to add the transformation to, attributed to the package,
-            with `load_pkg_prov` stating it so that the template can be found
+        dataset: the dataset holding the scene graph and the bundle
+        graph_id: the scene graph to render, e.g. from `build`
+        bundle_id: the `prov:Bundle` in the dataset to record in
+        agent_id: the scene_dsl package, stated in the bundle with `load_pkg_prov`; its
+            template is found under it
         create_header: renders the template for a graph
         output_file: the file to write the header to
-
-    Returns:
-        The written file
 
     Raises:
         FileNotFoundError: when the template is missing; nothing is written
     """
+    bundle = dataset.graph(bundle_id)
     started_at = datetime.now(UTC)
     output_file = Path(output_file).resolve()
-    agent = bundle.value(bundle.identifier, PROV.wasAttributedTo)
-    assert isinstance(agent, URIRef)
-    template_id = add_file_entity(bundle, agent, KDL_TEMPLATE)
+    template_id = add_file_entity(bundle, agent_id, KDL_TEMPLATE)
     # Only the template: create_header also reads model files, whose absence is a different error.
     try:
         add_file_hash(bundle, template_id)
@@ -173,11 +172,10 @@ def render(
         raise FileNotFoundError(
             f"KDL template not found -- scene_dsl install is incomplete: {error}"
         ) from error
-    output_file.write_text(create_header(scene_graph))
+    output_file.write_text(create_header(dataset.graph(graph_id)))
     ended_at = datetime.now(UTC)
 
-    assert isinstance(scene_graph.identifier, URIRef)
-    add_entity(bundle, scene_graph.identifier)
+    add_entity(bundle, graph_id)
     activity = URIRef(uuid4().urn)
     output_id = add_file_entity(
         bundle,
@@ -187,13 +185,5 @@ def render(
     )
     add_file_hash(bundle, output_id)
     _add_transformation(
-        bundle, activity, [scene_graph.identifier, template_id], [output_id], started_at, ended_at
+        bundle, agent_id, activity, [graph_id, template_id], [output_id], started_at, ended_at
     )
-    return output_file
-
-
-def write_bundle(bundle: Graph, document: Path | str) -> None:
-    """Write a bundle as its own JSON-LD document, replacing any earlier one."""
-    dataset = Dataset()
-    dataset.add_graph(bundle)
-    Path(document).write_text(dataset.serialize(format=DatasetFormat.JSON_LD, indent=2))

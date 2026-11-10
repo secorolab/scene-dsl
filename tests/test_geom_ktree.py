@@ -40,13 +40,10 @@ from rdf_utils.models.vocab import (
     URI_KC_TYPE_KC,
     URI_KC_TYPE_REVOLUTE_JOINT,
     URI_KC_TYPE_SERIAL,
-    URI_PROV_EXT_PRED_REL_PATH,
-    URI_PROV_EXT_TYPE_RELATIVE_LOCATION,
     URI_QUDT_PRED_QUANTITY_KIND,
     URI_QUDT_PRED_UNIT,
     URI_QUDT_QK_ANGLE,
     URI_QUDT_TYPE_QUANTITY,
-    URI_ROS_TYPE_PACKAGE,
     URI_SHAPES_TYPE_SCALED_SHAPE,
 )
 from rdf_utils.namespace import (
@@ -57,7 +54,7 @@ from rdf_utils.namespace import (
 )
 from rdf_utils.resolver import install_resolver
 from rdflib import RDF, Graph, Literal, URIRef
-from rdflib.namespace import PROV, SDO
+from rdflib.namespace import PROV
 from textx.exceptions import TextXSemanticError, TextXSyntaxError
 
 from scene_dsl.classes.common import FloatVector
@@ -450,35 +447,13 @@ ktree (ns=n) t {{ root: <b.f>
     return shape, graph
 
 
-def test_relative_system_path_is_under_the_model_directory(tmp_path):
+def test_file_shape_is_derived_from_the_file_its_path_names(tmp_path):
+    # How each kind of path is located is tested on model files in test_scene.py.
     shape, graph = _file_shape(tmp_path, 'sys path = "meshes/part.stl"')
 
+    assert (shape.uri, RDF.type, PROV.Entity) in graph
     file_id = graph.value(shape.uri, PROV.wasDerivedFrom)
-    assert (file_id, RDF.type, PROV.Entity) in graph
-    location = graph.value(file_id, PROV.atLocation)
-    assert (location, RDF.type, URI_PROV_EXT_TYPE_RELATIVE_LOCATION) in graph
     assert get_file_path(graph, file_id) == tmp_path.resolve() / "meshes" / "part.stl"
-
-
-def test_absolute_system_path_is_its_own_location(tmp_path):
-    mesh = tmp_path / "part.stl"
-    shape, graph = _file_shape(tmp_path, f'sys path = "{mesh}"')
-
-    file_id = graph.value(shape.uri, PROV.wasDerivedFrom)
-    location = graph.value(file_id, PROV.atLocation)
-    assert location == URIRef(mesh.as_uri())
-    assert get_file_path(graph, file_id) == mesh
-
-
-def test_ros_path_is_under_its_package(tmp_path):
-    shape, graph = _file_shape(tmp_path, 'ros pkg = "my_meshes", path = "meshes/part.stl"')
-
-    package = URIRef("pkg:ros/my_meshes")
-    location = graph.value(graph.value(shape.uri, PROV.wasDerivedFrom), PROV.atLocation)
-    assert graph.value(location, PROV.atLocation) == package
-    assert str(graph.value(location, URI_PROV_EXT_PRED_REL_PATH)) == "meshes/part.stl"
-    assert (package, RDF.type, URI_ROS_TYPE_PACKAGE) in graph
-    assert graph.value(package, SDO.name) == Literal("my_meshes")
 
 
 @pytest.mark.parametrize(

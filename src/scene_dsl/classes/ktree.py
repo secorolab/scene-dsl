@@ -300,8 +300,6 @@ class FileBasedShape(SceneShape):
         self.file = file
         if not file.path:
             raise ValueError(f"file shape '{name}' needs a path")
-        if not file.path.lower().endswith(".stl"):
-            raise ValueError(f"file shape '{name}' requires a .stl path")
         if isinstance(file, PackagePath) and PurePath(file.path).is_absolute():
             raise ValueError(f"file shape '{name}' needs a path relative to its package")
 

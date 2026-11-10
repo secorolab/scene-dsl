@@ -456,19 +456,10 @@ def test_file_shape_is_derived_from_the_file_its_path_names(tmp_path):
     assert get_file_path(graph, file_id) == tmp_path.resolve() / "meshes" / "part.stl"
 
 
-@pytest.mark.parametrize(
-    ("file_spec", "message"),
-    [
-        ('sys path = "part.obj"', "file shape 'mesh' requires a .stl path"),
-        (
-            'ros pkg = "my_meshes", path = "/meshes/part.stl"',
-            "file shape 'mesh' needs a path relative to its package",
-        ),
-    ],
-)
-def test_bad_shape_file_is_rejected(tmp_path, file_spec, message):
+def test_absolute_package_path_is_rejected(tmp_path):
+    message = "file shape 'mesh' needs a path relative to its package"
     with pytest.raises(ValueError, match=re.escape(message)):
-        _file_shape(tmp_path, file_spec)
+        _file_shape(tmp_path, 'ros pkg = "my_meshes", path = "/meshes/part.stl"')
 
 
 @pytest.mark.parametrize("graph_shape", [False, True])

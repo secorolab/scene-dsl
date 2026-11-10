@@ -165,7 +165,7 @@ def _graph(tmp_path: Path, kind: str = "mjcf", model: str = MJCF):
 def _parse(tmp_path: Path, kind: str = "mjcf", model: str = MJCF):
     """The trees of the scene, and the graph they were read from."""
     graph = _graph(tmp_path, kind, model)
-    return kinematic_trees(graph, tmp_path), graph
+    return kinematic_trees(graph), graph
 
 
 def _name(uri: URIRef | None) -> str:
@@ -268,7 +268,7 @@ def test_a_body_nothing_states_an_inertia_for_is_an_error(tmp_path):
     graph = _graph(tmp_path)
     tip = URIRef("https://example.test/tool/tool_tip")
     graph.remove((None, URI_DYN_PRED_OF_BODY, tip))
-    [tree] = kinematic_trees(graph, tmp_path)
+    [tree] = kinematic_trees(graph)
 
     with pytest.raises(ConstraintViolation, match="nothing states the inertia"):
         tree.mass_properties(tip, graph)
@@ -303,7 +303,7 @@ def test_a_frame_with_no_position_is_reported_unplaced_rather_than_built(tmp_pat
         graph, f"{MARKER_POSE}-position-coord", (URI_GEOM_PRED_X, URI_GEOM_PRED_Y, URI_GEOM_PRED_Z)
     )
 
-    [tree] = build_kdl_trees(graph, tmp_path)
+    [tree] = build_kdl_trees(graph)
 
     assert "arm/link1/marker" not in {segment["name"] for segment in tree["segments"]}
     [unplaced] = tree["unplaced_frames"]
@@ -330,7 +330,7 @@ def test_a_frame_with_neither_position_nor_orientation_is_an_error(tmp_path):
     )
 
     with pytest.raises(ConstraintViolation, match="nothing says where it is"):
-        build_kdl_trees(graph, tmp_path)
+        build_kdl_trees(graph)
 
 
 def test_kdl_ir_is_json_and_holds_every_placed_frame(tmp_path):
@@ -340,7 +340,7 @@ def test_kdl_ir_is_json_and_holds_every_placed_frame(tmp_path):
     carries it, which is what lets a solver ask for its pose at all.
     """
     graph = _graph(tmp_path)
-    trees = build_kdl_trees(graph, tmp_path)
+    trees = build_kdl_trees(graph)
 
     assert json.loads(json.dumps(trees)) == trees
     [tree] = trees
@@ -398,7 +398,7 @@ def test_a_second_path_to_a_body_is_rejected(tmp_path):
     graph.add((URIRef(f"{ns}arm"), URI_KC_PRED_JOINTS, duplicate))
 
     with pytest.raises(ConstraintViolation, match="cycle or a second path"):
-        kinematic_trees(graph, tmp_path)
+        kinematic_trees(graph)
 
 
 def test_a_graph_articulating_its_own_bodies_names_that_component(tmp_path):
@@ -423,7 +423,7 @@ scene inst (ns=n) sx {
     )
     scenex = scenex_metamodel().model_from_file(str(tmp_path / "g.scenex"))
     graph = create_scenex_model_graph(model=scenex)
-    [kgraph] = kinematic_graphs(graph, tmp_path)
+    [kgraph] = kinematic_graphs(graph)
 
     [tree] = kgraph.trees
     assert _name(tree.id) == "g"
@@ -464,7 +464,7 @@ def test_the_generated_header_compiles(tmp_path):
             data={
                 "name": "scene",
                 "source": "sx.scenex",
-                "trees": build_kdl_trees(graph, tmp_path),
+                "trees": build_kdl_trees(graph),
             }
         )
     )
@@ -518,7 +518,7 @@ def test_a_chain_places_every_frame_it_reaches(tmp_path):
     Every placed frame is a segment of the tree; this table is the chain's own numbering of
     the ones it reaches, since a solver taking segment indices cannot take a name.
     """
-    trees = build_kdl_trees(_graph(tmp_path), tmp_path)
+    trees = build_kdl_trees(_graph(tmp_path))
     chain = next(c for c in trees[0]["chains"] if c["name"] == "arm/chain")
 
     anchor = "https://example.test/arm/base/j1_anchor"
@@ -533,7 +533,7 @@ def test_a_chain_places_every_frame_it_reaches(tmp_path):
 def test_a_frames_offset_is_the_leaf_the_tree_holds_for_it(tmp_path):
     """One representation: the chain's offset for a frame is the transform of that
     frame's own segment, not a second reading of the graph."""
-    [tree] = build_kdl_trees(_graph(tmp_path), tmp_path)
+    [tree] = build_kdl_trees(_graph(tmp_path))
     transforms = {segment["name"]: segment["transform"] for segment in tree["segments"]}
     chain = next(c for c in tree["chains"] if c["name"] == "arm_tool/chain")
 

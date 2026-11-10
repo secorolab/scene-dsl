@@ -2,7 +2,13 @@
 from pathlib import Path
 from typing import Any
 
-from rdf_utils.models.prov import add_directory_location, add_file_entity, load_pkg_prov
+from packageurl import PackageURL
+from rdf_utils.models.prov import (
+    add_directory_location,
+    add_file_entity,
+    get_pkg_info,
+    load_pkg_prov,
+)
 from rdf_utils.models.python import (
     URI_PY_PRED_ATTR_NAME,
     URI_PY_PRED_MODULE_NAME,
@@ -15,12 +21,16 @@ from rdf_utils.models.vocab import (
     URI_GEOM_TYPE_VECTOR_XYZ,
     URI_ROS_TYPE_PACKAGE,
 )
-from rdf_utils.namespace import NS_MM_ROS
 from rdflib import RDF, Graph, Literal, URIRef
-from rdflib.namespace import PROV
-from textx import get_model
+from textx import get_location
 
-from scene_dsl.classes.common import FloatVector, parse_py_module_attr
+from scene_dsl.classes.common import (
+    FloatVector,
+    PackageKind,
+    PackagePath,
+    SystemPath,
+    parse_py_module_attr,
+)
 
 
 def add_py_module_attr(graph: Graph, node_uri: URIRef, py_model: Any):
@@ -38,32 +48,49 @@ def add_vector_xyz(graph: Graph, node: URIRef, vect: FloatVector) -> None:
     graph.add((node, URI_GEOM_PRED_Z, Literal(z)))
 
 
-def add_file_spec(graph: Graph, file_spec: Any) -> URIRef:
-    """A file named by a FileSpec (SystemPath or RosPath), as a `prov:Entity` at its location.
+def add_file_source(graph: Graph, spec: SystemPath | PackagePath) -> URIRef:
+    """The file SPEC names, as a `prov:Entity` at its location; returns the file's URI.
 
-    A relative system path is under the directory of the model file that names it. Returns the
-    file's URI, which rdf-utils derives from its location.
+    A relative system path is under the directory of the model file declaring it; a package
+    path is under the package's purl.
     """
-    file_spec_type = file_spec.__class__.__name__
-    if "RosPath" in file_spec_type:
-        # One IRI per package, its ROS index page, whichever scene names it. No commit is
-        # recorded, so there is no identifier to mark dirty.
-        root = NS_MM_ROS[file_spec.pkg]
-        load_pkg_prov(
-            graph, root, file_spec.pkg, additional_types=(URI_ROS_TYPE_PACKAGE,), dirty=False
-        )
-    elif "SystemPath" in file_spec_type:
-        if Path(file_spec.path).expanduser().is_absolute():
+    if isinstance(spec, PackagePath):
+        if spec.kind is PackageKind.ROS:
+            try:
+                from xml.etree import ElementTree
+
+                from ament_index_python.packages import get_package_share_directory
+
+                manifest = Path(get_package_share_directory(spec.pkg)) / "package.xml"
+                version = ElementTree.parse(manifest).findtext("version")
+            # ament's PackageNotFoundError is a KeyError; naming it would fail when ament is missing.
+            except (ImportError, KeyError):
+                version = None
+            root = URIRef(PackageURL(type="ros", name=spec.pkg, version=version).to_string())
+            load_pkg_prov(
+                graph,
+                root,
+                spec.pkg,
+                version,
+                additional_types=(URI_ROS_TYPE_PACKAGE,),
+                dirty=False,
+            )
+        elif spec.kind is PackageKind.PY:
+            root, version, revision, repository, dirty = get_pkg_info(spec.pkg)
+            load_pkg_prov(graph, root, spec.pkg, version, revision, repository, dirty=dirty)
+        else:
+            raise ValueError(f"Unhandled package kind: {spec.kind}")
+    elif isinstance(spec, SystemPath):
+        if Path(spec.path).expanduser().is_absolute():
             root = None
         else:
-            # A model parsed from a string has no file: paths are under the working directory.
-            filename = get_model(file_spec)._tx_filename
-            root = add_directory_location(graph, Path(filename).parent if filename else Path.cwd())
+            model_file = get_location(spec)["filename"]
+            if model_file is None:
+                raise ValueError(
+                    f"relative path '{spec.path}' is declared in a model that was not read from "
+                    "a file to resolve it against"
+                )
+            root = add_directory_location(graph, Path(model_file).resolve().parent)
     else:
-        raise ValueError(f"Unhandled file specification type: {file_spec_type}")
-
-    file_uri = add_file_entity(graph, root, file_spec.path)
-    if root is None:
-        # An absolute path is its own location.
-        graph.add((graph.value(file_uri, PROV.atLocation), RDF.type, PROV.Location))
-    return file_uri
+        raise TypeError(f"Unhandled file specification type: {type(spec).__name__}")
+    return add_file_entity(graph, root, spec.path)

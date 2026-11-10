@@ -30,7 +30,7 @@ def _kinova(tmp_path):
     write_example_scene(tmp_path)
     path = tmp_path / "lab.scenex"
     path.write_text(_scene_importing("scene_dsl:robots/kinova_gen3_7dof.ktree"))
-    return create_scenex_model_graph(scenex_metamodel().model_from_file(path)), path.parent
+    return create_scenex_model_graph(scenex_metamodel().model_from_file(path))
 
 
 def _joints(trees):
@@ -43,7 +43,7 @@ def _joints(trees):
 
 
 def test_a_stated_rotor_inertia_is_on_the_joints_actuation(tmp_path):
-    graph, _ = _kinova(tmp_path)
+    graph = _kinova(tmp_path)
     actuation = graph.value(predicate=URI_ACT_PRED_JOINT, object=JOINT_1)
     inertia = graph.value(actuation, URI_ACT_PRED_ROTOR_INERTIA)
     assert graph.value(inertia, URI_QUDT_PRED_VALUE) == Literal(0.558)
@@ -52,8 +52,8 @@ def test_a_stated_rotor_inertia_is_on_the_joints_actuation(tmp_path):
 
 
 def test_each_joint_carries_its_rotor_inertia_into_the_kdl_tree(tmp_path):
-    graph, base = _kinova(tmp_path)
-    joints = _joints(build_kdl_trees(graph, base))
+    graph = _kinova(tmp_path)
+    joints = _joints(build_kdl_trees(graph))
     inertias = [joints[f"joint_{i}"]["rotor_inertia"] for i in range(1, 8)]
     assert inertias == [0.558] * 4 + [0.1389] * 3
 
@@ -65,8 +65,8 @@ def _header(trees) -> str:
 
 
 def test_the_kdl_header_passes_it_to_the_joint(tmp_path):
-    graph, base = _kinova(tmp_path)
-    header = _header(build_kdl_trees(graph, base))
+    graph = _kinova(tmp_path)
+    header = _header(build_kdl_trees(graph))
     assert header.count("KDL::Joint::RotAxis, 1.0, 0.0, 0.558)") == 4
     assert header.count("KDL::Joint::RotAxis, 1.0, 0.0, 0.1389)") == 3
 
@@ -86,20 +86,20 @@ def test_a_negative_rotor_inertia_is_rejected():
     ],
 )
 def test_a_read_rotor_inertia_must_be_one_finite_non_negative_value(tmp_path, values, error):
-    graph, base = _kinova(tmp_path)
+    graph = _kinova(tmp_path)
     actuation = graph.value(predicate=URI_ACT_PRED_JOINT, object=JOINT_1)
     inertia = graph.value(actuation, URI_ACT_PRED_ROTOR_INERTIA)
     graph.remove((inertia, URI_QUDT_PRED_VALUE, None))
     for value in values:
         graph.add((inertia, URI_QUDT_PRED_VALUE, Literal(value, datatype=XSD.double)))
     with pytest.raises(error):
-        build_kdl_trees(graph, base)
+        build_kdl_trees(graph)
 
 
 def test_an_unstated_rotor_inertia_is_zero_and_not_in_the_graph(tmp_path):
     graph = _graph(tmp_path)
     assert not list(graph.triples((None, URI_ACT_PRED_ROTOR_INERTIA, None)))
-    trees = build_kdl_trees(graph, tmp_path)
+    trees = build_kdl_trees(graph)
     joints = _joints(trees)
     assert joints and all(joint["rotor_inertia"] == 0.0 for joint in joints.values())
     assert "KDL::Joint::RotAxis)" in _header(trees)

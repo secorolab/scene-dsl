@@ -28,7 +28,7 @@ TreeMapping: 'map' 'tree' '<' tree=[KinematicTreeModel|FQN] '>' ('to' entity=STR
 BodyMapping: 'map' 'body' '<' body=[RigidBody|FQN] '>' ('to' entity=STRING)? ;
 
 ModelKind: 'urdf' | 'mjcf' | 'usd' ;
-ModelSpecification: SystemPath | RosPath | PyModuleAttr ;
+ModelSpecification: SystemPath | PackagePath | PyModuleAttr ;
 
 ElementModelRef:
 'model' '<' model=[ElementModel|FQN] '>'

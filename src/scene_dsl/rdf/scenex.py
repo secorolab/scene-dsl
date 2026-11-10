@@ -16,11 +16,8 @@ from rdf_utils.models.vocab import (
     URI_EXEC_PRED_MAPS,
     URI_EXEC_PRED_MODEL,
     URI_EXEC_PRED_MODEL_ENTITY,
-    URI_EXEC_PRED_PATH,
-    URI_EXEC_TYPE_RES_PATH,
     URI_EXEC_TYPE_SCENE_INST,
     URI_EXEC_TYPE_SCENE_MODEL,
-    URI_EXEC_TYPE_SYS_RES,
 )
 from rdf_utils.namespace import (
     NS_MM_COLOR,
@@ -32,7 +29,8 @@ from rdf_utils.namespace import (
     NS_MM_QUDT_UNIT,
     NS_MM_SHAPES,
 )
-from rdflib import RDF, Graph, Literal, URIRef
+from rdflib import DCTERMS, RDF, Graph, Literal, URIRef
+from textx import get_metamodel, textx_isinstance
 
 from scene_dsl.classes.scenex import (
     ElementModel,
@@ -44,7 +42,7 @@ from scene_dsl.classes.scenex import (
     SceneInstance,
     TreeMapping,
 )
-from scene_dsl.rdf.common import add_py_module_attr
+from scene_dsl.rdf.common import add_file_source, add_py_module_attr
 from scene_dsl.rdf.distrib import add_distribution
 from scene_dsl.rdf.ktree import add_kinematic_graph, add_kinematic_tree
 from scene_dsl.rdf.scene import add_scene_model
@@ -56,8 +54,6 @@ from scene_dsl.rdf_parser.vocab import (
     NS_XML,
     URI_BDD_PRED_OF_SCENE,
     URI_MJCF_MUJOCO,
-    URI_ROS_PRED_PACKAGE_NAME,
-    URI_ROS_TYPE_PACKAGE,
     URI_URDF_ROBOT,
     URI_USD_STAGE,
     URI_XML_DOCUMENT,
@@ -80,22 +76,6 @@ def _bind_model_kind_namespaces(graph: Graph) -> None:
 
 
 def add_model_spec(graph: Graph, elem_model: ElementModel) -> None:
-    model_spec_type = elem_model.model_spec.__class__.__name__
-    if "PyModuleAttr" in model_spec_type:
-        add_py_module_attr(graph=graph, node_uri=elem_model.uri, py_model=elem_model.model_spec)
-    elif "SystemPath" in model_spec_type:
-        graph.add((elem_model.uri, RDF.type, URI_EXEC_TYPE_RES_PATH))
-        graph.add((elem_model.uri, RDF.type, URI_EXEC_TYPE_SYS_RES))
-        graph.add((elem_model.uri, URI_EXEC_PRED_PATH, Literal(elem_model.model_spec.path)))
-    elif "RosPath" in model_spec_type:
-        graph.add((elem_model.uri, RDF.type, URI_EXEC_TYPE_RES_PATH))
-        graph.add((elem_model.uri, RDF.type, URI_EXEC_TYPE_SYS_RES))
-        graph.add((elem_model.uri, RDF.type, URI_ROS_TYPE_PACKAGE))
-        graph.add((elem_model.uri, URI_ROS_PRED_PACKAGE_NAME, Literal(elem_model.model_spec.pkg)))
-        graph.add((elem_model.uri, URI_EXEC_PRED_PATH, Literal(elem_model.model_spec.path)))
-    else:
-        raise ValueError(f"Unhandled model specification type: {model_spec_type}")
-
     if elem_model.model_kind == "urdf":
         graph.add((elem_model.uri, RDF.type, URI_XML_DOCUMENT))
         graph.add((elem_model.uri, RDF.type, URI_URDF_ROBOT))
@@ -106,6 +86,13 @@ def add_model_spec(graph: Graph, elem_model: ElementModel) -> None:
         graph.add((elem_model.uri, RDF.type, URI_USD_STAGE))
     elif elem_model.model_kind is not None:
         raise ValueError(f"Unhandled model kind: {elem_model.model_kind}")
+
+    spec = elem_model.model_spec
+    if textx_isinstance(spec, get_metamodel(spec)["PyModuleAttr"]):
+        add_py_module_attr(graph=graph, node_uri=elem_model.uri, py_model=spec)
+        return
+
+    graph.add((elem_model.uri, DCTERMS.source, add_file_source(graph, spec)))
 
 
 def _ensure_unique_scene_uri(

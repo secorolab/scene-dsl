@@ -1,35 +1,29 @@
+from pathlib import Path
+from uuid import uuid4
+
 import pytest
-from rdf_utils.models.common import ModelBase
-from rdf_utils.models.execution import load_attr_path
+from rdf_utils import DatasetFormat
+from rdf_utils.models.prov import get_file_path
 from rdf_utils.models.vocab import (
     URI_ENV_TYPE_OBJ_MODEL,
     URI_EXEC_PRED_HAS_CONFIG,
     URI_EXEC_PRED_HAS_MAPPING,
     URI_EXEC_PRED_MAPS,
     URI_EXEC_PRED_MODEL_ENTITY,
-    URI_EXEC_PRED_PATH,
     URI_GEOM_TYPE_RIGID_BODY,
+    URI_PROV_EXT_PRED_REL_PATH,
+    URI_ROS_TYPE_PACKAGE,
 )
-from rdflib import RDF, Literal, Namespace, URIRef
+from rdflib import DCTERMS, PROV, RDF, SDO, Dataset, Literal, Namespace, URIRef
 from textx.exceptions import TextXSemanticError
 
-from scene_dsl.classes.common import IHasNamespace
-from scene_dsl.gens import parse_rdflib_serial_args
+from scene_dsl.classes.common import IHasNamespace, PackagePath
 from scene_dsl.langs import scene_metamodel, scenex_metamodel
 from scene_dsl.rdf.scene import create_scene_model_graph
 from scene_dsl.rdf.scenex import URI_MJCF_MUJOCO, create_scenex_model_graph
 from scene_dsl.rdf_parser.scene import SceneModel
-from scene_dsl.rdf_parser.scenex import (
-    SceneInstanceModel,
-    get_kinematic_mappings,
-    get_ros_pkg_path,
-    load_ros_path,
-)
-from scene_dsl.rdf_parser.vocab import (
-    URI_BDD_TYPE_SCENE,
-    URI_ROS_TYPE_PACKAGE,
-    URI_USD_STAGE,
-)
+from scene_dsl.rdf_parser.scenex import SceneInstanceModel, get_kinematic_mappings
+from scene_dsl.rdf_parser.vocab import URI_BDD_TYPE_SCENE, URI_USD_STAGE
 
 from .test_common import MODELS_DIR
 
@@ -89,13 +83,14 @@ def test_scenex_references_scene_and_generates_rdf():
     assert len(graph) > 0
 
 
-@pytest.mark.parametrize("g_format", ["json-ld", "ttl"])
-def test_example_scenex_serializes(g_format):
+@pytest.mark.parametrize("dataset_format", ["json-ld", "nquads", "trig"])
+def test_example_scenex_serializes(dataset_format):
     # orjson, which rdflib uses for JSON-LD when installed, refuses a numpy float64 left uncast.
     model = scenex_metamodel().model_from_file(MODELS_DIR / "lab.scenex")
-    graph = create_scenex_model_graph(model)
+    dataset = Dataset()
+    create_scenex_model_graph(model, dataset.graph(URIRef(uuid4().urn)))
 
-    assert graph.serialize(**parse_rdflib_serial_args(format=g_format))
+    assert dataset.serialize(format=DatasetFormat(dataset_format))
 
 
 def test_scenex_accepts_scene_level_usd_model():
@@ -114,10 +109,46 @@ scene inst (ns=scene_lab_mjc) usd_scene {
     assert resource.model_kind == "usd"
     assert resource.model_spec.path == "/tmp/scene.usda"
 
-    parsed = SceneInstanceModel(scene_instance.uri, create_scenex_model_graph(model))
+    graph = create_scenex_model_graph(model)
+    parsed = SceneInstanceModel(scene_instance.uri, graph)
     [resource] = parsed.models.values()
     assert URI_USD_STAGE in resource.types
-    assert resource.get_attr(URI_EXEC_PRED_PATH) == "/tmp/scene.usda"
+    file = graph.value(resource.id, DCTERMS.source)
+    assert isinstance(file, URIRef)
+    assert get_file_path(graph, file) == Path("/tmp/scene.usda")
+
+
+@pytest.mark.parametrize("path", ["missing.usd", "/absent/missing.usd"])
+def test_missing_model_file_still_generates_the_graph(tmp_path, path):
+    (tmp_path / "shared.scene").write_text(
+        'ns n="https://example.test/"\n'
+        "obj set (ns=n) objects { object container }\n"
+        "ws set (ns=n) workspaces { workspace container-ws }\n"
+        "agn set (ns=n) agents { agent robot }\n"
+        "comp (ns=n) container-comp of ws <workspaces.container-ws> { "
+        "obj <objects.container> }\n"
+        "scene (ns=n) shared-scene { ws comp <container-comp> agn set <agents> }\n"
+    )
+    model_path = tmp_path / "shared.scenex"
+    model_path.write_text(
+        'import "shared.scene"\n'
+        'ns x="https://example.test/instance/"\n'
+        "scene inst (ns=x) shared-instance {\n"
+        "  scene: <shared-scene>\n"
+        "  kgraph (ns=x) graph { anchor: <world.root> body world { frame root {} } }\n"
+        f'  model stage as usd {{ sys path = "{path}" map body <graph.world> to "world" }}\n'
+        "}\n"
+    )
+
+    model = scenex_metamodel().model_from_file(model_path)
+    graph = create_scenex_model_graph(model)
+
+    file = graph.value(model.scene_insts[0].models[0].uri, DCTERMS.source)
+    assert isinstance(file, URIRef)
+    file_path = get_file_path(graph, file)
+    assert file_path == tmp_path.resolve() / path
+    assert not file_path.exists()
+    assert graph.value(file, DCTERMS.identifier) is None
 
 
 def test_scene_parser_resolves_scene_entity_body_by_name():
@@ -196,11 +227,18 @@ def test_scene_parser_loads_modelled_objects_and_agents():
     assert not hasattr(parsed, "mapping_loader")
     assert not hasattr(parsed, "workspace_models")
 
-    ros_model_id = next(graph.subjects(predicate=None, object=URI_ROS_TYPE_PACKAGE))
-    ros_model = ModelBase(URIRef(ros_model_id), graph)
-    load_attr_path(graph=graph, model=ros_model)
-    load_ros_path(graph=graph, model=ros_model)
-    assert get_ros_pkg_path(ros_model) == ("test_pkg", "assets/table.xml")
+    ros_model = next(
+        elem_model
+        for modelled in scene_instance.modelled_objs
+        for elem_model in modelled.models
+        if isinstance(elem_model.model_spec, PackagePath) and elem_model.model_spec.kind == "ros"
+    )
+    location = graph.value(graph.value(ros_model.uri, DCTERMS.source), PROV.atLocation)
+    package = graph.value(location, PROV.atLocation)
+    assert package == URIRef("pkg:ros/test_pkg")
+    assert (package, RDF.type, URI_ROS_TYPE_PACKAGE) in graph
+    assert str(graph.value(package, SDO.name)) == "test_pkg"
+    assert str(graph.value(location, URI_PROV_EXT_PRED_REL_PATH)) == "assets/table.xml"
 
 
 def test_scene_instance_resolves_modelled_elements_and_workspace_targets(monkeypatch):
@@ -524,4 +562,6 @@ scene inst (ns=nx) si {
         [mapping] = list(graph.objects(nx[model_name], URI_EXEC_PRED_HAS_MAPPING))
         assert (mapping, URI_EXEC_PRED_MAPS, tree) in graph
         assert (mapping, URI_EXEC_PRED_MODEL_ENTITY, Literal(entity)) in graph
-    assert (nx["si/robot/arm-in-scene"], URI_EXEC_PRED_PATH, Literal("robot.xml")) in graph
+    arm = graph.value(nx["si/robot/arm-in-scene"], DCTERMS.source)
+    assert isinstance(arm, URIRef)
+    assert get_file_path(graph, arm) == (model_path.parent / "robot.xml").resolve()

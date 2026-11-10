@@ -99,7 +99,7 @@ from scene_dsl.classes.ktree import (
     SerialJoints,
 )
 from scene_dsl.rdf.color import add_color
-from scene_dsl.rdf.common import add_file_spec
+from scene_dsl.rdf.common import add_file_source
 from scene_dsl.rdf.geom import (
     ANGLE_UNITS,
     LENGTH_UNITS,
@@ -132,7 +132,7 @@ def add_shape(graph: Graph, shape: SceneShape) -> None:
         add_shape_common(graph, shape)
         graph.add((shape.uri, RDF.type, URI_SHAPES_TYPE_FILE_BASED_SHAPE))
         add_entity(graph, shape.uri)
-        graph.add((shape.uri, PROV.wasDerivedFrom, add_file_spec(graph, shape.file)))
+        graph.add((shape.uri, PROV.wasDerivedFrom, add_file_source(graph, shape.file)))
         add_shape_scale(graph, shape)
     else:
         raise TypeError(f"Unhandled shape type: {type(shape).__name__}")

@@ -50,7 +50,6 @@ from rdf_utils.models.vocab import (
     URI_SHAPES_TYPE_SCALED_SHAPE,
 )
 from rdf_utils.namespace import (
-    NS_MM_ROS,
     NS_MM_SHAPES,
     URL_MM_GEOM_SHACL_EXTS,
     URL_MM_GEOM_SHACL_REL,
@@ -468,14 +467,13 @@ def test_absolute_system_path_is_its_own_location(tmp_path):
     file_id = graph.value(shape.uri, PROV.wasDerivedFrom)
     location = graph.value(file_id, PROV.atLocation)
     assert location == URIRef(mesh.as_uri())
-    assert (location, RDF.type, PROV.Location) in graph
     assert get_file_path(graph, file_id) == mesh
 
 
 def test_ros_path_is_under_its_package(tmp_path):
     shape, graph = _file_shape(tmp_path, 'ros pkg = "my_meshes", path = "meshes/part.stl"')
 
-    package = NS_MM_ROS["my_meshes"]
+    package = URIRef("pkg:ros/my_meshes")
     location = graph.value(graph.value(shape.uri, PROV.wasDerivedFrom), PROV.atLocation)
     assert graph.value(location, PROV.atLocation) == package
     assert str(graph.value(location, URI_PROV_EXT_PRED_REL_PATH)) == "meshes/part.stl"
@@ -489,7 +487,7 @@ def test_ros_path_is_under_its_package(tmp_path):
         ('sys path = "part.obj"', "file shape 'mesh' requires a .stl path"),
         (
             'ros pkg = "my_meshes", path = "/meshes/part.stl"',
-            "file shape 'mesh' needs a path relative to its ROS package",
+            "file shape 'mesh' needs a path relative to its package",
         ),
     ],
 )
@@ -1126,9 +1124,9 @@ scene inst (ns=n) sx {{
 
 def test_modelled_agent_set_contains_modelled_agents(tmp_path):
     _agent_set_scene(tmp_path)
-    model = scenex_metamodel().model_from_str(
-        _agent_set_scenex("robots.robot1"), file_name=str(tmp_path / "robots.scenex")
-    )
+    path = tmp_path / "robots.scenex"
+    path.write_text(_agent_set_scenex("robots.robot1"))
+    model = scenex_metamodel().model_from_file(path)
 
     agent_set = model.scene_insts[0].modelled_agn_sets[0]
     assert [agent.agn.name for agent in agent_set.models] == ["robot0", "robot1"]

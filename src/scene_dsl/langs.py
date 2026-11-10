@@ -16,7 +16,13 @@ from textx.exceptions import TextXSemanticError
 from textx.scoping import Postponed
 
 from scene_dsl.classes.color import HexColor, HSVColor, RGBAColor, RGBColor
-from scene_dsl.classes.common import FloatVector, IHasNamespace, IntVector
+from scene_dsl.classes.common import (
+    FloatVector,
+    IHasNamespace,
+    IntVector,
+    PackagePath,
+    SystemPath,
+)
 from scene_dsl.classes.distrib import (
     Distribution,
     DistributionRef,
@@ -482,6 +488,8 @@ def scenex_metamodel():
             BodyMapping,
             ElementModel,
             ElementModelRef,
+            SystemPath,
+            PackagePath,
             TreeMapping,
             ModelledObject,
             ModelledObjectSet,

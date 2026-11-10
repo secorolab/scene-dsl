@@ -3,10 +3,12 @@ Import: 'import' importURI=STRING;
 Comment: /\/\/.*$/;
 NamespaceDeclare: 'ns' name=IRI_TRUNK '=' uri=STRING ;
 IRI_TRUNK: /[^\d\W][\w-]*\b/;
-// A file named by path: on this system (absolute, or relative to the model naming it), or in a ROS package.
+// A file named by path: on this system (absolute, or relative to the model naming it), or in a
+// ROS or Python package.
 SystemPath: 'sys' 'path' '=' path=STRING ;
-RosPath: 'ros' 'pkg' '=' pkg=STRING ',' 'path' '=' path=STRING ;
-FileSpec: SystemPath | RosPath ;
+PackagePath: kind=PackageKind 'pkg' '=' pkg=STRING ',' 'path' '=' path=STRING ;
+PackageKind: 'ros' | 'py' ;
+FileSpec: SystemPath | PackagePath ;
 PyModuleAttr: 'py' '{' 'module' ':' modules=ID+['.'] ',' 'attr' ':' attr_name=ID '}';
 FloatVector: '(' values+=FLOAT[','] ')';
 IntVector: '(' values+=INT[','] ')';

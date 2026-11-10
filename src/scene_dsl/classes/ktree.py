@@ -16,6 +16,7 @@ from scene_dsl.classes.common import (
     IHasNamespace,
     IHasNamespaceDeclare,
     IHasParent,
+    PackagePath,
 )
 from scene_dsl.classes.geom import Frame, FrameAxis, IDefaultFrame
 
@@ -295,14 +296,14 @@ class FileBasedShape(SceneShape):
             parent=parent, name=name, frame=frame, unit=unit, kind="file shape",
             scale=scale, color=color,
         )
-        # A SystemPath or a RosPath, as an element model names its file.
+        # A SystemPath or a PackagePath, as an element model names its file.
         self.file = file
         if not file.path:
             raise ValueError(f"file shape '{name}' needs a path")
         if not file.path.lower().endswith(".stl"):
             raise ValueError(f"file shape '{name}' requires a .stl path")
-        if "RosPath" in type(file).__name__ and PurePath(file.path).is_absolute():
-            raise ValueError(f"file shape '{name}' needs a path relative to its ROS package")
+        if isinstance(file, PackagePath) and PurePath(file.path).is_absolute():
+            raise ValueError(f"file shape '{name}' needs a path relative to its package")
 
 
 class RigidBodyInertia:

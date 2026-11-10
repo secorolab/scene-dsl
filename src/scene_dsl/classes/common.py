@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: MPL-2.0
+from enum import StrEnum
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -119,6 +120,35 @@ class IntVector:
 
     def as_width_height(self, context: str = "IntVector.as_width_height") -> tuple[int, int]:
         return tuple(_expect_size(values=self.values, size=2, context=context))
+
+
+class SystemPath:
+    """A file at a path, absolute or relative to the model declaring it."""
+
+    path: str
+
+    def __init__(self, parent, path) -> None:
+        self.parent = parent
+        self.path = path
+
+
+class PackageKind(StrEnum):
+    ROS = "ros"
+    PY = "py"
+
+
+class PackagePath:
+    """A file at a path inside a ROS or Python package."""
+
+    kind: PackageKind
+    pkg: str
+    path: str
+
+    def __init__(self, parent, kind, pkg, path) -> None:
+        self.parent = parent
+        self.kind = PackageKind(kind)
+        self.pkg = pkg
+        self.path = path
 
 
 def parse_py_module_attr(model: Any) -> tuple[str, str]:

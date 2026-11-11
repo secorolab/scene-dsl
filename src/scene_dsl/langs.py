@@ -436,8 +436,6 @@ def check_unique_uris(model, metamodel):
 
 def check_shape_frames(model, metamodel):
     for shape in get_children(lambda item: isinstance(item, SceneShape), model):
-        if shape.frame is None:
-            continue
         # A shape hangs on its body, so its frame must be one of that body's.
         if shape.frame.parent is not shape.parent:
             raise TextXSemanticError(

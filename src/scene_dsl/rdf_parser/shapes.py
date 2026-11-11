@@ -3,7 +3,8 @@
 
 A shape is a unit base in its declared length unit -- a cube of side 1, a cylinder or sphere
 of radius 1, or a mesh file's own coordinates -- scaled per local axis, with its origin and
-axes at the frame it is attached to. Where that frame is, is the kinematics' to say.
+axes at the frame it is attached to. Where that frame is, is the kinematics' to say. The scale
+is read in metres, as rdf-utils reads every length.
 """
 
 import math
@@ -11,12 +12,10 @@ from pathlib import Path
 
 from rdf_utils.constraints import ConstraintViolation
 from rdf_utils.models.common import ModelBase, get_node_types
+from rdf_utils.models.geom_coord import to_metres
 from rdf_utils.models.prov import get_file_path
 from rdf_utils.models.vocab import (
     URI_QUDT_PRED_UNIT,
-    URI_QUDT_UNIT_CM,
-    URI_QUDT_UNIT_M,
-    URI_QUDT_UNIT_MM,
     URI_SHAPES_PRED_ATTACHED_TO_FRAME,
     URI_SHAPES_TYPE_FILE_BASED_SHAPE,
     URI_SHAPES_TYPE_SCALED_SHAPE,
@@ -29,7 +28,6 @@ from scene_dsl.classes.ktree import PrimitiveShapeType
 from scene_dsl.rdf_parser.color import get_rgba
 from scene_dsl.rdf_parser.common import ensure_one_obj_literal, ensure_one_obj_uri
 
-LENGTH_IN_M = {URI_QUDT_UNIT_M: 1.0, URI_QUDT_UNIT_CM: 1e-2, URI_QUDT_UNIT_MM: 1e-3}
 SCALE_PREDS = tuple(NS_MM_SHAPES[f"scale-{axis}"] for axis in "xyz")
 PRIMITIVE_TYPES = {NS_MM_SHAPES[primitive.value]: primitive for primitive in PrimitiveShapeType}
 SHAPE_TYPES = {*PRIMITIVE_TYPES, URI_SHAPES_TYPE_FILE_BASED_SHAPE}
@@ -42,15 +40,15 @@ class ShapeModel(ModelBase):
         frame: the frame the shape is attached to
         primitive: the unit base of a primitive shape; None for a file-based one
         path: the mesh file of a file-based shape; None for a primitive
-        unit: the length unit the base is in
-        scale: a positive factor per local axis, all 1 when the shape is unscaled
+        scale: metres per base unit along local X, Y and Z, the length unit folded in: a
+            cube's side lengths, a sphere's radii, a cylinder's two radii and its height, or
+            what takes a mesh's coordinates to metres
         rgba: colour channels in [0, 1]; None when the scene states no colour
     """
 
     frame: URIRef
     primitive: PrimitiveShapeType | None
     path: Path | None
-    unit: URIRef
     scale: tuple[float, float, float]
     rgba: tuple[float, float, float, float] | None
 
@@ -71,16 +69,11 @@ class ShapeModel(ModelBase):
             raise ConstraintViolation("shapes", f"shape '{self.id}' is attached to no frame")
         self.frame = frame
 
-        unit = ensure_one_obj_uri(graph, self.id, URI_QUDT_PRED_UNIT)
-        if unit not in LENGTH_IN_M:
-            raise ConstraintViolation(
-                "shapes", f"shape '{self.id}' needs a length unit of m, cm or mm, found '{unit}'"
-            )
-        self.unit = unit
-
         self.primitive = PRIMITIVE_TYPES.get(kind)
         self.path = self._file(graph) if kind == URI_SHAPES_TYPE_FILE_BASED_SHAPE else None
-        self.scale = self._scale(graph)
+        unit = ensure_one_obj_uri(graph, self.id, URI_QUDT_PRED_UNIT)
+        x, y, z = to_metres(self._scale(graph), unit, self.id)
+        self.scale = (x, y, z)
         self.rgba = get_rgba(graph, self.id)
 
     def _scale(self, graph: Graph) -> tuple[float, float, float]:
@@ -120,16 +113,6 @@ class ShapeModel(ModelBase):
         if not path.is_file():
             raise ConstraintViolation("shapes", f"file shape '{self.id}' is at '{path}', no file")
         return path
-
-    @property
-    def scale_in_metres(self) -> tuple[float, float, float]:
-        """The scale with the length unit folded in: metres per base unit along local X, Y, Z.
-
-        A cube's side lengths, a sphere's radii, a cylinder's two radii and its height, or what
-        takes a mesh's coordinates to metres.
-        """
-        x, y, z = (factor * LENGTH_IN_M[self.unit] for factor in self.scale)
-        return x, y, z
 
 
 def scene_shapes(graph: Graph) -> list[ShapeModel]:

@@ -4,9 +4,6 @@ import pytest
 from rdf_utils.constraints import ConstraintViolation
 from rdf_utils.models.vocab import (
     URI_QUDT_PRED_UNIT,
-    URI_QUDT_UNIT_CM,
-    URI_QUDT_UNIT_M,
-    URI_QUDT_UNIT_MM,
     URI_SHAPES_PRED_ATTACHED_TO_FRAME,
     URI_SHAPES_TYPE_SCALED_SHAPE,
 )
@@ -58,12 +55,12 @@ def test_example_shapes_read_back_as_authored():
     ball, cube, cylinder, marker = (
         shapes[n] for n in ("ball", "cube", "cylinder", "static_marker")
     )
-    assert (ball.unit, ball.scale) == (URI_QUDT_UNIT_M, (0.07, 0.05, 0.04))
-    assert (cube.unit, cube.scale) == (URI_QUDT_UNIT_CM, (7.0, 7.0, 7.0))
-    assert (cylinder.unit, cylinder.scale) == (URI_QUDT_UNIT_MM, (50.0, 50.0, 90.0))
-    # The unit folded into the scale: a cylinder's radii and height, a mesh's metres per unit.
-    assert cylinder.scale_in_metres == pytest.approx((0.05, 0.05, 0.09))
-    assert marker.scale_in_metres == pytest.approx((0.05, 0.05, 0.05))
+    # Scales come back in metres, authored in m, cm and mm: a sphere's radii, a cube's sides,
+    # a cylinder's radii and height, a mesh's metres per unit.
+    assert ball.scale == pytest.approx((0.07, 0.05, 0.04))
+    assert cube.scale == pytest.approx((0.07, 0.07, 0.07))
+    assert cylinder.scale == pytest.approx((0.05, 0.05, 0.09))
+    assert marker.scale == pytest.approx((0.05, 0.05, 0.05))
     assert split_uri(cylinder.frame)[1] == "cylinder_center"
     assert marker.path.name == "tetra.stl" and marker.path.is_file()
     assert ball.path is None
@@ -81,7 +78,7 @@ def test_lab_shapes_read_back_as_authored():
         "static_marker": None,
     }
     box, marker = shapes["box1_shape"], shapes["static_marker"]
-    assert box.scale_in_metres == pytest.approx((0.04, 0.04, 0.04))
+    assert box.scale == pytest.approx((0.04, 0.04, 0.04))
     assert split_uri(box.frame)[1] == "box1_root"
     assert box.rgba == pytest.approx((0x1A / 255, 0x59 / 255, 1.0, 1.0))
     assert marker.path.name == "tetra.stl" and marker.path.is_file()
@@ -103,7 +100,7 @@ def test_file_shape_reads_the_mesh_its_path_names(tmp_path):
 
     [shape] = scene_shapes(graph)
     assert (shape.primitive, shape.path) == (None, mesh.resolve())
-    assert shape.scale_in_metres == pytest.approx((0.002, 0.002, 0.002))
+    assert shape.scale == pytest.approx((0.002, 0.002, 0.002))
 
 
 def test_missing_mesh_file_is_reported(tmp_path):
@@ -122,7 +119,7 @@ def test_missing_mesh_file_is_reported(tmp_path):
             "attached to no frame",
         ),
         (lambda g, s: g.add((s, RDF.type, NS_MM_SHAPES.UnitSphere)), "needs one type of"),
-        (lambda g, s: g.set((s, URI_QUDT_PRED_UNIT, NS_MM_QUDT_UNIT["IN"])), "m, cm or mm"),
+        (lambda g, s: g.set((s, URI_QUDT_PRED_UNIT, NS_MM_QUDT_UNIT["IN"])), "no length unit to convert"),
         (lambda g, s: g.set((s, NS_MM_SHAPES["scale-x"], Literal(2))), "needs one xsd:double"),
         (
             lambda g, s: g.set((s, NS_MM_SHAPES["scale-y"], Literal(0.0, datatype=XSD.double))),

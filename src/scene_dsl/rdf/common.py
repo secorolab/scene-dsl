@@ -2,12 +2,11 @@
 from pathlib import Path
 from typing import Any
 
-from packageurl import PackageURL
 from rdf_utils.models.prov import (
     add_directory_location,
     add_file_entity,
-    get_pkg_info,
-    load_pkg_prov,
+    load_py_pkg_prov,
+    load_ros_pkg_prov,
 )
 from rdf_utils.models.python import (
     URI_PY_PRED_ATTR_NAME,
@@ -19,7 +18,6 @@ from rdf_utils.models.vocab import (
     URI_GEOM_PRED_Y,
     URI_GEOM_PRED_Z,
     URI_GEOM_TYPE_VECTOR_XYZ,
-    URI_ROS_TYPE_PACKAGE,
 )
 from rdflib import RDF, Graph, Literal, URIRef
 from textx import get_location
@@ -56,28 +54,9 @@ def add_file_source(graph: Graph, spec: SystemPath | PackagePath) -> URIRef:
     """
     if isinstance(spec, PackagePath):
         if spec.kind is PackageKind.ROS:
-            try:
-                from xml.etree import ElementTree
-
-                from ament_index_python.packages import get_package_share_directory
-
-                manifest = Path(get_package_share_directory(spec.pkg)) / "package.xml"
-                version = ElementTree.parse(manifest).findtext("version")
-            # ament's PackageNotFoundError is a KeyError; naming it would fail when ament is missing.
-            except (ImportError, KeyError):
-                version = None
-            root = URIRef(PackageURL(type="ros", name=spec.pkg, version=version).to_string())
-            load_pkg_prov(
-                graph,
-                root,
-                spec.pkg,
-                version,
-                additional_types=(URI_ROS_TYPE_PACKAGE,),
-                dirty=False,
-            )
+            root = load_ros_pkg_prov(graph, spec.pkg).purl
         elif spec.kind is PackageKind.PY:
-            root, version, revision, repository, dirty = get_pkg_info(spec.pkg)
-            load_pkg_prov(graph, root, spec.pkg, version, revision, repository, dirty=dirty)
+            root = load_py_pkg_prov(graph, spec.pkg).purl
         else:
             raise ValueError(f"Unhandled package kind: {spec.kind}")
     elif isinstance(spec, SystemPath):

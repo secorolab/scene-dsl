@@ -259,6 +259,39 @@ scene inst (ns=scene_lab_mjc) pickplace_scene_mjc {
                 ) kg*m^2
             }
         }
+
+        // free bodies with only a shape: a sphere in m and a cylinder in mm
+        body ball_body {
+            frame ball_root {
+                pose ball_on_table {
+                    wrt: <world_tree.table_body.table_root>
+                    xyz: (0.45, -0.1, 0.75) m
+                    orientation: euler { angles: (0.0, 0.0, 0.0) unit: rad }
+                }
+            }
+            shape sphere ball_shape {
+                frame: <ball_root>
+                unit: m
+                scale: 0.04
+                color: rgba(230, 51, 51, 255)
+            }
+        }
+
+        body bottle_body {
+            frame bottle_root {
+                pose bottle_on_table {
+                    wrt: <world_tree.table_body.table_root>
+                    xyz: (0.3, 0.1, 0.75) m
+                    orientation: euler { angles: (0.0, 0.0, 0.0) unit: rad }
+                }
+            }
+            shape cylinder bottle_shape {
+                frame: <bottle_root>
+                unit: mm
+                scale: (35, 35, 200)
+                color: hsv(210, 0.6, 0.9)
+            }
+        }
     }
 
     obj <pickplace_objects.box1> {

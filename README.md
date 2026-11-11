@@ -76,13 +76,13 @@ textx generate examples/models/lab.scene --target graph -o examples/generated --
 Print executable scenex RDF as TriG:
 
 ```bash
-textx generate examples/models/kinova_with_objects.scenex --target console --format trig
+textx generate examples/models/lab.scenex --target console --format trig
 ```
 
-Write executable scenex RDF to `examples/generated/kinova_with_objects.scenex.trig`:
+Write executable scenex RDF to `examples/generated/lab.scenex.trig`:
 
 ```bash
-textx generate examples/models/kinova_with_objects.scenex --target graph -o examples/generated --format trig
+textx generate examples/models/lab.scenex --target graph -o examples/generated --format trig
 ```
 
 The RDF generators write the model graph as one named graph, named by a fresh
@@ -97,14 +97,14 @@ and any declared serial chain picked out. Needs [graphviz](https://graphviz.org)
 for anything but `dot`:
 
 ```bash
-textx generate examples/models/kinova_with_objects.scenex --target dot -o examples/generated --format png
+textx generate examples/models/lab.scenex --target dot -o examples/generated --format png
 ```
 
 `format` takes `dot` (the default), `png`, `svg`, or `pdf`. To print the graph
 instead of writing it:
 
 ```bash
-textx generate examples/models/kinova_with_objects.scenex --target dot-console
+textx generate examples/models/lab.scenex --target dot-console
 ```
 
 ## Development

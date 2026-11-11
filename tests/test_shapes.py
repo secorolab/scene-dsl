@@ -43,46 +43,35 @@ ktree (ns=n) t {{ root: <b.f>
 
 
 def test_example_shapes_read_back_as_authored():
-    model = scenex_metamodel().model_from_file(str(MODELS_DIR / "kinova_with_objects.scenex"))
-    shapes = {split_uri(s.id)[1]: s for s in scene_shapes(create_scenex_model_graph(model))}
-
-    assert {name: s.primitive for name, s in shapes.items()} == {
-        "ball": PrimitiveShapeType.SPHERE,
-        "cube": PrimitiveShapeType.CUBE,
-        "cylinder": PrimitiveShapeType.CYLINDER,
-        "static_marker": None,
-    }
-    ball, cube, cylinder, marker = (
-        shapes[n] for n in ("ball", "cube", "cylinder", "static_marker")
-    )
-    # Scales come back in metres, authored in m, cm and mm: a sphere's radii, a cube's sides,
-    # a cylinder's radii and height, a mesh's metres per unit.
-    assert ball.scale == pytest.approx((0.07, 0.05, 0.04))
-    assert cube.scale == pytest.approx((0.07, 0.07, 0.07))
-    assert cylinder.scale == pytest.approx((0.05, 0.05, 0.09))
-    assert marker.scale == pytest.approx((0.05, 0.05, 0.05))
-    assert split_uri(cylinder.frame)[1] == "cylinder_center"
-    assert marker.path.name == "tetra.stl" and marker.path.is_file()
-    assert ball.path is None
-    # The marker states no colour, so a consumer keeps its default.
-    assert marker.rgba is None
-    assert ball.rgba == pytest.approx((230 / 255, 51 / 255, 51 / 255, 1.0))
-
-
-def test_lab_shapes_read_back_as_authored():
     model = scenex_metamodel().model_from_file(str(MODELS_DIR / "lab.scenex"))
     shapes = {split_uri(s.id)[1]: s for s in scene_shapes(create_scenex_model_graph(model))}
 
     assert {name: s.primitive for name, s in shapes.items()} == {
+        "ball_shape": PrimitiveShapeType.SPHERE,
+        "bottle_shape": PrimitiveShapeType.CYLINDER,
         "box1_shape": PrimitiveShapeType.CUBE,
         "static_marker": None,
     }
-    box, marker = shapes["box1_shape"], shapes["static_marker"]
+    ball, bottle, box, marker = (
+        shapes[n] for n in ("ball_shape", "bottle_shape", "box1_shape", "static_marker")
+    )
+    # Scales come back in metres, authored in m, mm and cm: a sphere's radii, a cylinder's
+    # radii and height, a cube's sides, a mesh's metres per unit.
+    assert ball.scale == pytest.approx((0.04, 0.04, 0.04))
+    assert bottle.scale == pytest.approx((0.035, 0.035, 0.2))
     assert box.scale == pytest.approx((0.04, 0.04, 0.04))
-    assert split_uri(box.frame)[1] == "box1_root"
-    assert box.rgba == pytest.approx((0x1A / 255, 0x59 / 255, 1.0, 1.0))
+    assert marker.scale == pytest.approx((0.05, 0.05, 0.05))
+    assert [split_uri(s.frame)[1] for s in (ball, bottle, box, marker)] == [
+        "ball_root", "bottle_root", "box1_root", "world",
+    ]
     assert marker.path.name == "tetra.stl" and marker.path.is_file()
-    assert split_uri(marker.frame)[1] == "world"
+    assert ball.path is None
+    # One colour per form: rgba, hsv and hex. The marker states none, so a consumer keeps
+    # its default.
+    assert ball.rgba == pytest.approx((230 / 255, 51 / 255, 51 / 255, 1.0))
+    assert bottle.rgba == pytest.approx((0.36, 0.63, 0.9, 1.0))
+    assert box.rgba == pytest.approx((0x1A / 255, 0x59 / 255, 1.0, 1.0))
+    assert marker.rgba is None
 
 
 def test_unscaled_shape_has_unit_scale():

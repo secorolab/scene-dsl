@@ -167,7 +167,7 @@ ktree (ns=scene_lab_mjc) world_tree {
 
     body world_body {
         frame world { }
-        shape mesh static_marker {
+        shape mesh {
             frame: <world>
             sys path = "../assets/tetra.stl"
             unit: cm
@@ -243,7 +243,7 @@ scene inst (ns=scene_lab_mjc) pickplace_scene_mjc {
                 }
             }
             // The size and colour of cube.xml's box (half-size 0.02 m).
-            shape cube box1_shape {
+            shape cube {
                 frame: <box1_root>
                 unit: cm
                 scale: 4
@@ -269,7 +269,7 @@ scene inst (ns=scene_lab_mjc) pickplace_scene_mjc {
                     orientation: euler { angles: (0.0, 0.0, 0.0) unit: rad }
                 }
             }
-            shape sphere ball_shape {
+            shape sphere {
                 frame: <ball_root>
                 unit: m
                 scale: 0.04
@@ -285,7 +285,7 @@ scene inst (ns=scene_lab_mjc) pickplace_scene_mjc {
                     orientation: euler { angles: (0.0, 0.0, 0.0) unit: rad }
                 }
             }
-            shape cylinder bottle_shape {
+            shape cylinder {
                 frame: <bottle_root>
                 unit: mm
                 scale: (35, 35, 200)

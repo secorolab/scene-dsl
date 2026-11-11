@@ -248,13 +248,14 @@ class PrimitiveShapeType(StrEnum):
 class SceneShape(IHasNamespace):
     """A primitive or a mesh on one of its body's frames.
 
+    A shape has no name: it is known by its frame and its place among that frame's shapes.
+
     Attributes:
         primitive: the unit base of a primitive; None for a mesh
         file: the file a mesh is read from; None for a primitive
         kind: the keyword the shape was written with, for messages
     """
 
-    name: str
     frame: Frame
     primitive: PrimitiveShapeType | None
     file: SystemPath | PackagePath | None
@@ -264,11 +265,9 @@ class SceneShape(IHasNamespace):
     # One factor per axis, or None when unscaled: a scalar scale is the same factor on all three.
     scale: list[float] | None
 
-    def __init__(
-        self, parent, primitive, name, frame, file, unit, scale=None, color=None
-    ) -> None:
+    def __init__(self, parent, primitive, frame, file, unit, scale=None, color=None) -> None:
         super().__init__(parent=parent)
-        self.name = name
+        # textX resolves references before it builds user classes, so the frame is known here.
         self.frame = frame
         # textX leaves `primitive` unset for `mesh`; the keyword `cube` names member CUBE.
         self.primitive = PrimitiveShapeType[primitive.upper()] if primitive else None
@@ -280,21 +279,26 @@ class SceneShape(IHasNamespace):
 
         # One grammar rule covers both kinds, so it no longer keeps files to meshes.
         if self.primitive is None and file is None:
-            raise ValueError(f"mesh '{name}' needs a file")
+            raise ValueError(f"{self.label} needs a file")
         if self.primitive is not None and file is not None:
-            raise ValueError(f"{self.kind} '{name}' takes no file; only a mesh has one")
+            raise ValueError(f"{self.label} takes no file; only a mesh has one")
         if file is not None:
             if not file.path:
-                raise ValueError(f"mesh '{name}' needs a path")
+                raise ValueError(f"{self.label} needs a path")
             if isinstance(file, PackagePath) and PurePath(file.path).is_absolute():
-                raise ValueError(f"mesh '{name}' needs a path relative to its package")
+                raise ValueError(f"{self.label} needs a path relative to its package")
 
         if scale is not None:
-            context = f"{self.kind} '{name}' scale"
+            context = f"{self.label} scale"
             self.scale = list(scale.as_xyz(context)) if isinstance(scale, FloatVector) else [scale] * 3
             for factor in self.scale:
                 if not isfinite(factor) or factor <= 0:
                     raise ValueError(f"{context} is {factor}, expected a finite positive number")
+
+    @property
+    def label(self) -> str:
+        """How messages name the shape: by kind and frame, as it has no name."""
+        return f"{self.kind} on '{self.frame.name}'"
 
     @property
     def namespace(self) -> Namespace:
@@ -302,11 +306,18 @@ class SceneShape(IHasNamespace):
 
     @property
     def uri(self) -> URIRef:
-        return self.namespace[self.scoped()]
+        """`<frame>-shape-<n>`, n counting the frame's shapes in source order from 0.
+
+        Frame IRIs are unique, so shapes on different frames never share an IRI, and the
+        count tells apart those on one frame.
+        """
+        on_frame = [shape for shape in self.parent.shapes if shape.frame is self.frame]
+        index = next(n for n, shape in enumerate(on_frame) if shape is self)
+        return self.namespace[self.frame.scoped(f"-shape-{index}")]
 
     @property
     def color_uri(self) -> URIRef:
-        return self.namespace[self.scoped("-color")]
+        return URIRef(f"{self.uri}-color")
 
 
 class RigidBodyInertia:

@@ -46,14 +46,15 @@ def test_example_shapes_read_back_as_authored():
     model = scenex_metamodel().model_from_file(str(MODELS_DIR / "lab.scenex"))
     shapes = {split_uri(s.id)[1]: s for s in scene_shapes(create_scenex_model_graph(model))}
 
+    # Unnamed, each shape is known by its frame.
     assert {name: s.primitive for name, s in shapes.items()} == {
-        "ball_shape": PrimitiveShapeType.SPHERE,
-        "bottle_shape": PrimitiveShapeType.CYLINDER,
-        "box1_shape": PrimitiveShapeType.CUBE,
-        "static_marker": None,
+        "ball_root-shape-0": PrimitiveShapeType.SPHERE,
+        "bottle_root-shape-0": PrimitiveShapeType.CYLINDER,
+        "box1_root-shape-0": PrimitiveShapeType.CUBE,
+        "world-shape-0": None,
     }
     ball, bottle, box, marker = (
-        shapes[n] for n in ("ball_shape", "bottle_shape", "box1_shape", "static_marker")
+        shapes[f"{frame}-shape-0"] for frame in ("ball_root", "bottle_root", "box1_root", "world")
     )
     # Scales come back in metres, authored in m, mm and cm: a sphere's radii, a cylinder's
     # radii and height, a cube's sides, a mesh's metres per unit.
@@ -75,7 +76,7 @@ def test_example_shapes_read_back_as_authored():
 
 
 def test_unscaled_shape_has_unit_scale():
-    _, graph = _shape_graph("shape sphere ball { frame: <f> unit: m }")
+    _, graph = _shape_graph("shape sphere { frame: <f> unit: m }")
     [shape] = scene_shapes(graph)
     assert shape.scale == (1.0, 1.0, 1.0)
 
@@ -84,7 +85,7 @@ def test_file_shape_reads_the_mesh_its_path_names(tmp_path):
     mesh = tmp_path / "meshes" / "part.obj"
     mesh.parent.mkdir()
     mesh.write_text("")
-    spec = 'shape mesh part { frame: <f> sys path = "meshes/part.obj" unit: mm scale: 2 }'
+    spec = 'shape mesh { frame: <f> sys path = "meshes/part.obj" unit: mm scale: 2 }'
     _, graph = _shape_graph(spec, tmp_path / "scene.scenex")
 
     [shape] = scene_shapes(graph)
@@ -93,7 +94,7 @@ def test_file_shape_reads_the_mesh_its_path_names(tmp_path):
 
 
 def test_missing_mesh_file_is_reported(tmp_path):
-    spec = 'shape mesh part { frame: <f> sys path = "meshes/part.obj" unit: mm }'
+    spec = 'shape mesh { frame: <f> sys path = "meshes/part.obj" unit: mm }'
     _, graph = _shape_graph(spec, tmp_path / "scene.scenex")
     with pytest.raises(ConstraintViolation, match="no file"):
         scene_shapes(graph)
@@ -121,7 +122,7 @@ def test_missing_mesh_file_is_reported(tmp_path):
     ],
 )
 def test_malformed_shape_is_reported(break_graph, message):
-    uri, graph = _shape_graph("shape cube box { frame: <f> unit: cm scale: (1, 2, 3) }")
+    uri, graph = _shape_graph("shape cube { frame: <f> unit: cm scale: (1, 2, 3) }")
     break_graph(graph, uri)
     with pytest.raises(ConstraintViolation, match=re.escape(message)):
         scene_shapes(graph)

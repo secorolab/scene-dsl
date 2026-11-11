@@ -24,7 +24,7 @@ def _shape_model(color: str):
 ktree (ns=n) arm {{ root: <base.f>
     body base {{
         frame f {{ }}
-        shape cube box {{ frame: <f> unit: m color: {color} }}
+        shape cube {{ frame: <f> unit: m color: {color} }}
     }}
     joints {{ }}
 }}
@@ -69,7 +69,7 @@ def test_shape_without_color_exports_none():
 ktree (ns=n) arm { root: <base.f>
     body base {
         frame f { }
-        shape cube box { frame: <f> unit: m }
+        shape cube { frame: <f> unit: m }
     }
     joints { }
 }

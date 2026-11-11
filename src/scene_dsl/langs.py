@@ -401,7 +401,10 @@ def check_unique_uris(model, metamodel):
     seen: dict[URIRef, object] = {}
 
     def described(obj) -> str:
-        # Not everything minting an IRI is named: a mapping is known by what it maps.
+        # Not everything minting an IRI is named: a mapping is known by what it maps, and a
+        # shape by its frame.
+        if isinstance(obj, SceneShape):
+            return obj.label
         name = getattr(obj, "name", None)
         return f"{obj.__class__.__name__} '{name}'" if name else obj.__class__.__name__
 
@@ -439,7 +442,7 @@ def check_shape_frames(model, metamodel):
         # A shape hangs on its body, so its frame must be one of that body's.
         if shape.frame.parent is not shape.parent:
             raise TextXSemanticError(
-                f"shape '{shape.name}' must use a frame owned by '{shape.parent.name}'",
+                f"{shape.label} must use a frame owned by '{shape.parent.name}'",
                 **get_location(shape),
             )
 

@@ -17,6 +17,7 @@ from scene_dsl.classes.common import (
     IHasNamespaceDeclare,
     IHasParent,
     PackagePath,
+    SystemPath,
 )
 from scene_dsl.classes.geom import Frame, FrameAxis, IDefaultFrame
 
@@ -236,23 +237,58 @@ class RigidBody(IHasNamespace, IDefaultFrame):
         return self._inertia_coord_uri
 
 
+class PrimitiveShapeType(StrEnum):
+    """A primitive's unit base; the value is its class in the shapes metamodel."""
+
+    CUBE = "UnitCube"
+    CYLINDER = "UnitCylinder"
+    SPHERE = "UnitSphere"
+
+
 class SceneShape(IHasNamespace):
+    """A primitive or a mesh on one of its body's frames.
+
+    Attributes:
+        primitive: the unit base of a primitive; None for a mesh
+        file: the file a mesh is read from; None for a primitive
+        kind: the keyword the shape was written with, for messages
+    """
+
     name: str
     frame: Frame
+    primitive: PrimitiveShapeType | None
+    file: SystemPath | PackagePath | None
     unit: str
     kind: str
     color: Color | None
     # One factor per axis, or None when unscaled: a scalar scale is the same factor on all three.
     scale: list[float] | None
 
-    def __init__(self, parent, name, frame, unit, kind, scale=None, color=None) -> None:
+    def __init__(
+        self, parent, primitive, name, frame, file, unit, scale=None, color=None
+    ) -> None:
         super().__init__(parent=parent)
         self.name = name
         self.frame = frame
+        # textX leaves `primitive` unset for `mesh`; the keyword `cube` names member CUBE.
+        self.primitive = PrimitiveShapeType[primitive.upper()] if primitive else None
+        self.kind = primitive or "mesh"
+        self.file = file
         self.unit = unit
-        self.kind = kind
         self.color = color
         self.scale = None
+
+        # One grammar rule covers both kinds, so it no longer keeps files to meshes.
+        if self.primitive is None and file is None:
+            raise ValueError(f"mesh '{name}' needs a file")
+        if self.primitive is not None and file is not None:
+            raise ValueError(f"{self.kind} '{name}' takes no file; only a mesh has one")
+        if file is not None:
+            if not file.path:
+                raise ValueError(f"mesh '{name}' needs a path")
+            if isinstance(file, PackagePath) and PurePath(file.path).is_absolute():
+                raise ValueError(f"mesh '{name}' needs a path relative to its package")
+
         if scale is not None:
             context = f"{self.kind} '{name}' scale"
             self.scale = list(scale.as_xyz(context)) if isinstance(scale, FloatVector) else [scale] * 3
@@ -271,37 +307,6 @@ class SceneShape(IHasNamespace):
     @property
     def color_uri(self) -> URIRef:
         return self.namespace[self.scoped("-color")]
-
-
-class PrimitiveShapeType(StrEnum):
-    CUBE = "UnitCube"
-    CYLINDER = "UnitCylinder"
-    SPHERE = "UnitSphere"
-
-
-class PrimitiveShape(SceneShape):
-    shape_type: PrimitiveShapeType
-
-    def __init__(self, parent, name, frame, unit, scale, shape_type, color=None) -> None:
-        self.shape_type = PrimitiveShapeType(shape_type)
-        super().__init__(
-            parent=parent, name=name, frame=frame, unit=unit, kind=str(self.shape_type),
-            scale=scale, color=color,
-        )
-
-
-class FileBasedShape(SceneShape):
-    def __init__(self, parent, name, frame, file, unit, scale=None, color=None) -> None:
-        super().__init__(
-            parent=parent, name=name, frame=frame, unit=unit, kind="file shape",
-            scale=scale, color=color,
-        )
-        # A SystemPath or a PackagePath, as an element model names its file.
-        self.file = file
-        if not file.path:
-            raise ValueError(f"file shape '{name}' needs a path")
-        if isinstance(file, PackagePath) and PurePath(file.path).is_absolute():
-            raise ValueError(f"file shape '{name}' needs a path relative to its package")
 
 
 class RigidBodyInertia:

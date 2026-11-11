@@ -386,7 +386,7 @@ def _scaled_shape(scale: str):
 ktree (ns=n) t {{ root: <b.f>
     body b {{
         frame f {{ }}
-        shape UnitCube box {{ frame: <f> unit: m scale: {scale} }}
+        shape cube box {{ frame: <f> unit: m scale: {scale} }}
     }}
     joints {{ }}
 }}
@@ -416,10 +416,10 @@ def test_shape_scale_exports_one_factor_per_axis(authored, per_axis):
 @pytest.mark.parametrize(
     ("authored", "message"),
     [
-        ("(2.0)", "UnitCube 'box' scale requires 3 values, got 1"),
-        ("(1.0, 2.0)", "UnitCube 'box' scale requires 3 values, got 2"),
-        ("0", "UnitCube 'box' scale is 0.0, expected a finite positive number"),
-        ("(1.0, -2.0, 3.0)", "UnitCube 'box' scale is -2.0, expected a finite positive number"),
+        ("(2.0)", "cube 'box' scale requires 3 values, got 1"),
+        ("(1.0, 2.0)", "cube 'box' scale requires 3 values, got 2"),
+        ("0", "cube 'box' scale is 0.0, expected a finite positive number"),
+        ("(1.0, -2.0, 3.0)", "cube 'box' scale is -2.0, expected a finite positive number"),
     ],
 )
 def test_bad_shape_scale_is_rejected(authored, message):
@@ -427,15 +427,15 @@ def test_bad_shape_scale_is_rejected(authored, message):
         _scaled_shape(authored)
 
 
-def _file_shape(tmp_path, file_spec: str):
-    """A file shape in a model written to TMP_PATH, so a relative path has a directory."""
+def _file_shape(tmp_path, file_spec: str, keyword: str = "mesh"):
+    """A shape naming a file, in a model written to TMP_PATH so a relative path has a directory."""
     model_file = tmp_path / "scene.scenex"
     model_file.write_text(
         f"""ns n = "https://example.test/"
 ktree (ns=n) t {{ root: <b.f>
     body b {{
         frame f {{ }}
-        shape file mesh {{ frame: <f> {file_spec} unit: m }}
+        shape {keyword} part {{ frame: <f> {file_spec} unit: m }}
     }}
     joints {{ }}
 }}
@@ -457,15 +457,26 @@ def test_file_shape_is_derived_from_the_file_its_path_names(tmp_path):
 
 
 def test_absolute_package_path_is_rejected(tmp_path):
-    message = "file shape 'mesh' needs a path relative to its package"
+    message = "mesh 'part' needs a path relative to its package"
     with pytest.raises(ValueError, match=re.escape(message)):
         _file_shape(tmp_path, 'ros pkg = "my_meshes", path = "/meshes/part.stl"')
+
+
+def test_mesh_without_a_file_is_rejected(tmp_path):
+    with pytest.raises(ValueError, match=re.escape("mesh 'part' needs a file")):
+        _file_shape(tmp_path, "")
+
+
+def test_primitive_with_a_file_is_rejected(tmp_path):
+    message = "cube 'part' takes no file; only a mesh has one"
+    with pytest.raises(ValueError, match=re.escape(message)):
+        _file_shape(tmp_path, 'sys path = "meshes/part.stl"', keyword="cube")
 
 
 @pytest.mark.parametrize("graph_shape", [False, True])
 def test_only_bodies_hold_shapes(tmp_path, graph_shape):
     write_example_scene(tmp_path)
-    shape = "shape UnitCube box { frame: <b.f> unit: m }"
+    shape = "shape cube box { frame: <b.f> unit: m }"
     model_path = tmp_path / "graph_shape.scenex"
     model_path.write_text(
         f"""import "example.scene"
@@ -495,7 +506,7 @@ ktree (ns=n) t { root: <a.f>
     body a { frame f { } }
     body b {
         frame f { }
-        shape UnitCube box { frame: <a.f> unit: m }
+        shape cube box { frame: <a.f> unit: m }
     }
     joints { fixed a_b { parent: <a.f> child: <b.f> } }
 }

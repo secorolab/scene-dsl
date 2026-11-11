@@ -10,7 +10,7 @@ from rdf_utils.namespace import NS_MM_SHAPES
 from rdflib import RDF, XSD, Graph, Literal
 from rdflib.namespace import PROV
 
-from scene_dsl.classes.ktree import FileBasedShape, PrimitiveShape, SceneShape
+from scene_dsl.classes.ktree import SceneShape
 from scene_dsl.rdf.color import add_color
 from scene_dsl.rdf.common import add_file_source
 from scene_dsl.rdf.geom import LENGTH_UNITS
@@ -24,23 +24,15 @@ def add_shape_scale(graph: Graph, shape: SceneShape) -> None:
         graph.add((shape.uri, NS_MM_SHAPES[f"scale-{axis}"], Literal(factor, datatype=XSD.double)))
 
 
-def add_shape_common(graph: Graph, shape: SceneShape) -> None:
+def add_shape(graph: Graph, shape: SceneShape) -> None:
     graph.add((shape.uri, URI_SHAPES_PRED_ATTACHED_TO_FRAME, shape.frame.uri))
     graph.add((shape.uri, URI_QUDT_PRED_UNIT, LENGTH_UNITS[shape.unit]))
-    if shape.color is not None:
-        add_color(graph, shape.uri, shape.color_uri, shape.color)
-
-
-def add_shape(graph: Graph, shape: SceneShape) -> None:
-    if isinstance(shape, PrimitiveShape):
-        add_shape_common(graph, shape)
-        graph.add((shape.uri, RDF.type, NS_MM_SHAPES[shape.shape_type.value]))
-        add_shape_scale(graph, shape)
-    elif isinstance(shape, FileBasedShape):
-        add_shape_common(graph, shape)
+    if shape.primitive is not None:
+        graph.add((shape.uri, RDF.type, NS_MM_SHAPES[shape.primitive.value]))
+    else:
         graph.add((shape.uri, RDF.type, URI_SHAPES_TYPE_FILE_BASED_SHAPE))
         add_entity(graph, shape.uri)
         graph.add((shape.uri, PROV.wasDerivedFrom, add_file_source(graph, shape.file)))
-        add_shape_scale(graph, shape)
-    else:
-        raise TypeError(f"Unhandled shape type: {type(shape).__name__}")
+    add_shape_scale(graph, shape)
+    if shape.color is not None:
+        add_color(graph, shape.uri, shape.color_uri, shape.color)

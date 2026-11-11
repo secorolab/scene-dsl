@@ -43,28 +43,19 @@ KinematicTreeModel:
 RigidBody:
 'body' name=IRI_TRUNK '{'
     frames*=Frame
-    shapes*=Shape
+    shapes*=SceneShape
     inertia=RigidBodyInertia?
 '}'
 ;
 
-Shape: PrimitiveShape | FileBasedShape ;
 ScaleSpec: FLOAT | FloatVector ;
-PrimitiveShapeType: 'UnitCube' | 'UnitCylinder' | 'UnitSphere' ;
+PrimitiveShapeType: 'cube' | 'cylinder' | 'sphere' ;
 
-PrimitiveShape:
-'shape' shape_type=PrimitiveShapeType name=IRI_TRUNK '{'
+// A mesh names its file; a primitive has none. SceneShape checks this, not the grammar.
+SceneShape:
+'shape' (primitive=PrimitiveShapeType | 'mesh') name=IRI_TRUNK '{'
     'frame' ':' '<' frame=[Frame|FQN] '>'
-    'unit' ':' unit=LengthUnit
-    ('scale' ':' scale=ScaleSpec)?
-    ('color' ':' color=Color)?
-'}'
-;
-
-FileBasedShape:
-'shape' 'file' name=IRI_TRUNK '{'
-    'frame' ':' '<' frame=[Frame|FQN] '>'
-    file=FileSpec
+    file=FileSpec?
     'unit' ':' unit=LengthUnit
     ('scale' ':' scale=ScaleSpec)?
     ('color' ':' color=Color)?

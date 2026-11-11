@@ -89,7 +89,7 @@ def test_lab_shapes_read_back_as_authored():
 
 
 def test_unscaled_shape_has_unit_scale():
-    _, graph = _shape_graph("shape UnitSphere ball { frame: <f> unit: m }")
+    _, graph = _shape_graph("shape sphere ball { frame: <f> unit: m }")
     [shape] = scene_shapes(graph)
     assert shape.scale == (1.0, 1.0, 1.0)
 
@@ -98,7 +98,7 @@ def test_file_shape_reads_the_mesh_its_path_names(tmp_path):
     mesh = tmp_path / "meshes" / "part.obj"
     mesh.parent.mkdir()
     mesh.write_text("")
-    spec = 'shape file part { frame: <f> sys path = "meshes/part.obj" unit: mm scale: 2 }'
+    spec = 'shape mesh part { frame: <f> sys path = "meshes/part.obj" unit: mm scale: 2 }'
     _, graph = _shape_graph(spec, tmp_path / "scene.scenex")
 
     [shape] = scene_shapes(graph)
@@ -107,7 +107,7 @@ def test_file_shape_reads_the_mesh_its_path_names(tmp_path):
 
 
 def test_missing_mesh_file_is_reported(tmp_path):
-    spec = 'shape file part { frame: <f> sys path = "meshes/part.obj" unit: mm }'
+    spec = 'shape mesh part { frame: <f> sys path = "meshes/part.obj" unit: mm }'
     _, graph = _shape_graph(spec, tmp_path / "scene.scenex")
     with pytest.raises(ConstraintViolation, match="no file"):
         scene_shapes(graph)
@@ -135,7 +135,7 @@ def test_missing_mesh_file_is_reported(tmp_path):
     ],
 )
 def test_malformed_shape_is_reported(break_graph, message):
-    uri, graph = _shape_graph("shape UnitCube box { frame: <f> unit: cm scale: (1, 2, 3) }")
+    uri, graph = _shape_graph("shape cube box { frame: <f> unit: cm scale: (1, 2, 3) }")
     break_graph(graph, uri)
     with pytest.raises(ConstraintViolation, match=re.escape(message)):
         scene_shapes(graph)

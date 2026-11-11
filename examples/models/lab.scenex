@@ -167,7 +167,7 @@ ktree (ns=scene_lab_mjc) world_tree {
 
     body world_body {
         frame world { }
-        shape file static_marker {
+        shape mesh static_marker {
             frame: <world>
             sys path = "../assets/tetra.stl"
             unit: cm
@@ -243,7 +243,7 @@ scene inst (ns=scene_lab_mjc) pickplace_scene_mjc {
                 }
             }
             // The size and colour of cube.xml's box (half-size 0.02 m).
-            shape UnitCube box1_shape {
+            shape cube box1_shape {
                 frame: <box1_root>
                 unit: cm
                 scale: 4

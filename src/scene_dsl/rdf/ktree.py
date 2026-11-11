@@ -1,5 +1,4 @@
 # SPDX-License-Identifier: MPL-2.0
-from rdf_utils.models.prov import add_entity
 from rdf_utils.models.vocab import (
     URI_ACT_PRED_COMMAND_INTERFACE,
     URI_ACT_PRED_GEAR_RATIO,
@@ -76,67 +75,26 @@ from rdf_utils.models.vocab import (
     URI_QUDT_UNIT_RAD,
     URI_QUDT_UNIT_RAD_PER_SEC,
     URI_QUDT_UNIT_RAD_PER_SEC2,
-    URI_SHAPES_PRED_ATTACHED_TO_FRAME,
-    URI_SHAPES_TYPE_FILE_BASED_SHAPE,
-    URI_SHAPES_TYPE_SCALED_SHAPE,
 )
-from rdf_utils.namespace import NS_MM_SHAPES
 from rdflib import RDF, XSD, Graph, Literal, URIRef
-from rdflib.namespace import PROV
 
 from scene_dsl.classes.ktree import (
     Actuation,
-    FileBasedShape,
     FixedJoint,
     JointBase,
     JointLimits,
     JointMimicSpec,
     KinematicGraph,
     KinematicTreeModel,
-    PrimitiveShape,
     RevoluteJoint,
-    SceneShape,
     SerialJoints,
 )
-from scene_dsl.rdf.color import add_color
-from scene_dsl.rdf.common import add_file_source
 from scene_dsl.rdf.geom import (
     ANGLE_UNITS,
-    LENGTH_UNITS,
     add_frame,
     add_position_coord,
 )
-
-
-def add_shape_scale(graph: Graph, shape: SceneShape) -> None:
-    if shape.scale is None:
-        return
-    graph.add((shape.uri, RDF.type, URI_SHAPES_TYPE_SCALED_SHAPE))
-    for axis, factor in zip("xyz", shape.scale, strict=True):
-        graph.add((shape.uri, NS_MM_SHAPES[f"scale-{axis}"], Literal(factor, datatype=XSD.double)))
-
-
-def add_shape_common(graph: Graph, shape: SceneShape) -> None:
-    graph.add((shape.uri, URI_SHAPES_PRED_ATTACHED_TO_FRAME, shape.frame.uri))
-    graph.add((shape.uri, URI_QUDT_PRED_UNIT, LENGTH_UNITS[shape.unit]))
-    if shape.color is not None:
-        add_color(graph, shape.uri, shape.color_uri, shape.color)
-
-
-def add_shape(graph: Graph, shape: SceneShape) -> None:
-    if isinstance(shape, PrimitiveShape):
-        add_shape_common(graph, shape)
-        graph.add((shape.uri, RDF.type, NS_MM_SHAPES[shape.shape_type.value]))
-        add_shape_scale(graph, shape)
-    elif isinstance(shape, FileBasedShape):
-        add_shape_common(graph, shape)
-        graph.add((shape.uri, RDF.type, URI_SHAPES_TYPE_FILE_BASED_SHAPE))
-        add_entity(graph, shape.uri)
-        graph.add((shape.uri, PROV.wasDerivedFrom, add_file_source(graph, shape.file)))
-        add_shape_scale(graph, shape)
-    else:
-        raise TypeError(f"Unhandled shape type: {type(shape).__name__}")
-
+from scene_dsl.rdf.shapes import add_shape
 
 ACTUATION_INTERFACE_TYPES = {
     "position": URI_KC_STAT_JNT_POSITION,

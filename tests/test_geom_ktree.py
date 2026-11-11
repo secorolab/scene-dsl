@@ -67,9 +67,9 @@ from scene_dsl.rdf.ktree import (
     INERTIA_UNITS,
     MASS_UNITS,
     add_body,
-    add_shape,
 )
 from scene_dsl.rdf.scenex import create_scenex_model_graph
+from scene_dsl.rdf.shapes import add_shape
 from scene_dsl.rdf_parser.kinematics import RigidBodyModel
 
 from .test_common import MODELS_DIR, write_example_scene

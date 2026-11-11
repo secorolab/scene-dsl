@@ -25,7 +25,7 @@ from rdflib import RDF, XSD, Graph, URIRef
 from rdflib.namespace import PROV
 
 from scene_dsl.classes.ktree import PrimitiveShapeType
-from scene_dsl.rdf_parser.color import get_rgba
+from scene_dsl.rdf_parser.color import ColorModel, get_color
 from scene_dsl.rdf_parser.common import ensure_one_obj_literal, ensure_one_obj_uri
 
 SCALE_PREDS = tuple(NS_MM_SHAPES[f"scale-{axis}"] for axis in "xyz")
@@ -43,14 +43,14 @@ class ShapeModel(ModelBase):
         scale: metres per base unit along local X, Y and Z, the length unit folded in: a
             cube's side lengths, a sphere's radii, a cylinder's two radii and its height, or
             what takes a mesh's coordinates to metres
-        rgba: colour channels in [0, 1]; None when the scene states no colour
+        color: the colour as the scene states it; None when it states none
     """
 
     frame: URIRef
     primitive: PrimitiveShapeType | None
     path: Path | None
     scale: tuple[float, float, float]
-    rgba: tuple[float, float, float, float] | None
+    color: ColorModel | None
 
     def __init__(self, shape_id: URIRef, graph: Graph) -> None:
         types = get_node_types(graph=graph, node_id=shape_id)
@@ -74,7 +74,7 @@ class ShapeModel(ModelBase):
         unit = ensure_one_obj_uri(graph, self.id, URI_QUDT_PRED_UNIT)
         x, y, z = to_metres(self._scale(graph), unit, self.id)
         self.scale = (x, y, z)
-        self.rgba = get_rgba(graph, self.id)
+        self.color = get_color(graph, self.id)
 
     def _scale(self, graph: Graph) -> tuple[float, float, float]:
         if URI_SHAPES_TYPE_SCALED_SHAPE not in self.types:

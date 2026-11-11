@@ -11,6 +11,7 @@ from rdf_utils.namespace import NS_MM_QUDT_UNIT, NS_MM_SHAPES
 from rdflib import RDF, XSD, Graph, Literal
 from rdflib.namespace import split_uri
 
+from scene_dsl.classes.color import ColorScheme
 from scene_dsl.classes.ktree import PrimitiveShapeType
 from scene_dsl.langs import scenex_metamodel
 from scene_dsl.rdf.scenex import create_scenex_model_graph
@@ -67,12 +68,16 @@ def test_example_shapes_read_back_as_authored():
     ]
     assert marker.path.name == "tetra.stl" and marker.path.is_file()
     assert ball.path is None
-    # One colour per form: rgba, hsv and hex. The marker states none, so a consumer keeps
-    # its default.
-    assert ball.rgba == pytest.approx((230 / 255, 51 / 255, 51 / 255, 1.0))
-    assert bottle.rgba == pytest.approx((0.36, 0.63, 0.9, 1.0))
-    assert box.rgba == pytest.approx((0x1A / 255, 0x59 / 255, 1.0, 1.0))
-    assert marker.rgba is None
+    # One colour per form: rgba, hsv and hex, each read in its own scheme. The marker states
+    # none, so a consumer keeps its default.
+    assert ball.color.scheme is ColorScheme.RGBA
+    assert ball.color.channels == pytest.approx((230 / 255, 51 / 255, 51 / 255, 1.0))
+    assert bottle.color.scheme is ColorScheme.HSV
+    assert bottle.color.channels == pytest.approx((210, 0.6, 0.9))
+    assert bottle.color.rgba == pytest.approx((0.36, 0.63, 0.9, 1.0))
+    assert box.color.scheme is ColorScheme.RGB
+    assert box.color.channels == pytest.approx((0x1A / 255, 0x59 / 255, 1.0))
+    assert marker.color is None
 
 
 def test_unscaled_shape_has_unit_scale():

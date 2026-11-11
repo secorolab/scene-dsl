@@ -15,7 +15,7 @@ from textx.exceptions import TextXSyntaxError
 from scene_dsl.classes.color import ColorScheme
 from scene_dsl.langs import scenex_metamodel
 from scene_dsl.rdf.shapes import add_shape
-from scene_dsl.rdf_parser.color import get_rgba
+from scene_dsl.rdf_parser.color import get_color
 
 
 def _shape_model(color: str):
@@ -81,23 +81,42 @@ ktree (ns=n) arm { root: <base.f>
 
     assert shape.color is None
     assert not list(graph.objects(shape.uri, URI_COLOR_PRED_HAS_COLOR))
-    assert get_rgba(graph, shape.uri) is None
+    assert get_color(graph, shape.uri) is None
 
 
 @pytest.mark.parametrize(
-    ("authored", "rgba"),
+    ("authored", "scheme", "channels", "rgba"),
     [
-        ("rgb(230, 51, 0)", (230 / 255, 51 / 255, 0.0, 1.0)),
-        ("#33B34D80", (0x33 / 255, 0xB3 / 255, 0x4D / 255, 0x80 / 255)),
-        ("hsv(210, 0.6, 0.9)", (*colorsys.hsv_to_rgb(210 / 360, 0.6, 0.9), 1.0)),
+        (
+            "rgb(230, 51, 0)",
+            ColorScheme.RGB,
+            (230 / 255, 51 / 255, 0.0),
+            (230 / 255, 51 / 255, 0.0, 1.0),
+        ),
+        (
+            "#33B34D80",
+            ColorScheme.RGBA,
+            (0x33 / 255, 0xB3 / 255, 0x4D / 255, 0x80 / 255),
+            (0x33 / 255, 0xB3 / 255, 0x4D / 255, 0x80 / 255),
+        ),
+        # HSV reads back as HSV; only `rgba` converts it.
+        (
+            "hsv(210, 0.6, 0.9)",
+            ColorScheme.HSV,
+            (210, 0.6, 0.9),
+            (*colorsys.hsv_to_rgb(210 / 360, 0.6, 0.9), 1.0),
+        ),
     ],
 )
-def test_color_reads_back_as_rgba(authored, rgba):
+def test_color_reads_back_as_written(authored, scheme, channels, rgba):
     shape = _shape(authored)
     graph = Graph()
     add_shape(graph, shape)
 
-    assert get_rgba(graph, shape.uri) == pytest.approx(rgba)
+    color = get_color(graph, shape.uri)
+    assert color.scheme is scheme
+    assert color.channels == pytest.approx(channels)
+    assert color.rgba == pytest.approx(rgba)
 
 
 OWNER = URIRef("https://example.test/owner")
@@ -118,7 +137,7 @@ def _color_graph(scheme: ColorScheme, value: str, colors: int = 1) -> Graph:
 def test_float_channels_read_as_written():
     # The metamodel takes floats as well as hex; scene-dsl writes hex, others need not.
     graph = _color_graph(ColorScheme.RGBA, "0.9 0.2 0.2 0.5")
-    assert get_rgba(graph, OWNER) == pytest.approx((0.9, 0.2, 0.2, 0.5))
+    assert get_color(graph, OWNER).channels == pytest.approx((0.9, 0.2, 0.2, 0.5))
 
 
 @pytest.mark.parametrize(
@@ -135,7 +154,7 @@ def test_float_channels_read_as_written():
 def test_malformed_color_in_graph_is_reported(scheme, value, colors, message):
     graph = _color_graph(scheme, value, colors)
     with pytest.raises(ConstraintViolation, match=re.escape(message)):
-        get_rgba(graph, OWNER)
+        get_color(graph, OWNER)
 
 
 @pytest.mark.parametrize(

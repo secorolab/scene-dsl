@@ -1,4 +1,4 @@
-import "kinova_with_objects.scene"
+import "lab.scene"
 import "scene_dsl:robots/kinova_gen3_7dof.ktree"
 
 ns lab_rob='https://secorolab.github.io/models/acceptance-criteria/bdd/scenes/secorolab-mjc/robots/'
@@ -62,7 +62,7 @@ ktree (ns=scene_lab_mjc) world_tree {
 }
 
 scene inst (ns=scene_lab_mjc) kinova_with_objects {
-    scene: <kinova_with_objects_scene>
+    scene: <pickplace_scene>
 
     kgraph (ns=scene_lab_mjc) lab_graph {
         anchor: <world_tree.world_body.world>
@@ -142,7 +142,7 @@ scene inst (ns=scene_lab_mjc) kinova_with_objects {
         }
     }
 
-    agn <isaac_agents.arm1> {
+    agn <isaac_agents.kinova2> {
         model arm1-mjc as mjcf {
             sys path = '~/.cache/mj_kdl_wrapper/assets/kinova_gen3/gen3.xml'
             map tree <arm1> to "gen3"

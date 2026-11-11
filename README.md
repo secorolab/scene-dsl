@@ -64,13 +64,13 @@ Example models live under `examples/models`.
 Print abstract scene RDF as TriG:
 
 ```bash
-textx generate examples/models/kinova_with_objects.scene --target console --format trig
+textx generate examples/models/lab.scene --target console --format trig
 ```
 
-Write abstract scene RDF to `examples/generated/kinova_with_objects.scene.trig`:
+Write abstract scene RDF to `examples/generated/lab.scene.trig`:
 
 ```bash
-textx generate examples/models/kinova_with_objects.scene --target graph -o examples/generated --format trig
+textx generate examples/models/lab.scene --target graph -o examples/generated --format trig
 ```
 
 Print executable scenex RDF as TriG:

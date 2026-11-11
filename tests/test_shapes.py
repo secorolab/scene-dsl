@@ -72,6 +72,22 @@ def test_example_shapes_read_back_as_authored():
     assert ball.rgba == pytest.approx((230 / 255, 51 / 255, 51 / 255, 1.0))
 
 
+def test_lab_shapes_read_back_as_authored():
+    model = scenex_metamodel().model_from_file(str(MODELS_DIR / "lab.scenex"))
+    shapes = {split_uri(s.id)[1]: s for s in scene_shapes(create_scenex_model_graph(model))}
+
+    assert {name: s.primitive for name, s in shapes.items()} == {
+        "box1_shape": PrimitiveShapeType.CUBE,
+        "static_marker": None,
+    }
+    box, marker = shapes["box1_shape"], shapes["static_marker"]
+    assert box.scale_in_metres == pytest.approx((0.04, 0.04, 0.04))
+    assert split_uri(box.frame)[1] == "box1_root"
+    assert box.rgba == pytest.approx((0x1A / 255, 0x59 / 255, 1.0, 1.0))
+    assert marker.path.name == "tetra.stl" and marker.path.is_file()
+    assert split_uri(marker.frame)[1] == "world"
+
+
 def test_unscaled_shape_has_unit_scale():
     _, graph = _shape_graph("shape UnitSphere ball { frame: <f> unit: m }")
     [shape] = scene_shapes(graph)

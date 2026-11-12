@@ -70,12 +70,12 @@ def test_example_shapes_read_back_as_authored():
     # One colour per form: rgba, hsv and hex, each read in its own scheme. The marker states
     # none, so a consumer keeps its default.
     assert ball.color.scheme is ColorScheme.RGBA
-    assert ball.color.channels == pytest.approx((230 / 255, 51 / 255, 51 / 255, 1.0))
+    assert ball.color.rgba == pytest.approx((230 / 255, 51 / 255, 51 / 255, 1.0))
     assert bottle.color.scheme is ColorScheme.HSV
-    assert bottle.color.channels == pytest.approx((210, 0.6, 0.9))
+    assert bottle.color.hsv == pytest.approx((210, 0.6, 0.9))
     assert bottle.color.rgba == pytest.approx((0.36, 0.63, 0.9, 1.0))
     assert box.color.scheme is ColorScheme.RGB
-    assert box.color.channels == pytest.approx((0x1A / 255, 0x59 / 255, 1.0))
+    assert box.color.rgb == pytest.approx((0x1A / 255, 0x59 / 255, 1.0))
     assert marker.color is None
 
 

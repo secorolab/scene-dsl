@@ -84,37 +84,32 @@ ktree (ns=n) arm { root: <base.f>
 
 
 @pytest.mark.parametrize(
-    ("authored", "scheme", "channels", "rgba"),
+    ("authored", "scheme", "value", "rgba"),
     [
-        (
-            "rgb(230, 51, 0)",
-            ColorScheme.RGB,
-            (230 / 255, 51 / 255, 0.0),
-            (230 / 255, 51 / 255, 0.0, 1.0),
-        ),
+        ("rgb(230, 51, 0)", ColorScheme.RGB, "#E63300", (230 / 255, 51 / 255, 0.0, 1.0)),
         (
             "#33B34D80",
             ColorScheme.RGBA,
-            (0x33 / 255, 0xB3 / 255, 0x4D / 255, 0x80 / 255),
+            "#33B34D80",
             (0x33 / 255, 0xB3 / 255, 0x4D / 255, 0x80 / 255),
         ),
-        # HSV reads back as HSV; only `rgba` converts it.
+        # HSV reads back as HSV; only the properties convert it.
         (
             "hsv(210, 0.6, 0.9)",
             ColorScheme.HSV,
-            (210, 0.6, 0.9),
+            "210 0.6 0.9",
             (*colorsys.hsv_to_rgb(210 / 360, 0.6, 0.9), 1.0),
         ),
     ],
 )
-def test_color_reads_back_as_written(authored, scheme, channels, rgba):
+def test_color_reads_back_as_written(authored, scheme, value, rgba):
     shape = _shape(authored)
     graph = Graph()
     add_shape(graph, shape)
 
     color = get_color(graph, shape.uri)
     assert color.scheme is scheme
-    assert color.channels == pytest.approx(channels)
+    assert color.value == value
     assert color.rgba == pytest.approx(rgba)
 
 
@@ -135,8 +130,25 @@ def _color_graph(scheme: ColorScheme, value: str, colors: int = 1) -> Graph:
 
 def test_float_channels_read_as_written():
     # The metamodel takes floats as well as hex; scene-dsl writes hex, others need not.
-    graph = _color_graph(ColorScheme.RGBA, "0.9 0.2 0.2 0.5")
-    assert get_color(graph, OWNER).channels == pytest.approx((0.9, 0.2, 0.2, 0.5))
+    color = get_color(_color_graph(ColorScheme.RGBA, "0.9 0.2 0.2 0.5"), OWNER)
+    assert color.value == "0.9 0.2 0.2 0.5"
+    assert color.rgba == pytest.approx((0.9, 0.2, 0.2, 0.5))
+
+
+@pytest.mark.parametrize(
+    ("scheme", "value", "rgb", "alpha", "hsv"),
+    [
+        (ColorScheme.RGB, "#FF0000", (1.0, 0.0, 0.0), 1.0, (0.0, 1.0, 1.0)),
+        (ColorScheme.RGBA, "#0000FF80", (0.0, 0.0, 1.0), 0x80 / 255, (240.0, 1.0, 1.0)),
+        (ColorScheme.HSV, "120 1 0.5", (0.0, 0.5, 0.0), 1.0, (120.0, 1.0, 0.5)),
+    ],
+)
+def test_color_converts_between_schemes(scheme, value, rgb, alpha, hsv):
+    color = get_color(_color_graph(scheme, value), OWNER)
+    assert color.value == value
+    assert color.rgb == pytest.approx(rgb)
+    assert color.rgba == pytest.approx((*rgb, alpha))
+    assert color.hsv == pytest.approx(hsv)
 
 
 @pytest.mark.parametrize(

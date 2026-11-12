@@ -1,9 +1,10 @@
 # SPDX-License-Identifier: MPL-2.0
-"""A thing's colour, read as the color metamodel states it: its scheme and its channels.
+"""A thing's colour, read as the color metamodel states it: its scheme and its `col:value`.
 
-The reader converts nothing. Hex is only another way to write RGB(A) channels, so it is
-decoded, but HSV stays HSV. A consumer that takes RGBA, as MJCF, URDF and SDF do, asks for
-`ColorModel.rgba`.
+The reader keeps the value as written. It parses it once, in the colour's own scheme, to check
+it; hex is only another way to write RGB(A) channels, so it is decoded. `rgb`, `rgba` and `hsv`
+convert to the other schemes on first use. A consumer that takes RGBA, as MJCF, URDF and SDF
+do, asks for `ColorModel.rgba`.
 """
 
 import colorsys
@@ -46,12 +47,15 @@ class ColorModel(ModelBase):
 
     Attributes:
         scheme: the scheme the colour is written in
-        channels: as written -- red, green, blue (and alpha) in [0, 1], hex decoded; or hue in
-            degrees [0, 360), then saturation and value in [0, 1]
+        value: the `col:value` literal, as written
     """
 
     scheme: ColorScheme
-    channels: tuple[float, ...]
+    value: str
+    # Filled at read time for the colour's own scheme; the others on first use.
+    _rgb: tuple[float, float, float] | None
+    _rgba: tuple[float, float, float, float] | None
+    _hsv: tuple[float, float, float] | None
 
     def __init__(self, color_id: URIRef, graph: Graph) -> None:
         super().__init__(node_id=color_id, graph=graph)
@@ -63,10 +67,12 @@ class ColorModel(ModelBase):
         [scheme] = schemes
         self.scheme = scheme
 
-        literal = ensure_one_obj_literal(graph=graph, subject=self.id, predicate=URI_COLOR_PRED_VALUE)
+        literal = ensure_one_obj_literal(
+            graph=graph, subject=self.id, predicate=URI_COLOR_PRED_VALUE
+        )
         if literal is None:
             raise ConstraintViolation("color", f"color '{self.id}' states no value")
-        value = str(literal)
+        self.value = value = str(literal)
         try:
             channels = _channels(scheme, value)
         except ValueError as error:
@@ -79,6 +85,7 @@ class ColorModel(ModelBase):
                 "color", f"color '{self.id}' needs {count} finite {scheme.name} channels: '{value}'"
             )
 
+        self._rgb = self._rgba = self._hsv = None
         if scheme is ColorScheme.HSV:
             hue, saturation, brightness = channels
             if not 0 <= hue < 360 or not (0 <= saturation <= 1 and 0 <= brightness <= 1):
@@ -87,24 +94,45 @@ class ColorModel(ModelBase):
                     f"color '{self.id}' needs HSV hue in [0, 360), saturation and value in "
                     f"[0, 1]: '{value}'",
                 )
-        elif any(not 0 <= c <= 1 for c in channels):
+            self._hsv = (hue, saturation, brightness)
+            return
+        if any(not 0 <= c <= 1 for c in channels):
             raise ConstraintViolation(
                 "color", f"color '{self.id}' needs {scheme.name} channels in [0, 1]: '{value}'"
             )
-        self.channels = tuple(channels)
+        if scheme is ColorScheme.RGBA:
+            red, green, blue, alpha = channels
+            self._rgba = (red, green, blue, alpha)
+        else:
+            red, green, blue = channels
+            self._rgb = (red, green, blue)
+
+    @property
+    def rgb(self) -> tuple[float, float, float]:
+        """Red, green and blue in [0, 1]. HSV is converted, and RGBA's alpha dropped."""
+        if self._rgb is None:
+            if self.scheme is ColorScheme.HSV:
+                hue, saturation, brightness = self.hsv
+                self._rgb = colorsys.hsv_to_rgb(hue / 360, saturation, brightness)
+            else:
+                red, green, blue, _ = self.rgba
+                self._rgb = (red, green, blue)
+        return self._rgb
 
     @property
     def rgba(self) -> tuple[float, float, float, float]:
-        """Red, green, blue and alpha in [0, 1], for a consumer that takes RGBA.
+        """Red, green, blue and alpha in [0, 1]. RGB and HSV are opaque."""
+        if self._rgba is None:
+            self._rgba = (*self.rgb, 1.0)
+        return self._rgba
 
-        HSV is converted, and RGB is opaque.
-        """
-        channels = self.channels
-        if self.scheme is ColorScheme.HSV:
-            hue, saturation, brightness = channels
-            channels = colorsys.hsv_to_rgb(hue / 360, saturation, brightness)
-        red, green, blue, *alpha = channels
-        return red, green, blue, alpha[0] if alpha else 1.0
+    @property
+    def hsv(self) -> tuple[float, float, float]:
+        """Hue in degrees [0, 360), then saturation and value in [0, 1]. RGBA's alpha dropped."""
+        if self._hsv is None:
+            hue, saturation, brightness = colorsys.rgb_to_hsv(*self.rgb)
+            self._hsv = (hue * 360, saturation, brightness)
+        return self._hsv
 
 
 def get_color(graph: Graph, owner: URIRef) -> ColorModel | None:

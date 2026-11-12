@@ -2,19 +2,18 @@ import colorsys
 import re
 
 import pytest
-from rdf_utils.constraints import ConstraintViolation
+from rdf_utils.models.color import ColorScheme, get_color
 from rdf_utils.models.vocab import (
     URI_COLOR_PRED_HAS_COLOR,
     URI_COLOR_PRED_VALUE,
     URI_COLOR_TYPE_COLOR,
 )
 from rdf_utils.namespace import NS_MM_COLOR
-from rdflib import RDF, Graph, Literal, URIRef
+from rdflib import RDF, Graph, Literal
 from textx.exceptions import TextXSyntaxError
 
 from scene_dsl.langs import scenex_metamodel
 from scene_dsl.rdf.shapes import add_shape
-from scene_dsl.rdf_parser.color import ColorScheme, get_color
 
 
 def _shape_model(color: str):
@@ -111,61 +110,6 @@ def test_color_reads_back_as_written(authored, scheme, value, rgba):
     assert color.scheme is scheme
     assert color.value == value
     assert color.rgba == pytest.approx(rgba)
-
-
-OWNER = URIRef("https://example.test/owner")
-
-
-def _color_graph(scheme: ColorScheme, value: str, colors: int = 1) -> Graph:
-    """OWNER drawn in COLORS colours, each in SCHEME with VALUE, as the metamodel states them."""
-    graph = Graph()
-    for index in range(colors):
-        color = URIRef(f"https://example.test/color-{index}")
-        graph.add((OWNER, URI_COLOR_PRED_HAS_COLOR, color))
-        graph.add((color, RDF.type, URI_COLOR_TYPE_COLOR))
-        graph.add((color, RDF.type, NS_MM_COLOR[scheme.value]))
-        graph.add((color, URI_COLOR_PRED_VALUE, Literal(value)))
-    return graph
-
-
-def test_float_channels_read_as_written():
-    # The metamodel takes floats as well as hex; scene-dsl writes hex, others need not.
-    color = get_color(_color_graph(ColorScheme.RGBA, "0.9 0.2 0.2 0.5"), OWNER)
-    assert color.value == "0.9 0.2 0.2 0.5"
-    assert color.rgba == pytest.approx((0.9, 0.2, 0.2, 0.5))
-
-
-@pytest.mark.parametrize(
-    ("scheme", "value", "rgb", "alpha", "hsv"),
-    [
-        (ColorScheme.RGB, "#FF0000", (1.0, 0.0, 0.0), 1.0, (0.0, 1.0, 1.0)),
-        (ColorScheme.RGBA, "#0000FF80", (0.0, 0.0, 1.0), 0x80 / 255, (240.0, 1.0, 1.0)),
-        (ColorScheme.HSV, "120 1 0.5", (0.0, 0.5, 0.0), 1.0, (120.0, 1.0, 0.5)),
-    ],
-)
-def test_color_converts_between_schemes(scheme, value, rgb, alpha, hsv):
-    color = get_color(_color_graph(scheme, value), OWNER)
-    assert color.value == value
-    assert color.rgb == pytest.approx(rgb)
-    assert color.rgba == pytest.approx((*rgb, alpha))
-    assert color.hsv == pytest.approx(hsv)
-
-
-@pytest.mark.parametrize(
-    ("scheme", "value", "colors", "message"),
-    [
-        (ColorScheme.RGB, "#E63300", 2, "has 2 colors, expected one"),
-        (ColorScheme.RGB, "#12345", 1, "invalid RGB value '#12345': expected 6 hex digits"),
-        (ColorScheme.RGBA, "0.9 0.2 0.2", 1, "needs 4 finite RGBA channels"),
-        (ColorScheme.RGB, "1.5 0 0", 1, "needs RGB channels in [0, 1]"),
-        (ColorScheme.HSV, "360 0.5 0.5", 1, "needs HSV hue in [0, 360)"),
-        (ColorScheme.HSV, "10 1.5 0.5", 1, "saturation and value in [0, 1]"),
-    ],
-)
-def test_malformed_color_in_graph_is_reported(scheme, value, colors, message):
-    graph = _color_graph(scheme, value, colors)
-    with pytest.raises(ConstraintViolation, match=re.escape(message)):
-        get_color(graph, OWNER)
 
 
 @pytest.mark.parametrize(

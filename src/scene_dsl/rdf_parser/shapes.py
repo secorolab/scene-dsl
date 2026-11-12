@@ -12,6 +12,7 @@ from enum import StrEnum
 from pathlib import Path
 
 from rdf_utils.constraints import ConstraintViolation
+from rdf_utils.models.color import ColorModel, get_color
 from rdf_utils.models.common import ModelBase, get_node_types
 from rdf_utils.models.geom_coord import to_metres
 from rdf_utils.models.prov import get_file_path
@@ -25,7 +26,6 @@ from rdf_utils.namespace import NS_MM_SHAPES
 from rdflib import RDF, XSD, Graph, URIRef
 from rdflib.namespace import PROV
 
-from scene_dsl.rdf_parser.color import ColorModel, get_color
 from scene_dsl.rdf_parser.common import ensure_one_obj_literal, ensure_one_obj_uri
 
 

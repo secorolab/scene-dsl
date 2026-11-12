@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: MPL-2.0
+from rdf_utils.models.color import add_color
 from rdf_utils.models.prov import add_entity
 from rdf_utils.models.vocab import (
     URI_QUDT_PRED_UNIT,
@@ -11,7 +12,6 @@ from rdflib import RDF, XSD, Graph, Literal
 from rdflib.namespace import PROV
 
 from scene_dsl.classes.ktree import SceneShape
-from scene_dsl.rdf.color import add_color
 from scene_dsl.rdf.common import add_file_source
 from scene_dsl.rdf.geom import LENGTH_UNITS
 
@@ -35,4 +35,4 @@ def add_shape(graph: Graph, shape: SceneShape) -> None:
         graph.add((shape.uri, PROV.wasDerivedFrom, add_file_source(graph, shape.file)))
     add_shape_scale(graph, shape)
     if shape.color is not None:
-        add_color(graph, shape.uri, shape.color_uri, shape.color)
+        add_color(graph, shape.uri, shape.color_uri, shape.color.scheme, shape.color.literal)

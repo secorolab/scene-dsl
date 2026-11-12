@@ -6,8 +6,9 @@ from __future__ import annotations
 from decimal import Decimal
 from math import isfinite
 
+from rdf_utils.models.color import ColorScheme
+
 from scene_dsl.classes.common import IHasParent
-from scene_dsl.rdf_parser.color import ColorScheme
 
 
 class Color(IHasParent):

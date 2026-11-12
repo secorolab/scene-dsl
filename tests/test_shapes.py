@@ -2,6 +2,7 @@ import re
 
 import pytest
 from rdf_utils.constraints import ConstraintViolation
+from rdf_utils.models.color import ColorScheme
 from rdf_utils.models.vocab import (
     URI_QUDT_PRED_UNIT,
     URI_SHAPES_PRED_ATTACHED_TO_FRAME,
@@ -14,7 +15,6 @@ from rdflib.namespace import split_uri
 from scene_dsl.langs import scenex_metamodel
 from scene_dsl.rdf.scenex import create_scenex_model_graph
 from scene_dsl.rdf.shapes import add_shape
-from scene_dsl.rdf_parser.color import ColorScheme
 from scene_dsl.rdf_parser.shapes import PrimitiveShapeType, scene_shapes
 
 from .test_common import MODELS_DIR

@@ -10,7 +10,7 @@ import colorsys
 import math
 
 from rdf_utils.constraints import ConstraintViolation
-from rdf_utils.models.common import ModelBase, get_node_types
+from rdf_utils.models.common import ModelBase
 from rdf_utils.models.vocab import URI_COLOR_PRED_HAS_COLOR, URI_COLOR_PRED_VALUE
 from rdf_utils.namespace import NS_MM_COLOR
 from rdflib import Graph, URIRef
@@ -45,13 +45,12 @@ class ColorModel(ModelBase):
     channels: tuple[float, ...]
 
     def __init__(self, color_id: URIRef, graph: Graph) -> None:
-        types = get_node_types(graph=graph, node_id=color_id)
-        schemes = [SCHEME_TYPES[node_type] for node_type in types if node_type in SCHEME_TYPES]
+        super().__init__(node_id=color_id, graph=graph)
+        schemes = [SCHEME_TYPES[t] for t in self.types if t in SCHEME_TYPES]
         if len(schemes) != 1:
             raise ConstraintViolation(
-                "color", f"color '{color_id}' needs one scheme of RGB, RGBA or HSV, found {schemes}"
+                "color", f"color '{self.id}' needs one scheme of RGB, RGBA or HSV, found {schemes}"
             )
-        super().__init__(node_id=color_id, types=types)
         [scheme] = schemes
         self.scheme = scheme
 

@@ -8,7 +8,6 @@ from rdf_utils.models.vocab import (
     URI_COLOR_PRED_VALUE,
     URI_COLOR_TYPE_COLOR,
 )
-from rdf_utils.namespace import NS_MM_COLOR
 from rdflib import RDF, Graph, Literal
 from textx.exceptions import TextXSyntaxError
 
@@ -57,7 +56,7 @@ def test_color_exports_its_scheme_and_value(authored, scheme, literal):
     assert shape.color.scheme == scheme
     assert (shape.uri, URI_COLOR_PRED_HAS_COLOR, shape.color_uri) in graph
     assert (shape.color_uri, RDF.type, URI_COLOR_TYPE_COLOR) in graph
-    assert (shape.color_uri, RDF.type, NS_MM_COLOR[scheme.value]) in graph
+    assert (shape.color_uri, RDF.type, scheme.value) in graph
     assert list(graph.objects(shape.color_uri, URI_COLOR_PRED_VALUE)) == [Literal(literal)]
 
 

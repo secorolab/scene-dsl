@@ -8,6 +8,7 @@ is read in metres, as rdf-utils reads every length.
 """
 
 import math
+from enum import StrEnum
 from pathlib import Path
 
 from rdf_utils.constraints import ConstraintViolation
@@ -24,9 +25,17 @@ from rdf_utils.namespace import NS_MM_SHAPES
 from rdflib import RDF, XSD, Graph, URIRef
 from rdflib.namespace import PROV
 
-from scene_dsl.classes.ktree import PrimitiveShapeType
 from scene_dsl.rdf_parser.color import ColorModel, get_color
 from scene_dsl.rdf_parser.common import ensure_one_obj_literal, ensure_one_obj_uri
+
+
+class PrimitiveShapeType(StrEnum):
+    """A primitive's unit base; the value is its class in the shapes metamodel."""
+
+    CUBE = "UnitCube"
+    CYLINDER = "UnitCylinder"
+    SPHERE = "UnitSphere"
+
 
 SCALE_PREDS = tuple(NS_MM_SHAPES[f"scale-{axis}"] for axis in "xyz")
 PRIMITIVE_TYPES = {NS_MM_SHAPES[primitive.value]: primitive for primitive in PrimitiveShapeType}

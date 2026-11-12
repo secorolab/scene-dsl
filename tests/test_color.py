@@ -12,10 +12,9 @@ from rdf_utils.namespace import NS_MM_COLOR
 from rdflib import RDF, Graph, Literal, URIRef
 from textx.exceptions import TextXSyntaxError
 
-from scene_dsl.classes.color import ColorScheme
 from scene_dsl.langs import scenex_metamodel
 from scene_dsl.rdf.shapes import add_shape
-from scene_dsl.rdf_parser.color import get_color
+from scene_dsl.rdf_parser.color import ColorScheme, get_color
 
 
 def _shape_model(color: str):

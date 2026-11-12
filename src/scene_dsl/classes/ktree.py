@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from enum import StrEnum
 from math import isfinite
 from pathlib import PurePath
 from typing import Any
@@ -20,6 +19,7 @@ from scene_dsl.classes.common import (
     SystemPath,
 )
 from scene_dsl.classes.geom import Frame, FrameAxis, IDefaultFrame
+from scene_dsl.rdf_parser.shapes import PrimitiveShapeType
 
 
 class KinematicTreeTemplate(IHasParent):
@@ -235,14 +235,6 @@ class RigidBody(IHasNamespace, IDefaultFrame):
         if self._inertia_coord_uri is None:
             self._inertia_coord_uri = self.namespace[self.scoped("-inertia-coord")]
         return self._inertia_coord_uri
-
-
-class PrimitiveShapeType(StrEnum):
-    """A primitive's unit base; the value is its class in the shapes metamodel."""
-
-    CUBE = "UnitCube"
-    CYLINDER = "UnitCylinder"
-    SPHERE = "UnitSphere"
 
 
 class SceneShape(IHasNamespace):

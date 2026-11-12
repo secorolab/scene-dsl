@@ -4,18 +4,10 @@
 from __future__ import annotations
 
 from decimal import Decimal
-from enum import StrEnum
 from math import isfinite
 
 from scene_dsl.classes.common import IHasParent
-
-
-class ColorScheme(StrEnum):
-    """The metamodel class each colour is exported as."""
-
-    RGB = "RGBScheme"
-    RGBA = "RGBAScheme"
-    HSV = "HSVScheme"
+from scene_dsl.rdf_parser.color import ColorScheme
 
 
 class Color(IHasParent):

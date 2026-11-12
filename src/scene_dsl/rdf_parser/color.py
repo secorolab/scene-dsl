@@ -8,6 +8,7 @@ decoded, but HSV stays HSV. A consumer that takes RGBA, as MJCF, URDF and SDF do
 
 import colorsys
 import math
+from enum import StrEnum
 
 from rdf_utils.constraints import ConstraintViolation
 from rdf_utils.models.common import ModelBase
@@ -15,8 +16,16 @@ from rdf_utils.models.vocab import URI_COLOR_PRED_HAS_COLOR, URI_COLOR_PRED_VALU
 from rdf_utils.namespace import NS_MM_COLOR
 from rdflib import Graph, URIRef
 
-from scene_dsl.classes.color import ColorScheme
 from scene_dsl.rdf_parser.common import ensure_one_obj_literal
+
+
+class ColorScheme(StrEnum):
+    """The metamodel class each colour is exported as."""
+
+    RGB = "RGBScheme"
+    RGBA = "RGBAScheme"
+    HSV = "HSVScheme"
+
 
 CHANNEL_COUNTS = {ColorScheme.RGB: 3, ColorScheme.RGBA: 4, ColorScheme.HSV: 3}
 SCHEME_TYPES = {NS_MM_COLOR[scheme.value]: scheme for scheme in ColorScheme}

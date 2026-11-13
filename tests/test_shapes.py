@@ -5,6 +5,9 @@ from rdf_utils.constraints import ConstraintViolation
 from rdf_utils.models.color import ColorScheme
 from rdf_utils.models.vocab import (
     URI_QUDT_PRED_UNIT,
+    URI_QUDT_UNIT_CM,
+    URI_QUDT_UNIT_M,
+    URI_QUDT_UNIT_MM,
     URI_SHAPES_PRED_ATTACHED_TO_FRAME,
     URI_SHAPES_PRED_SCALE_X,
     URI_SHAPES_PRED_SCALE_Y,
@@ -60,12 +63,14 @@ def test_example_shapes_read_back_as_authored():
     ball, bottle, box, marker = (
         shapes[f"{frame}-shape-0"] for frame in ("ball_root", "bottle_root", "box1_root", "world")
     )
-    # Scales come back in metres, authored in m, mm and cm: a sphere's radii, a cylinder's
-    # radii and height, a cube's sides, a file shape's metres per unit.
-    assert ball.scale == pytest.approx((0.04, 0.04, 0.04))
-    assert bottle.scale == pytest.approx((0.035, 0.035, 0.2))
-    assert box.scale == pytest.approx((0.04, 0.04, 0.04))
-    assert marker.scale == pytest.approx((0.05, 0.05, 0.05))
+    # Scale and unit come back as authored, unconverted: a sphere's radii, a cylinder's radii
+    # and height, a cube's sides, a file shape's length per coordinate unit.
+    assert [(s.scale, s.unit) for s in (ball, bottle, box, marker)] == [
+        ((0.04, 0.04, 0.04), URI_QUDT_UNIT_M),
+        ((35.0, 35.0, 200.0), URI_QUDT_UNIT_MM),
+        ((4.0, 4.0, 4.0), URI_QUDT_UNIT_CM),
+        ((5.0, 5.0, 5.0), URI_QUDT_UNIT_CM),
+    ]
     assert [split_uri(s.frame)[1] for s in (ball, bottle, box, marker)] == [
         "ball_root", "bottle_root", "box1_root", "world",
     ]
@@ -96,7 +101,7 @@ def test_file_shape_reads_the_file_its_path_names(tmp_path):
 
     [shape] = scene_shapes(graph)
     assert (shape.primitive, shape.path) == (None, part.resolve())
-    assert shape.scale == pytest.approx((0.002, 0.002, 0.002))
+    assert (shape.scale, shape.unit) == ((2.0, 2.0, 2.0), URI_QUDT_UNIT_MM)
 
 
 def test_missing_shape_file_is_reported(tmp_path):
@@ -115,7 +120,7 @@ def test_missing_shape_file_is_reported(tmp_path):
             "attached to no frame",
         ),
         (lambda g, s: g.add((s, RDF.type, URI_SHAPES_TYPE_UNIT_SPHERE)), "needs one type of"),
-        (lambda g, s: g.set((s, URI_QUDT_PRED_UNIT, NS_MM_QUDT_UNIT["IN"])), "no length unit to convert"),
+        (lambda g, s: g.set((s, URI_QUDT_PRED_UNIT, NS_MM_QUDT_UNIT["IN"])), "no supported length unit"),
         (lambda g, s: g.set((s, URI_SHAPES_PRED_SCALE_X, Literal(2))), "needs one xsd:double"),
         (
             lambda g, s: g.set((s, URI_SHAPES_PRED_SCALE_Y, Literal(0.0, datatype=XSD.double))),

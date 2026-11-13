@@ -4,7 +4,8 @@
 A shape is a unit base in its declared length unit -- a cube of side 1, a cylinder or sphere
 of radius 1, or a file's own coordinates -- scaled per local axis, with its origin and
 axes at the frame it is attached to. Where that frame is, is the kinematics' to say. The scale
-is read in metres, as rdf-utils reads every length.
+and unit are kept as the graph states them; a consumer that needs lengths converts them, e.g.
+with rdf-utils' `to_metres`.
 """
 
 import math
@@ -14,7 +15,7 @@ from pathlib import Path
 from rdf_utils.constraints import ConstraintViolation
 from rdf_utils.models.color import ColorModel, get_color
 from rdf_utils.models.common import ModelBase
-from rdf_utils.models.geom_coord import to_metres
+from rdf_utils.models.geom_coord import LENGTH_UNITS
 from rdf_utils.models.prov import get_file_path
 from rdf_utils.models.vocab import (
     URI_QUDT_PRED_UNIT,
@@ -53,9 +54,10 @@ class ShapeModel(ModelBase):
         frame: the frame the shape is attached to
         primitive: the unit base of a primitive shape; None for a file-based one
         path: the file of a file-based shape; None for a primitive
-        scale: metres per base unit along local X, Y and Z, the length unit folded in: a
-            cube's side lengths, a sphere's radii, a cylinder's two radii and its height, or
-            what takes a file's coordinates to metres
+        scale: the factors along local X, Y and Z as the graph states them, (1, 1, 1) when it
+            states none; in `unit`, a cube's side lengths, a sphere's radii, a cylinder's two
+            radii and its height, or the length of one of a file's coordinate units
+        unit: the QUDT length unit of the base, one of rdf-utils' `LENGTH_UNITS`
         color: the colour as the scene states it; None when it states none
     """
 
@@ -63,6 +65,7 @@ class ShapeModel(ModelBase):
     primitive: PrimitiveShapeType | None
     path: Path | None
     scale: tuple[float, float, float]
+    unit: URIRef
     color: ColorModel | None
 
     def __init__(self, shape_id: URIRef, graph: Graph) -> None:
@@ -86,8 +89,12 @@ class ShapeModel(ModelBase):
         else:
             self.primitive, self.path = PrimitiveShapeType(kind), None
         unit = ensure_one_obj_uri(graph, self.id, URI_QUDT_PRED_UNIT)
-        x, y, z = to_metres(self._scale(graph), unit, self.id)
-        self.scale = (x, y, z)
+        if unit not in LENGTH_UNITS:
+            raise ConstraintViolation(
+                "shapes", f"shape '{self.id}' has no supported length unit, found {unit}"
+            )
+        self.unit = unit
+        self.scale = self._scale(graph)
         self.color = get_color(graph, self.id)
 
     def _scale(self, graph: Graph) -> tuple[float, float, float]:

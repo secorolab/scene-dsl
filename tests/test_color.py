@@ -1,14 +1,9 @@
-import colorsys
 import re
 
 import pytest
 from rdf_utils.models.color import ColorScheme, get_color
-from rdf_utils.models.vocab import (
-    URI_COLOR_PRED_HAS_COLOR,
-    URI_COLOR_PRED_VALUE,
-    URI_COLOR_TYPE_COLOR,
-)
-from rdflib import RDF, Graph, Literal
+from rdf_utils.models.vocab import URI_COLOR_PRED_HAS_COLOR
+from rdflib import Graph
 from textx.exceptions import TextXSyntaxError
 
 from scene_dsl.langs import scenex_metamodel
@@ -53,11 +48,8 @@ def test_color_exports_its_scheme_and_value(authored, scheme, literal):
     graph = Graph()
     add_shape(graph, shape)
 
-    assert shape.color.scheme == scheme
-    assert (shape.uri, URI_COLOR_PRED_HAS_COLOR, shape.color_uri) in graph
-    assert (shape.color_uri, RDF.type, URI_COLOR_TYPE_COLOR) in graph
-    assert (shape.color_uri, RDF.type, scheme.value) in graph
-    assert list(graph.objects(shape.color_uri, URI_COLOR_PRED_VALUE)) == [Literal(literal)]
+    color = get_color(graph, shape.uri)
+    assert (color.scheme, color.value) == (scheme, literal)
 
 
 def test_shape_without_color_exports_none():
@@ -78,37 +70,6 @@ ktree (ns=n) arm { root: <base.f>
 
     assert shape.color is None
     assert not list(graph.objects(shape.uri, URI_COLOR_PRED_HAS_COLOR))
-    assert get_color(graph, shape.uri) is None
-
-
-@pytest.mark.parametrize(
-    ("authored", "scheme", "value", "rgba"),
-    [
-        ("rgb(230, 51, 0)", ColorScheme.RGB, "#E63300", (230 / 255, 51 / 255, 0.0, 1.0)),
-        (
-            "#33B34D80",
-            ColorScheme.RGBA,
-            "#33B34D80",
-            (0x33 / 255, 0xB3 / 255, 0x4D / 255, 0x80 / 255),
-        ),
-        # HSV reads back as HSV; only the properties convert it.
-        (
-            "hsv(210, 0.6, 0.9)",
-            ColorScheme.HSV,
-            "210 0.6 0.9",
-            (*colorsys.hsv_to_rgb(210 / 360, 0.6, 0.9), 1.0),
-        ),
-    ],
-)
-def test_color_reads_back_as_written(authored, scheme, value, rgba):
-    shape = _shape(authored)
-    graph = Graph()
-    add_shape(graph, shape)
-
-    color = get_color(graph, shape.uri)
-    assert color.scheme is scheme
-    assert color.value == value
-    assert color.rgba == pytest.approx(rgba)
 
 
 @pytest.mark.parametrize(

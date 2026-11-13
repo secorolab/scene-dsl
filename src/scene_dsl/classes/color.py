@@ -63,13 +63,6 @@ class HexColor(Color):
         return self.code
 
 
-def _plain(number: float) -> str:
-    """No exponent and no '-0', which the metamodel's patterns would refuse."""
-    if isinstance(number, int):
-        return str(number)
-    return format(Decimal(repr(number + 0.0)), "f")
-
-
 class HSVColor(Color):
     scheme = ColorScheme.HSV
 
@@ -84,4 +77,8 @@ class HSVColor(Color):
 
     @property
     def literal(self) -> str:
-        return " ".join(_plain(n) for n in (self.hue, self.saturation, self.value))
+        # No exponent and no '-0', which the metamodel's patterns would refuse.
+        return " ".join(
+            str(n) if isinstance(n, int) else format(Decimal(repr(n + 0.0)), "f")
+            for n in (self.hue, self.saturation, self.value)
+        )

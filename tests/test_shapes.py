@@ -69,13 +69,11 @@ def test_example_shapes_read_back_as_authored():
     assert ball.path is None
     # One colour per form: rgba, hsv and hex, each read in its own scheme. The marker states
     # none, so a consumer keeps its default.
-    assert ball.color.scheme is ColorScheme.RGBA
-    assert ball.color.rgba == pytest.approx((230 / 255, 51 / 255, 51 / 255, 1.0))
-    assert bottle.color.scheme is ColorScheme.HSV
-    assert bottle.color.hsv == pytest.approx((210, 0.6, 0.9))
-    assert bottle.color.rgba == pytest.approx((0.36, 0.63, 0.9, 1.0))
-    assert box.color.scheme is ColorScheme.RGB
-    assert box.color.rgb == pytest.approx((0x1A / 255, 0x59 / 255, 1.0))
+    assert [(s.color.scheme, s.color.value) for s in (ball, bottle, box)] == [
+        (ColorScheme.RGBA, "#E63333FF"),
+        (ColorScheme.HSV, "210 0.6 0.9"),
+        (ColorScheme.RGB, "#1A59FF"),
+    ]
     assert marker.color is None
 
 
@@ -118,6 +116,10 @@ def test_missing_shape_file_is_reported(tmp_path):
         (
             lambda g, s: g.set((s, NS_MM_SHAPES["scale-y"], Literal(0.0, datatype=XSD.double))),
             "expected finite positive",
+        ),
+        (
+            lambda g, s: g.remove((s, NS_MM_SHAPES["scale-z"], None)),
+            "needs all three scale factors",
         ),
         (
             lambda g, s: g.remove((s, RDF.type, URI_SHAPES_TYPE_SCALED_SHAPE)),

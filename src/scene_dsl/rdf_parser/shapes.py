@@ -8,12 +8,12 @@ is read in metres, as rdf-utils reads every length.
 """
 
 import math
-from enum import StrEnum
+from enum import Enum
 from pathlib import Path
 
 from rdf_utils.constraints import ConstraintViolation
 from rdf_utils.models.color import ColorModel, get_color
-from rdf_utils.models.common import ModelBase, get_node_types
+from rdf_utils.models.common import ModelBase
 from rdf_utils.models.geom_coord import to_metres
 from rdf_utils.models.prov import get_file_path
 from rdf_utils.models.vocab import (
@@ -29,17 +29,16 @@ from rdflib.namespace import PROV
 from scene_dsl.rdf_parser.common import ensure_one_obj_literal, ensure_one_obj_uri
 
 
-class PrimitiveShapeType(StrEnum):
+class PrimitiveShapeType(Enum):
     """A primitive's unit base; the value is its class in the shapes metamodel."""
 
-    CUBE = "UnitCube"
-    CYLINDER = "UnitCylinder"
-    SPHERE = "UnitSphere"
+    CUBE = NS_MM_SHAPES["UnitCube"]
+    CYLINDER = NS_MM_SHAPES["UnitCylinder"]
+    SPHERE = NS_MM_SHAPES["UnitSphere"]
 
 
 SCALE_PREDS = tuple(NS_MM_SHAPES[f"scale-{axis}"] for axis in "xyz")
-PRIMITIVE_TYPES = {NS_MM_SHAPES[primitive.value]: primitive for primitive in PrimitiveShapeType}
-SHAPE_TYPES = {*PRIMITIVE_TYPES, URI_SHAPES_TYPE_FILE_BASED_SHAPE}
+SHAPE_TYPES = {URI_SHAPES_TYPE_FILE_BASED_SHAPE, *(t.value for t in PrimitiveShapeType)}
 
 
 class ShapeModel(ModelBase):
@@ -62,40 +61,37 @@ class ShapeModel(ModelBase):
     color: ColorModel | None
 
     def __init__(self, shape_id: URIRef, graph: Graph) -> None:
-        types = get_node_types(graph=graph, node_id=shape_id)
-        kinds = types & SHAPE_TYPES
+        super().__init__(node_id=shape_id, graph=graph)
+        kinds = self.types & SHAPE_TYPES
         if len(kinds) != 1:
             raise ConstraintViolation(
                 "shapes",
-                f"shape '{shape_id}' needs one type of UnitCube, UnitCylinder, UnitSphere or "
+                f"shape '{self.id}' needs one type of UnitCube, UnitCylinder, UnitSphere or "
                 f"FileBasedShape, found {sorted(kinds, key=str)}",
             )
         [kind] = kinds
-        super().__init__(node_id=shape_id, types=types)
 
         frame = ensure_one_obj_uri(graph, self.id, URI_SHAPES_PRED_ATTACHED_TO_FRAME)
         if frame is None:
             raise ConstraintViolation("shapes", f"shape '{self.id}' is attached to no frame")
         self.frame = frame
 
-        self.primitive = PRIMITIVE_TYPES.get(kind)
-        self.path = self._file(graph) if kind == URI_SHAPES_TYPE_FILE_BASED_SHAPE else None
+        if kind == URI_SHAPES_TYPE_FILE_BASED_SHAPE:
+            self.primitive, self.path = None, self._file(graph)
+        else:
+            self.primitive, self.path = PrimitiveShapeType(kind), None
         unit = ensure_one_obj_uri(graph, self.id, URI_QUDT_PRED_UNIT)
         x, y, z = to_metres(self._scale(graph), unit, self.id)
         self.scale = (x, y, z)
         self.color = get_color(graph, self.id)
 
     def _scale(self, graph: Graph) -> tuple[float, float, float]:
-        if URI_SHAPES_TYPE_SCALED_SHAPE not in self.types:
-            if any(graph.value(self.id, pred) is not None for pred in SCALE_PREDS):
-                raise ConstraintViolation(
-                    "shapes", f"shape '{self.id}' states scale factors but is not a ScaledShape"
-                )
-            return (1.0, 1.0, 1.0)
         factors = []
         for pred in SCALE_PREDS:
             literal = ensure_one_obj_literal(graph, self.id, pred)
-            if literal is None or literal.datatype != XSD.double:
+            if literal is None:
+                continue
+            if literal.datatype != XSD.double:
                 raise ConstraintViolation(
                     "shapes", f"shape '{self.id}' needs one xsd:double '{pred}', found {literal}"
                 )
@@ -105,6 +101,17 @@ class ShapeModel(ModelBase):
                     "shapes", f"shape '{self.id}' has '{pred}' {factor}, expected finite positive"
                 )
             factors.append(factor)
+        if URI_SHAPES_TYPE_SCALED_SHAPE not in self.types:
+            if factors:
+                raise ConstraintViolation(
+                    "shapes", f"shape '{self.id}' states scale factors but is not a ScaledShape"
+                )
+            return (1.0, 1.0, 1.0)
+        if len(factors) != 3:
+            raise ConstraintViolation(
+                "shapes",
+                f"ScaledShape '{self.id}' needs all three scale factors, found {len(factors)}",
+            )
         x, y, z = factors
         return x, y, z
 

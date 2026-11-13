@@ -28,7 +28,7 @@ def add_shape(graph: Graph, shape: SceneShape) -> None:
     graph.add((shape.uri, URI_SHAPES_PRED_ATTACHED_TO_FRAME, shape.frame.uri))
     graph.add((shape.uri, URI_QUDT_PRED_UNIT, LENGTH_UNITS[shape.unit]))
     if shape.primitive is not None:
-        graph.add((shape.uri, RDF.type, NS_MM_SHAPES[shape.primitive.value]))
+        graph.add((shape.uri, RDF.type, shape.primitive.value))
     else:
         graph.add((shape.uri, RDF.type, URI_SHAPES_TYPE_FILE_BASED_SHAPE))
         add_entity(graph, shape.uri)

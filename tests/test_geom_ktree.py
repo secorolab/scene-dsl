@@ -1,3 +1,5 @@
+import re
+
 import pytest
 from rdf_utils.constraints import check_shacl_constraints
 from rdf_utils.models.geom_coord import (
@@ -7,6 +9,7 @@ from rdf_utils.models.geom_coord import (
     get_coord_vectorxyz,
     get_euler_angles_abg,
 )
+from rdf_utils.models.prov import get_file_path
 from rdf_utils.models.vocab import (
     URI_ACT_PRED_COMMAND_INTERFACE,
     URI_ACT_PRED_JOINT,
@@ -41,10 +44,19 @@ from rdf_utils.models.vocab import (
     URI_QUDT_PRED_UNIT,
     URI_QUDT_QK_ANGLE,
     URI_QUDT_TYPE_QUANTITY,
+    URI_SHAPES_PRED_SCALE_X,
+    URI_SHAPES_PRED_SCALE_Y,
+    URI_SHAPES_PRED_SCALE_Z,
+    URI_SHAPES_TYPE_SCALED_SHAPE,
 )
-from rdf_utils.namespace import URL_MM_GEOM_SHACL_EXTS, URL_MM_GEOM_SHACL_REL, URL_SECORO_MM
+from rdf_utils.namespace import (
+    URL_MM_GEOM_SHACL_EXTS,
+    URL_MM_GEOM_SHACL_REL,
+    URL_SECORO_MM,
+)
 from rdf_utils.resolver import install_resolver
 from rdflib import RDF, Graph, Literal, URIRef
+from rdflib.namespace import PROV
 from textx.exceptions import TextXSemanticError, TextXSyntaxError
 
 from scene_dsl.classes.common import FloatVector
@@ -59,6 +71,7 @@ from scene_dsl.rdf.ktree import (
     add_body,
 )
 from scene_dsl.rdf.scenex import create_scenex_model_graph
+from scene_dsl.rdf.shapes import add_shape
 from scene_dsl.rdf_parser.kinematics import RigidBodyModel
 
 from .test_common import MODELS_DIR, write_example_scene
@@ -366,6 +379,182 @@ def test_rigid_body_inertia_rejects_non_symmetric_matrix():
             row2=FloatVector(None, [0.0, 1.0, 0.0]),
             row3=FloatVector(None, [0.0, 0.0, 1.0]),
             inertia_unit="kg*m^2",
+        )
+
+
+def _scaled_shape(scale: str):
+    model = scenex_metamodel().model_from_str(
+        f"""ns n = "https://example.test/"
+ktree (ns=n) t {{ root: <b.f>
+    body b {{
+        frame f {{ }}
+        shape cube {{ frame: <f> unit: m scale: {scale} }}
+    }}
+    joints {{ }}
+}}
+"""
+    )
+    [shape] = model.ktrees[0].bodies[0].shapes
+    return shape
+
+
+@pytest.mark.parametrize(
+    ("authored", "per_axis"),
+    [
+        ("2", (2.0, 2.0, 2.0)),
+        ("(0.5, 1.0, 1.5)", (0.5, 1.0, 1.5)),
+    ],
+)
+def test_shape_scale_exports_one_factor_per_axis(authored, per_axis):
+    shape = _scaled_shape(authored)
+    graph = Graph()
+    add_shape(graph, shape)
+
+    assert (shape.uri, RDF.type, URI_SHAPES_TYPE_SCALED_SHAPE) in graph
+    scale_preds = (URI_SHAPES_PRED_SCALE_X, URI_SHAPES_PRED_SCALE_Y, URI_SHAPES_PRED_SCALE_Z)
+    for pred, factor in zip(scale_preds, per_axis, strict=True):
+        assert graph.value(shape.uri, pred).toPython() == factor
+
+
+@pytest.mark.parametrize(
+    ("authored", "message"),
+    [
+        ("(2.0)", "cube on 'f' scale requires 3 values, got 1"),
+        ("(1.0, 2.0)", "cube on 'f' scale requires 3 values, got 2"),
+        ("0", "cube on 'f' scale is 0.0, expected a finite positive number"),
+        ("(1.0, -2.0, 3.0)", "cube on 'f' scale is -2.0, expected a finite positive number"),
+    ],
+)
+def test_bad_shape_scale_is_rejected(authored, message):
+    with pytest.raises(ValueError, match=re.escape(message)):
+        _scaled_shape(authored)
+
+
+def _file_shape(tmp_path, file_spec: str, keyword: str = "file"):
+    """A shape naming a file, in a model written to TMP_PATH so a relative path has a directory."""
+    model_file = tmp_path / "scene.scenex"
+    model_file.write_text(
+        f"""ns n = "https://example.test/"
+ktree (ns=n) t {{ root: <b.f>
+    body b {{
+        frame f {{ }}
+        shape {keyword} {{ frame: <f> {file_spec} unit: m }}
+    }}
+    joints {{ }}
+}}
+"""
+    )
+    [shape] = scenex_metamodel().model_from_file(str(model_file)).ktrees[0].bodies[0].shapes
+    graph = Graph()
+    add_shape(graph, shape)
+    return shape, graph
+
+
+def test_file_shape_is_derived_from_the_file_its_path_names(tmp_path):
+    # How each kind of path is located is tested on model files in test_scene.py.
+    shape, graph = _file_shape(tmp_path, 'sys path = "meshes/part.stl"')
+
+    assert (shape.uri, RDF.type, PROV.Entity) in graph
+    file_id = graph.value(shape.uri, PROV.wasDerivedFrom)
+    assert get_file_path(graph, file_id) == tmp_path.resolve() / "meshes" / "part.stl"
+
+
+def test_absolute_package_path_is_rejected(tmp_path):
+    message = "file shape on 'f' needs a path relative to its package"
+    with pytest.raises(ValueError, match=re.escape(message)):
+        _file_shape(tmp_path, 'ros pkg = "my_meshes", path = "/meshes/part.stl"')
+
+
+def test_file_shape_without_a_file_is_rejected(tmp_path):
+    with pytest.raises(ValueError, match=re.escape("file shape on 'f' needs a file")):
+        _file_shape(tmp_path, "")
+
+
+def test_primitive_with_a_file_is_rejected(tmp_path):
+    message = "cube on 'f' takes no file; only a file shape has one"
+    with pytest.raises(ValueError, match=re.escape(message)):
+        _file_shape(tmp_path, 'sys path = "meshes/part.stl"', keyword="cube")
+
+
+@pytest.mark.parametrize("graph_shape", [False, True])
+def test_only_bodies_hold_shapes(tmp_path, graph_shape):
+    write_example_scene(tmp_path)
+    shape = "shape cube { frame: <b.f> unit: m }"
+    model_path = tmp_path / "graph_shape.scenex"
+    model_path.write_text(
+        f"""import "example.scene"
+ns n = "https://example.test/"
+scene inst (ns=n) sx {{
+    scene: <s>
+    kgraph (ns=n) g {{ anchor: <b.f>
+        body b {{ frame f {{ }} {"" if graph_shape else shape} }}
+        {shape if graph_shape else ""}
+    }}
+}}
+"""
+    )
+    if not graph_shape:
+        [box] = scenex_metamodel().model_from_file(str(model_path)).scene_insts[0].kgraph.bodies[0].shapes
+        assert box.uri == URIRef("https://example.test/g/b/f-shape-0")
+        return
+    with pytest.raises(TextXSyntaxError):
+        scenex_metamodel().model_from_file(str(model_path))
+
+
+def test_shape_frame_must_be_on_its_own_body():
+    with pytest.raises(TextXSemanticError, match="cube on 'f' must use a frame owned by 'b'"):
+        scenex_metamodel().model_from_str(
+            """ns n = "https://example.test/"
+ktree (ns=n) t { root: <a.f>
+    body a { frame f { } }
+    body b {
+        frame f { }
+        shape cube { frame: <a.f> unit: m }
+    }
+    joints { fixed a_b { parent: <a.f> child: <b.f> } }
+}
+"""
+        )
+
+
+def test_shapes_are_numbered_per_frame_in_source_order():
+    model = scenex_metamodel().model_from_str(
+        """ns n = "https://example.test/"
+ktree (ns=n) t { root: <b.f>
+    body b {
+        frame f { }
+        frame g { }
+        shape cylinder { frame: <f> unit: cm scale: (1, 1, 10) }
+        shape cube { frame: <g> unit: cm }
+        shape sphere { frame: <f> unit: cm scale: 2 color: #E63333 }
+    }
+    joints { }
+}
+"""
+    )
+    shaft, box, knob = model.ktrees[0].bodies[0].shapes
+    assert [shaft.uri, box.uri, knob.uri] == [
+        URIRef("https://example.test/t/b/f-shape-0"),
+        URIRef("https://example.test/t/b/g-shape-0"),
+        URIRef("https://example.test/t/b/f-shape-1"),
+    ]
+    assert knob.color_uri == URIRef("https://example.test/t/b/f-shape-1-color")
+
+
+def test_a_name_clashing_with_a_shape_iri_is_rejected():
+    # Names may hold hyphens, so a frame can be named like a shape's IRI: that is refused.
+    with pytest.raises(TextXSemanticError, match="is minted by both"):
+        scenex_metamodel().model_from_str(
+            """ns n = "https://example.test/"
+ktree (ns=n) t { root: <b.f>
+    body b {
+        frame f { }
+        frame f-shape-0 { }
+        shape cube { frame: <f> unit: m }
+    }
+    joints { }
+}
+"""
         )
 
 
@@ -1174,6 +1363,7 @@ def test_lab_scenex_generated_geometry_validates_against_shacl():
             f"{URL_SECORO_MM}/robot/actuation.shacl.ttl": "ttl",
             f"{URL_SECORO_MM}/robot/sensors.shacl.ttl": "ttl",
             f"{URL_SECORO_MM}/kinematic-chain/structural-entities-extension.shacl.ttl": "ttl",
+            f"{URL_SECORO_MM}/geometry/shapes.shacl.ttl": "ttl",
         },
         quiet=False,
     )

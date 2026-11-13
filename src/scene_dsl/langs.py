@@ -15,7 +15,14 @@ from textx import (
 from textx.exceptions import TextXSemanticError
 from textx.scoping import Postponed
 
-from scene_dsl.classes.common import FloatVector, IHasNamespace, IntVector
+from scene_dsl.classes.color import HexColor, HSVColor, RGBAColor, RGBColor
+from scene_dsl.classes.common import (
+    FloatVector,
+    IHasNamespace,
+    IntVector,
+    PackagePath,
+    SystemPath,
+)
 from scene_dsl.classes.distrib import (
     Distribution,
     DistributionRef,
@@ -50,6 +57,7 @@ from scene_dsl.classes.ktree import (
     RevoluteJoint,
     RigidBody,
     RigidBodyInertia,
+    SceneShape,
     SerialJoints,
 )
 from scene_dsl.classes.scene import (
@@ -72,9 +80,7 @@ from scene_dsl.classes.scenex import (
     ModelledAgentSet,
     ModelledObject,
     ModelledObjectSet,
-    PackagePath,
     SceneInstance,
-    SystemPath,
     TreeMapping,
 )
 from scene_dsl.classes.sensors import (
@@ -395,7 +401,10 @@ def check_unique_uris(model, metamodel):
     seen: dict[URIRef, object] = {}
 
     def described(obj) -> str:
-        # Not everything minting an IRI is named: a mapping is known by what it maps.
+        # Not everything minting an IRI is named: a mapping is known by what it maps, and a
+        # shape by its frame.
+        if isinstance(obj, SceneShape):
+            return obj.label
         name = getattr(obj, "name", None)
         return f"{obj.__class__.__name__} '{name}'" if name else obj.__class__.__name__
 
@@ -426,6 +435,16 @@ def check_unique_uris(model, metamodel):
 
     for obj in get_children(mints_iri, model):
         record(obj)
+
+
+def check_shape_frames(model, metamodel):
+    for shape in get_children(lambda item: isinstance(item, SceneShape), model):
+        # A shape hangs on its body, so its frame must be one of that body's.
+        if shape.frame.parent is not shape.parent:
+            raise TextXSemanticError(
+                f"{shape.label} must use a frame owned by '{shape.parent.name}'",
+                **get_location(shape),
+            )
 
 
 # One per language: building another resets textx's stash on the shared user classes mid-import.
@@ -489,6 +508,11 @@ def scenex_metamodel():
             KinematicTreeTemplate,
             KinematicGraph,
             RigidBody,
+            SceneShape,
+            RGBColor,
+            RGBAColor,
+            HSVColor,
+            HexColor,
             RigidBodyInertia,
             JointsSpec,
             JointBase,
@@ -521,5 +545,6 @@ def scenex_metamodel():
     mm_scenex.register_model_processor(check_model_mappings)
     mm_scenex.register_model_processor(check_element_model_refs)
     mm_scenex.register_model_processor(check_agent_set_membership)
+    mm_scenex.register_model_processor(check_shape_frames)
     mm_scenex.register_model_processor(check_unique_uris)
     return mm_scenex

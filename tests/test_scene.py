@@ -17,8 +17,7 @@ from rdf_utils.models.vocab import (
 from rdflib import DCTERMS, PROV, RDF, SDO, Dataset, Literal, Namespace, URIRef
 from textx.exceptions import TextXSemanticError
 
-from scene_dsl.classes.common import IHasNamespace
-from scene_dsl.classes.scenex import PackagePath
+from scene_dsl.classes.common import IHasNamespace, PackagePath
 from scene_dsl.langs import scene_metamodel, scenex_metamodel
 from scene_dsl.rdf.scene import create_scene_model_graph
 from scene_dsl.rdf.scenex import URI_MJCF_MUJOCO, create_scenex_model_graph

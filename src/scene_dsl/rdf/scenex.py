@@ -1,14 +1,6 @@
 # SPDX-License-Identifier: MPL-2.0
-from pathlib import Path
 from typing import Any
 
-from packageurl import PackageURL
-from rdf_utils.models.prov import (
-    add_directory_location,
-    add_file_entity,
-    get_pkg_info,
-    load_pkg_prov,
-)
 from rdf_utils.models.vocab import (
     URI_AGN_PRED_HAS_AGN_MODEL,
     URI_AGN_PRED_OF_AGN,
@@ -26,17 +18,19 @@ from rdf_utils.models.vocab import (
     URI_EXEC_PRED_MODEL_ENTITY,
     URI_EXEC_TYPE_SCENE_INST,
     URI_EXEC_TYPE_SCENE_MODEL,
-    URI_ROS_TYPE_PACKAGE,
 )
 from rdf_utils.namespace import (
+    NS_MM_COLOR,
     NS_MM_GEOM,
     NS_MM_GEOM_COORD,
     NS_MM_GEOM_REL,
+    NS_MM_PROV_EXT,
     NS_MM_QUDT_QTY,
     NS_MM_QUDT_UNIT,
+    NS_MM_SHAPES,
 )
 from rdflib import DCTERMS, RDF, Graph, Literal, URIRef
-from textx import get_location, get_metamodel, textx_isinstance
+from textx import get_metamodel, textx_isinstance
 
 from scene_dsl.classes.scenex import (
     ElementModel,
@@ -45,13 +39,10 @@ from scene_dsl.classes.scenex import (
     ModelledAgentSet,
     ModelledObject,
     ModelledObjectSet,
-    PackageKind,
-    PackagePath,
     SceneInstance,
-    SystemPath,
     TreeMapping,
 )
-from scene_dsl.rdf.common import add_py_module_attr
+from scene_dsl.rdf.common import add_file_source, add_py_module_attr
 from scene_dsl.rdf.distrib import add_distribution
 from scene_dsl.rdf.ktree import add_kinematic_graph, add_kinematic_tree
 from scene_dsl.rdf.scene import add_scene_model
@@ -79,6 +70,9 @@ def _bind_model_kind_namespaces(graph: Graph) -> None:
     graph.bind(prefix="geom-coord", namespace=NS_MM_GEOM_COORD)
     graph.bind(prefix="quantitykind", namespace=NS_MM_QUDT_QTY)
     graph.bind(prefix="unit", namespace=NS_MM_QUDT_UNIT)
+    graph.bind(prefix="shapes", namespace=NS_MM_SHAPES)
+    graph.bind(prefix="col", namespace=NS_MM_COLOR)
+    graph.bind(prefix="prov-ext", namespace=NS_MM_PROV_EXT)
 
 
 def add_model_spec(graph: Graph, elem_model: ElementModel) -> None:
@@ -98,47 +92,7 @@ def add_model_spec(graph: Graph, elem_model: ElementModel) -> None:
         add_py_module_attr(graph=graph, node_uri=elem_model.uri, py_model=spec)
         return
 
-    if isinstance(spec, PackagePath):
-        if spec.kind is PackageKind.ROS:
-            try:
-                from xml.etree import ElementTree
-
-                from ament_index_python.packages import get_package_share_directory
-
-                manifest = Path(get_package_share_directory(spec.pkg)) / "package.xml"
-                version = ElementTree.parse(manifest).findtext("version")
-            # ament's PackageNotFoundError is a KeyError; naming it would fail when ament is missing.
-            except (ImportError, KeyError):
-                version = None
-            root = URIRef(PackageURL(type="ros", name=spec.pkg, version=version).to_string())
-            load_pkg_prov(
-                graph,
-                root,
-                spec.pkg,
-                version,
-                additional_types=(URI_ROS_TYPE_PACKAGE,),
-                dirty=False,
-            )
-        elif spec.kind is PackageKind.PY:
-            root, version, revision, repository, dirty = get_pkg_info(spec.pkg)
-            load_pkg_prov(graph, root, spec.pkg, version, revision, repository, dirty=dirty)
-        else:
-            raise ValueError(f"Unhandled package kind: {spec.kind}")
-    elif isinstance(spec, SystemPath):
-        if Path(spec.path).expanduser().is_absolute():
-            root = None
-        else:
-            scene_file = get_location(elem_model)["filename"]
-            if scene_file is None:
-                raise ValueError(
-                    f"model '{elem_model.uri}' has relative path '{spec.path}', and the scene it "
-                    "is declared in was not read from a file to resolve it against"
-                )
-            root = add_directory_location(graph, Path(scene_file).resolve().parent)
-    else:
-        raise TypeError(f"Unhandled model specification type: {type(spec).__name__}")
-    source = add_file_entity(graph, root, spec.path)
-    graph.add((elem_model.uri, DCTERMS.source, source))
+    graph.add((elem_model.uri, DCTERMS.source, add_file_source(graph, spec)))
 
 
 def _ensure_unique_scene_uri(

@@ -1,5 +1,6 @@
 import base
 import geom
+import color
 
 MassUnit: 'kg' | 'g' ;
 InertiaUnit: 'kg*m^2' ;
@@ -42,7 +43,23 @@ KinematicTreeModel:
 RigidBody:
 'body' name=IRI_TRUNK '{'
     frames*=Frame
+    shapes*=SceneShape
     inertia=RigidBodyInertia?
+'}'
+;
+
+ScaleSpec: FLOAT | FloatVector ;
+PrimitiveShapeType: 'cube' | 'cylinder' | 'sphere' ;
+
+// A file shape names its file; a primitive has none. SceneShape checks this, not the grammar.
+// A shape is unnamed: its IRI comes from its frame (see SceneShape.uri).
+SceneShape:
+'shape' (primitive=PrimitiveShapeType | 'file') '{'
+    'frame' ':' '<' frame=[Frame|FQN] '>'
+    file=FileSpec?
+    'unit' ':' unit=LengthUnit
+    ('scale' ':' scale=ScaleSpec)?
+    ('color' ':' color=Color)?
 '}'
 ;
 

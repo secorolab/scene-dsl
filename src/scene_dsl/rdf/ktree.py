@@ -94,6 +94,7 @@ from scene_dsl.rdf.geom import (
     add_frame,
     add_position_coord,
 )
+from scene_dsl.rdf.shapes import add_shape
 
 ACTUATION_INTERFACE_TYPES = {
     "position": URI_KC_STAT_JNT_POSITION,
@@ -128,6 +129,9 @@ def add_body(graph: Graph, body) -> None:
         add_frame(graph, frame)
         graph.add((body.uri, URI_GEOM_PRED_SIMPLICES, frame.uri))
         graph.add((body.uri, URI_GEOM_PRED_SIMPLICES, frame.origin_uri))
+
+    for shape in body.shapes:
+        add_shape(graph, shape)
 
     graph.add(triple=(body.uri, URI_KC_EXT_PRED_ROOT, body.default_frame.uri))
 

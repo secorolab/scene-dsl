@@ -6,9 +6,13 @@ from rdf_utils.models.color import ColorScheme
 from rdf_utils.models.vocab import (
     URI_QUDT_PRED_UNIT,
     URI_SHAPES_PRED_ATTACHED_TO_FRAME,
+    URI_SHAPES_PRED_SCALE_X,
+    URI_SHAPES_PRED_SCALE_Y,
+    URI_SHAPES_PRED_SCALE_Z,
     URI_SHAPES_TYPE_SCALED_SHAPE,
+    URI_SHAPES_TYPE_UNIT_SPHERE,
 )
-from rdf_utils.namespace import NS_MM_QUDT_UNIT, NS_MM_SHAPES
+from rdf_utils.namespace import NS_MM_QUDT_UNIT
 from rdflib import RDF, XSD, Graph, Literal
 from rdflib.namespace import split_uri
 
@@ -110,15 +114,15 @@ def test_missing_shape_file_is_reported(tmp_path):
             lambda g, s: g.remove((s, URI_SHAPES_PRED_ATTACHED_TO_FRAME, None)),
             "attached to no frame",
         ),
-        (lambda g, s: g.add((s, RDF.type, NS_MM_SHAPES.UnitSphere)), "needs one type of"),
+        (lambda g, s: g.add((s, RDF.type, URI_SHAPES_TYPE_UNIT_SPHERE)), "needs one type of"),
         (lambda g, s: g.set((s, URI_QUDT_PRED_UNIT, NS_MM_QUDT_UNIT["IN"])), "no length unit to convert"),
-        (lambda g, s: g.set((s, NS_MM_SHAPES["scale-x"], Literal(2))), "needs one xsd:double"),
+        (lambda g, s: g.set((s, URI_SHAPES_PRED_SCALE_X, Literal(2))), "needs one xsd:double"),
         (
-            lambda g, s: g.set((s, NS_MM_SHAPES["scale-y"], Literal(0.0, datatype=XSD.double))),
+            lambda g, s: g.set((s, URI_SHAPES_PRED_SCALE_Y, Literal(0.0, datatype=XSD.double))),
             "expected finite positive",
         ),
         (
-            lambda g, s: g.remove((s, NS_MM_SHAPES["scale-z"], None)),
+            lambda g, s: g.remove((s, URI_SHAPES_PRED_SCALE_Z, None)),
             "needs all three scale factors",
         ),
         (

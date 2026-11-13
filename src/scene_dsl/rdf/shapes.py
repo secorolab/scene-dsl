@@ -7,21 +7,21 @@ from rdf_utils.models.vocab import (
     URI_SHAPES_TYPE_FILE_BASED_SHAPE,
     URI_SHAPES_TYPE_SCALED_SHAPE,
 )
-from rdf_utils.namespace import NS_MM_SHAPES
 from rdflib import RDF, XSD, Graph, Literal
 from rdflib.namespace import PROV
 
 from scene_dsl.classes.ktree import SceneShape
 from scene_dsl.rdf.common import add_file_source
 from scene_dsl.rdf.geom import LENGTH_UNITS
+from scene_dsl.rdf_parser.shapes import SCALE_PREDS
 
 
 def add_shape_scale(graph: Graph, shape: SceneShape) -> None:
     if shape.scale is None:
         return
     graph.add((shape.uri, RDF.type, URI_SHAPES_TYPE_SCALED_SHAPE))
-    for axis, factor in zip("xyz", shape.scale, strict=True):
-        graph.add((shape.uri, NS_MM_SHAPES[f"scale-{axis}"], Literal(factor, datatype=XSD.double)))
+    for pred, factor in zip(SCALE_PREDS, shape.scale, strict=True):
+        graph.add((shape.uri, pred, Literal(factor, datatype=XSD.double)))
 
 
 def add_shape(graph: Graph, shape: SceneShape) -> None:

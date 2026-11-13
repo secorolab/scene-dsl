@@ -44,10 +44,12 @@ from rdf_utils.models.vocab import (
     URI_QUDT_PRED_UNIT,
     URI_QUDT_QK_ANGLE,
     URI_QUDT_TYPE_QUANTITY,
+    URI_SHAPES_PRED_SCALE_X,
+    URI_SHAPES_PRED_SCALE_Y,
+    URI_SHAPES_PRED_SCALE_Z,
     URI_SHAPES_TYPE_SCALED_SHAPE,
 )
 from rdf_utils.namespace import (
-    NS_MM_SHAPES,
     URL_MM_GEOM_SHACL_EXTS,
     URL_MM_GEOM_SHACL_REL,
     URL_SECORO_MM,
@@ -409,8 +411,9 @@ def test_shape_scale_exports_one_factor_per_axis(authored, per_axis):
     add_shape(graph, shape)
 
     assert (shape.uri, RDF.type, URI_SHAPES_TYPE_SCALED_SHAPE) in graph
-    for axis, factor in zip("xyz", per_axis, strict=True):
-        assert graph.value(shape.uri, NS_MM_SHAPES[f"scale-{axis}"]).toPython() == factor
+    scale_preds = (URI_SHAPES_PRED_SCALE_X, URI_SHAPES_PRED_SCALE_Y, URI_SHAPES_PRED_SCALE_Z)
+    for pred, factor in zip(scale_preds, per_axis, strict=True):
+        assert graph.value(shape.uri, pred).toPython() == factor
 
 
 @pytest.mark.parametrize(

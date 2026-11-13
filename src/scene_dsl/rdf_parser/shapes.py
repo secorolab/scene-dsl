@@ -19,10 +19,15 @@ from rdf_utils.models.prov import get_file_path
 from rdf_utils.models.vocab import (
     URI_QUDT_PRED_UNIT,
     URI_SHAPES_PRED_ATTACHED_TO_FRAME,
+    URI_SHAPES_PRED_SCALE_X,
+    URI_SHAPES_PRED_SCALE_Y,
+    URI_SHAPES_PRED_SCALE_Z,
     URI_SHAPES_TYPE_FILE_BASED_SHAPE,
     URI_SHAPES_TYPE_SCALED_SHAPE,
+    URI_SHAPES_TYPE_UNIT_CUBE,
+    URI_SHAPES_TYPE_UNIT_CYLINDER,
+    URI_SHAPES_TYPE_UNIT_SPHERE,
 )
-from rdf_utils.namespace import NS_MM_SHAPES
 from rdflib import RDF, XSD, Graph, URIRef
 from rdflib.namespace import PROV
 
@@ -32,12 +37,12 @@ from scene_dsl.rdf_parser.common import ensure_one_obj_literal, ensure_one_obj_u
 class PrimitiveShapeType(Enum):
     """A primitive's unit base; the value is its class in the shapes metamodel."""
 
-    CUBE = NS_MM_SHAPES["UnitCube"]
-    CYLINDER = NS_MM_SHAPES["UnitCylinder"]
-    SPHERE = NS_MM_SHAPES["UnitSphere"]
+    CUBE = URI_SHAPES_TYPE_UNIT_CUBE
+    CYLINDER = URI_SHAPES_TYPE_UNIT_CYLINDER
+    SPHERE = URI_SHAPES_TYPE_UNIT_SPHERE
 
 
-SCALE_PREDS = tuple(NS_MM_SHAPES[f"scale-{axis}"] for axis in "xyz")
+SCALE_PREDS = (URI_SHAPES_PRED_SCALE_X, URI_SHAPES_PRED_SCALE_Y, URI_SHAPES_PRED_SCALE_Z)
 SHAPE_TYPES = {URI_SHAPES_TYPE_FILE_BASED_SHAPE, *(t.value for t in PrimitiveShapeType)}
 
 

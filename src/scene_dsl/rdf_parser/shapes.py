@@ -144,14 +144,8 @@ class ShapeModel(ModelBase):
 
 
 def scene_shapes(graph: Graph) -> list[ShapeModel]:
-    """Every shape the graph draws, ordered by IRI.
-
-    A node typed as a shape or attached to a frame is one, so a shape missing either is
-    reported rather than skipped.
-    """
-    nodes = set(graph.subjects(URI_SHAPES_PRED_ATTACHED_TO_FRAME))
-    for shape_type in SHAPE_TYPES:
-        nodes.update(graph.subjects(RDF.type, shape_type))
+    """Every node the graph types as a shape, ordered by IRI."""
+    nodes = {node for shape_type in SHAPE_TYPES for node in graph.subjects(RDF.type, shape_type)}
     for node in nodes:
         if not isinstance(node, URIRef):
             raise ConstraintViolation("shapes", f"shape '{node}' needs an IRI")

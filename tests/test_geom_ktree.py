@@ -1363,6 +1363,7 @@ def test_lab_scenex_generated_geometry_validates_against_shacl():
             f"{URL_SECORO_MM}/robot/actuation.shacl.ttl": "ttl",
             f"{URL_SECORO_MM}/robot/sensors.shacl.ttl": "ttl",
             f"{URL_SECORO_MM}/kinematic-chain/structural-entities-extension.shacl.ttl": "ttl",
+            f"{URL_SECORO_MM}/geometry/shapes.shacl.ttl": "ttl",
         },
         quiet=False,
     )

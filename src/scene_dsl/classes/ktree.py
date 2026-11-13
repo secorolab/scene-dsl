@@ -238,14 +238,14 @@ class RigidBody(IHasNamespace, IDefaultFrame):
 
 
 class SceneShape(IHasNamespace):
-    """A primitive or a mesh on one of its body's frames.
+    """A primitive, or a shape read from a file, on one of its body's frames.
 
     A shape has no name: it is known by its frame and its place among that frame's shapes.
 
     Attributes:
-        primitive: the unit base of a primitive; None for a mesh
-        file: the file a mesh is read from; None for a primitive
-        kind: the keyword the shape was written with, for messages
+        primitive: the unit base of a primitive; None for a file shape
+        file: the file the shape is read from; None for a primitive
+        kind: what messages call the shape: its primitive keyword, or "file shape"
     """
 
     frame: Frame
@@ -261,19 +261,19 @@ class SceneShape(IHasNamespace):
         super().__init__(parent=parent)
         # textX resolves references before it builds user classes, so the frame is known here.
         self.frame = frame
-        # textX leaves `primitive` unset for `mesh`; the keyword `cube` names member CUBE.
+        # textX leaves `primitive` unset for `file`; the keyword `cube` names member CUBE.
         self.primitive = PrimitiveShapeType[primitive.upper()] if primitive else None
-        self.kind = primitive or "mesh"
+        self.kind = primitive or "file shape"
         self.file = file
         self.unit = unit
         self.color = color
         self.scale = None
 
-        # One grammar rule covers both kinds, so it no longer keeps files to meshes.
+        # One grammar rule covers both kinds, so it no longer keeps files to file shapes.
         if self.primitive is None and file is None:
             raise ValueError(f"{self.label} needs a file")
         if self.primitive is not None and file is not None:
-            raise ValueError(f"{self.label} takes no file; only a mesh has one")
+            raise ValueError(f"{self.label} takes no file; only a file shape has one")
         if file is not None:
             if not file.path:
                 raise ValueError(f"{self.label} needs a path")

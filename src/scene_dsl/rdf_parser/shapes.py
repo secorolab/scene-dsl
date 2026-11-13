@@ -2,7 +2,7 @@
 """The shapes a scene's graph draws: what each is, the frame it hangs on, its size and colour.
 
 A shape is a unit base in its declared length unit -- a cube of side 1, a cylinder or sphere
-of radius 1, or a mesh file's own coordinates -- scaled per local axis, with its origin and
+of radius 1, or a file's own coordinates -- scaled per local axis, with its origin and
 axes at the frame it is attached to. Where that frame is, is the kinematics' to say. The scale
 is read in metres, as rdf-utils reads every length.
 """
@@ -48,10 +48,10 @@ class ShapeModel(ModelBase):
     Attributes:
         frame: the frame the shape is attached to
         primitive: the unit base of a primitive shape; None for a file-based one
-        path: the mesh file of a file-based shape; None for a primitive
+        path: the file of a file-based shape; None for a primitive
         scale: metres per base unit along local X, Y and Z, the length unit folded in: a
             cube's side lengths, a sphere's radii, a cylinder's two radii and its height, or
-            what takes a mesh's coordinates to metres
+            what takes a file's coordinates to metres
         color: the colour as the scene states it; None when it states none
     """
 
@@ -109,7 +109,7 @@ class ShapeModel(ModelBase):
         return x, y, z
 
     def _file(self, graph: Graph) -> Path:
-        """The mesh file, located as the scene names it: on this system or in a package."""
+        """The shape's file, located as the scene names it: on this system or in a package."""
         source = ensure_one_obj_uri(graph, self.id, PROV.wasDerivedFrom)
         try:
             path = None if source is None else get_file_path(graph, source)

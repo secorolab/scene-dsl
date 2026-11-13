@@ -57,7 +57,7 @@ def test_example_shapes_read_back_as_authored():
         shapes[f"{frame}-shape-0"] for frame in ("ball_root", "bottle_root", "box1_root", "world")
     )
     # Scales come back in metres, authored in m, mm and cm: a sphere's radii, a cylinder's
-    # radii and height, a cube's sides, a mesh's metres per unit.
+    # radii and height, a cube's sides, a file shape's metres per unit.
     assert ball.scale == pytest.approx((0.04, 0.04, 0.04))
     assert bottle.scale == pytest.approx((0.035, 0.035, 0.2))
     assert box.scale == pytest.approx((0.04, 0.04, 0.04))
@@ -85,20 +85,20 @@ def test_unscaled_shape_has_unit_scale():
     assert shape.scale == (1.0, 1.0, 1.0)
 
 
-def test_file_shape_reads_the_mesh_its_path_names(tmp_path):
-    mesh = tmp_path / "meshes" / "part.obj"
-    mesh.parent.mkdir()
-    mesh.write_text("")
-    spec = 'shape mesh { frame: <f> sys path = "meshes/part.obj" unit: mm scale: 2 }'
+def test_file_shape_reads_the_file_its_path_names(tmp_path):
+    part = tmp_path / "meshes" / "part.obj"
+    part.parent.mkdir()
+    part.write_text("")
+    spec = 'shape file { frame: <f> sys path = "meshes/part.obj" unit: mm scale: 2 }'
     _, graph = _shape_graph(spec, tmp_path / "scene.scenex")
 
     [shape] = scene_shapes(graph)
-    assert (shape.primitive, shape.path) == (None, mesh.resolve())
+    assert (shape.primitive, shape.path) == (None, part.resolve())
     assert shape.scale == pytest.approx((0.002, 0.002, 0.002))
 
 
-def test_missing_mesh_file_is_reported(tmp_path):
-    spec = 'shape mesh { frame: <f> sys path = "meshes/part.obj" unit: mm }'
+def test_missing_shape_file_is_reported(tmp_path):
+    spec = 'shape file { frame: <f> sys path = "meshes/part.obj" unit: mm }'
     _, graph = _shape_graph(spec, tmp_path / "scene.scenex")
     with pytest.raises(ConstraintViolation, match="no file"):
         scene_shapes(graph)

@@ -167,7 +167,7 @@ ktree (ns=scene_lab_mjc) world_tree {
 
     body world_body {
         frame world { }
-        shape mesh {
+        shape file {
             frame: <world>
             sys path = "../assets/tetra.stl"
             unit: cm

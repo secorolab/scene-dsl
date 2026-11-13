@@ -427,7 +427,7 @@ def test_bad_shape_scale_is_rejected(authored, message):
         _scaled_shape(authored)
 
 
-def _file_shape(tmp_path, file_spec: str, keyword: str = "mesh"):
+def _file_shape(tmp_path, file_spec: str, keyword: str = "file"):
     """A shape naming a file, in a model written to TMP_PATH so a relative path has a directory."""
     model_file = tmp_path / "scene.scenex"
     model_file.write_text(
@@ -457,18 +457,18 @@ def test_file_shape_is_derived_from_the_file_its_path_names(tmp_path):
 
 
 def test_absolute_package_path_is_rejected(tmp_path):
-    message = "mesh on 'f' needs a path relative to its package"
+    message = "file shape on 'f' needs a path relative to its package"
     with pytest.raises(ValueError, match=re.escape(message)):
         _file_shape(tmp_path, 'ros pkg = "my_meshes", path = "/meshes/part.stl"')
 
 
-def test_mesh_without_a_file_is_rejected(tmp_path):
-    with pytest.raises(ValueError, match=re.escape("mesh on 'f' needs a file")):
+def test_file_shape_without_a_file_is_rejected(tmp_path):
+    with pytest.raises(ValueError, match=re.escape("file shape on 'f' needs a file")):
         _file_shape(tmp_path, "")
 
 
 def test_primitive_with_a_file_is_rejected(tmp_path):
-    message = "cube on 'f' takes no file; only a mesh has one"
+    message = "cube on 'f' takes no file; only a file shape has one"
     with pytest.raises(ValueError, match=re.escape(message)):
         _file_shape(tmp_path, 'sys path = "meshes/part.stl"', keyword="cube")
 

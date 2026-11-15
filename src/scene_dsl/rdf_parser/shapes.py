@@ -29,7 +29,7 @@ from rdf_utils.models.vocab import (
     URI_SHAPES_TYPE_UNIT_CYLINDER,
     URI_SHAPES_TYPE_UNIT_SPHERE,
 )
-from rdflib import RDF, XSD, Graph, URIRef
+from rdflib import XSD, Graph, URIRef
 from rdflib.namespace import PROV
 
 from scene_dsl.rdf_parser.common import ensure_one_obj_literal, ensure_one_obj_uri
@@ -141,12 +141,3 @@ class ShapeModel(ModelBase):
         if not path.is_file():
             raise ConstraintViolation("shapes", f"file shape '{self.id}' is at '{path}', no file")
         return path
-
-
-def scene_shapes(graph: Graph) -> list[ShapeModel]:
-    """Every node the graph types as a shape, ordered by IRI."""
-    nodes = {node for shape_type in SHAPE_TYPES for node in graph.subjects(RDF.type, shape_type)}
-    for node in nodes:
-        if not isinstance(node, URIRef):
-            raise ConstraintViolation("shapes", f"shape '{node}' needs an IRI")
-    return [ShapeModel(node, graph) for node in sorted(nodes, key=str)]

@@ -20,15 +20,17 @@ from rdflib import RDF, XSD, Graph, Literal
 from rdflib.namespace import split_uri
 
 from scene_dsl.langs import scenex_metamodel
+from scene_dsl.rdf.ktree import add_body
 from scene_dsl.rdf.scenex import create_scenex_model_graph
-from scene_dsl.rdf.shapes import add_shape
-from scene_dsl.rdf_parser.shapes import PrimitiveShapeType, scene_shapes
+from scene_dsl.rdf_parser.kinematics import RigidBodyModel, kinematic_graphs
+from scene_dsl.rdf_parser.shapes import PrimitiveShapeType, ShapeModel
 
 from .test_common import MODELS_DIR
 
 
 def _shape_graph(shape_spec: str, model_file=None):
-    """The graph of one shape on body `b`, from a model in MODEL_FILE when a path needs one."""
+    """The graph of body `b` carrying one shape, from a model in MODEL_FILE when a path needs
+    one."""
     source = f"""ns n = "https://example.test/"
 ktree (ns=n) t {{ root: <b.f>
     body b {{
@@ -43,15 +45,19 @@ ktree (ns=n) t {{ root: <b.f>
     else:
         model_file.write_text(source)
         model = scenex_metamodel().model_from_file(str(model_file))
-    [shape] = model.ktrees[0].bodies[0].shapes
+    [body] = model.ktrees[0].bodies
+    [shape] = body.shapes
     graph = Graph()
-    add_shape(graph, shape)
-    return shape.uri, graph
+    add_body(graph, body)
+    return body.uri, shape.uri, graph
 
 
 def test_example_shapes_read_back_as_authored():
     model = scenex_metamodel().model_from_file(str(MODELS_DIR / "lab.scenex"))
-    shapes = {split_uri(s.id)[1]: s for s in scene_shapes(create_scenex_model_graph(model))}
+    [kgraph] = kinematic_graphs(create_scenex_model_graph(model))
+    trees_bodies = (body for tree in kgraph.trees for body in tree.bodies.values())
+    bodies = [*kgraph.free_bodies.values(), *trees_bodies]
+    shapes = {split_uri(s.id)[1]: s for body in bodies for s in body.shapes}
 
     # Unnamed, each shape is known by its frame.
     assert {name: s.primitive for name, s in shapes.items()} == {
@@ -87,9 +93,18 @@ def test_example_shapes_read_back_as_authored():
 
 
 def test_unscaled_shape_has_unit_scale():
-    _, graph = _shape_graph("shape sphere { frame: <f> unit: m }")
-    [shape] = scene_shapes(graph)
+    body, _, graph = _shape_graph("shape sphere { frame: <f> unit: m }")
+    [shape] = RigidBodyModel(body, graph).shapes
     assert shape.scale == (1.0, 1.0, 1.0)
+
+
+def test_shape_on_no_frame_of_the_body_is_not_its_shape():
+    body, uri, graph = _shape_graph("shape sphere { frame: <f> unit: m }")
+    graph.remove((uri, URI_SHAPES_PRED_ATTACHED_TO_FRAME, None))
+    assert RigidBodyModel(body, graph).shapes == []
+    # Read on its own, a shape without a frame is reported, not placed at some origin.
+    with pytest.raises(ConstraintViolation, match="attached to no frame"):
+        ShapeModel(uri, graph)
 
 
 def test_file_shape_reads_the_file_its_path_names(tmp_path):
@@ -97,28 +112,23 @@ def test_file_shape_reads_the_file_its_path_names(tmp_path):
     part.parent.mkdir()
     part.write_text("")
     spec = 'shape file { frame: <f> sys path = "meshes/part.obj" unit: mm scale: 2 }'
-    _, graph = _shape_graph(spec, tmp_path / "scene.scenex")
+    body, _, graph = _shape_graph(spec, tmp_path / "scene.scenex")
 
-    [shape] = scene_shapes(graph)
+    [shape] = RigidBodyModel(body, graph).shapes
     assert (shape.primitive, shape.path) == (None, part.resolve())
     assert (shape.scale, shape.unit) == ((2.0, 2.0, 2.0), URI_QUDT_UNIT_MM)
 
 
 def test_missing_shape_file_is_reported(tmp_path):
     spec = 'shape file { frame: <f> sys path = "meshes/part.obj" unit: mm }'
-    _, graph = _shape_graph(spec, tmp_path / "scene.scenex")
+    body, _, graph = _shape_graph(spec, tmp_path / "scene.scenex")
     with pytest.raises(ConstraintViolation, match="no file"):
-        scene_shapes(graph)
+        RigidBodyModel(body, graph)
 
 
 @pytest.mark.parametrize(
     ("break_graph", "message"),
     [
-        # A typed shape without a frame is reported, not skipped.
-        (
-            lambda g, s: g.remove((s, URI_SHAPES_PRED_ATTACHED_TO_FRAME, None)),
-            "attached to no frame",
-        ),
         (lambda g, s: g.add((s, RDF.type, URI_SHAPES_TYPE_UNIT_SPHERE)), "needs one type of"),
         (lambda g, s: g.set((s, URI_QUDT_PRED_UNIT, NS_MM_QUDT_UNIT["IN"])), "no supported length unit"),
         (lambda g, s: g.set((s, URI_SHAPES_PRED_SCALE_X, Literal(2))), "needs one xsd:double"),
@@ -137,7 +147,7 @@ def test_missing_shape_file_is_reported(tmp_path):
     ],
 )
 def test_malformed_shape_is_reported(break_graph, message):
-    uri, graph = _shape_graph("shape cube { frame: <f> unit: cm scale: (1, 2, 3) }")
+    body, uri, graph = _shape_graph("shape cube { frame: <f> unit: cm scale: (1, 2, 3) }")
     break_graph(graph, uri)
     with pytest.raises(ConstraintViolation, match=re.escape(message)):
-        scene_shapes(graph)
+        RigidBodyModel(body, graph)

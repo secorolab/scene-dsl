@@ -64,6 +64,7 @@ from rdf_utils.models.vocab import (
     URI_QUDT_UNIT_G,
     URI_QUDT_UNIT_KG,
     URI_QUDT_UNIT_KG_M2,
+    URI_SHAPES_PRED_ATTACHED_TO_FRAME,
 )
 from rdflib import RDF, Graph, Literal, URIRef
 from rdflib.namespace import split_uri
@@ -71,6 +72,7 @@ from scipy.spatial.transform import RigidTransform
 
 from scene_dsl.rdf_parser.common import ensure_one_obj_literal, ensure_one_obj_uri
 from scene_dsl.rdf_parser.mapped_inertia import read_body_inertia
+from scene_dsl.rdf_parser.shapes import ShapeModel
 
 MASS_IN_KG = {URI_QUDT_UNIT_KG: 1.0, URI_QUDT_UNIT_G: 1e-3}
 AXIS_PREDS = {"x": URI_GEOM_PRED_VECT_X, "y": URI_GEOM_PRED_VECT_Y, "z": URI_GEOM_PRED_VECT_Z}
@@ -303,10 +305,11 @@ def pose_between(
 
 
 class RigidBodyModel(ModelBase):
-    """A body: the frames it carries, the one it is at, and what it weighs."""
+    """A body: the frames it carries, the one it is at, the shapes on them, and what it weighs."""
 
     frames: set[URIRef]
     root_frame: FrameModel
+    shapes: list[ShapeModel]
     inertia: InertiaModel | None
 
     def __init__(self, body_id: URIRef, graph: Graph) -> None:
@@ -320,6 +323,13 @@ class RigidBodyModel(ModelBase):
             raise ConstraintViolation(
                 "kinematics", f"{self} is rooted at '{self.root_frame.id}', which is not its frame"
             )
+
+        self.shapes = []
+        for frame in self.frames:
+            for shape in graph.subjects(URI_SHAPES_PRED_ATTACHED_TO_FRAME, frame):
+                if not isinstance(shape, URIRef):
+                    raise ConstraintViolation("shapes", f"shape '{shape}' on {self} needs an IRI")
+                self.shapes.append(ShapeModel(shape, graph))
 
         inertia = uris(graph.subjects(URI_DYN_PRED_OF_BODY, self.id))
         if len(inertia) > 1:

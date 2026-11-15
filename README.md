@@ -47,6 +47,9 @@ same way. Every other import is relative to the importing file.
 [`rdf-utils`](https://github.com/minhnh/rdf-utils), `textx`, `rdflib`, and
 `numpy`.
 
+Example meshes are stored with [Git LFS](https://git-lfs.com): install `git-lfs`
+before cloning, or run `git lfs pull` in an existing clone.
+
 For local development with sibling checkouts:
 
 ```bash

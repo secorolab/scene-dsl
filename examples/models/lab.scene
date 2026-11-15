@@ -48,6 +48,7 @@ comp (ns=lab_env) comp_shelf_pickplace of ws <lab_workspaces.shelf_ws> { obj <ws
 
 scene (ns=scene_lab) pickplace_scene {
     obj set <pickplace_objects>
+    agn set <isaac_agents>
     ws comp <comp_table_pickplace>
     ws comp <comp_shelf_pickplace>
 }

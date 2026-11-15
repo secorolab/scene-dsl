@@ -15,7 +15,7 @@ description = "A textX language for robotic scene models."
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-  "textx", "rdflib>=7.6.0", "rdf-utils", "packageurl-python", "numpy", "scipy>=1.16", "jinja2"
+  "textx", "rdflib>=7.6.0", "rdf-utils", "numpy", "scipy>=1.16", "jinja2"
 ]
 
 [project.entry-points.textx_languages]

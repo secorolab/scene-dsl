@@ -5,7 +5,7 @@ from rdf_utils.models.common import ModelBase
 from rdf_utils.models.vocab import URI_QUDT_PRED_VALUE
 from rdflib import Graph, Literal, URIRef
 
-from scene_dsl.rdf.sensors import URI_SENS_PRED_UPDATE_RATE
+from scene_dsl.rdf_parser.vocab import URI_SENS_PRED_UPDATE_RATE
 
 
 def get_update_rate(graph: Graph, model: ModelBase) -> float:

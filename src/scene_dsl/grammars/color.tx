@@ -1,0 +1,11 @@
+// Colours of the color metamodel (secorolab/metamodels color.json): each form names its scheme.
+// RGB(A) channels are 0-255; HSV keeps hue in degrees [0, 360) and saturation and value in [0, 1].
+Color: RGBAColor | RGBColor | HSVColor | HexColor ;
+
+RGBAColor: 'rgba' '(' red=INT ',' green=INT ',' blue=INT ',' alpha=INT ')' ;
+RGBColor: 'rgb' '(' red=INT ',' green=INT ',' blue=INT ')' ;
+HSVColor: 'hsv' '(' hue=NUMBER ',' saturation=NUMBER ',' value=NUMBER ')' ;
+
+// Six digits are RGB, eight are RGBA.
+HexColor: code=HexCode ;
+HexCode: /#([0-9A-Fa-f]{8}|[0-9A-Fa-f]{6})\b/ ;

@@ -23,13 +23,12 @@ from rdf_utils.models.prov import (
     add_file_entity,
     add_file_hash,
     create_bundle,
-    get_file_path,
     get_git_info,
     get_py_pkg_info,
     load_pkg_prov,
     load_transformation_prov,
 )
-from rdf_utils.models.textx import add_model_prov
+from rdf_utils.models.textx import add_import_prov, iter_model_paths
 from rdflib import Dataset, Graph, Literal, URIRef
 from rdflib.namespace import SDO
 
@@ -75,17 +74,18 @@ def build(
     create_graph(model, dataset.graph(graph_id))
     ended_at = datetime.now(UTC)
 
-    source_ids = add_model_prov(bundle, model)
-    for source_id in source_ids:
-        path = get_file_path(bundle, source_id)
-        assert path is not None, f"source '{source_id}' has no location"
+    roots = {}
+    source_ids = set()
+    for path, import_uri, _ in iter_model_paths(model):
+        source_id = add_import_prov(bundle, path, import_uri, roots=roots)
+        source_ids.add(source_id)
         commit, repository, _, dirty = get_git_info(path)
         if commit is not None:
             bundle.add((source_id, SDO.identifier, Literal(f"{commit}-dirty" if dirty else commit)))
         if repository is not None:
             bundle.add((source_id, SDO.codeRepository, URIRef(repository)))
     load_transformation_prov(
-        bundle, sorted(source_ids), [graph_id], agent_id, started=started_at, ended=ended_at
+        bundle, source_ids, [graph_id], agent_id, started=started_at, ended=ended_at
     )
     return graph_id
 
@@ -114,7 +114,7 @@ def render(
     """
     bundle = dataset.graph(bundle_id)
     started_at = datetime.now(UTC)
-    output_file = Path(output_file).resolve()
+    output_file = Path(output_file)
     template_id = add_file_entity(bundle, agent_id, KDL_TEMPLATE)
     # Only the template: create_header also reads model files, whose absence is a different error.
     try:

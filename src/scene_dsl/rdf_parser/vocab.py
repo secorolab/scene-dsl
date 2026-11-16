@@ -8,6 +8,9 @@ NS_MJCF = Namespace("https://mujoco.readthedocs.io/en/stable/XMLreference.html#"
 NS_USD = Namespace("https://openusd.org/release/spec.html#")
 NS_MM_ROS = Namespace("https://index.ros.org/p/")
 NS_MM_BDD = Namespace(f"{URL_SECORO_MM}/acceptance-criteria/bdd#")
+NS_MM_SENS = Namespace(f"{URL_SECORO_MM}/robot/sensors#")
+
+URI_SENS_PRED_UPDATE_RATE = NS_MM_SENS["update-rate"]
 
 URI_XML_DOCUMENT = NS_XML["document"]
 URI_URDF_ROBOT = NS_URDF["robot"]

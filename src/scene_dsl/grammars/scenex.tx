@@ -29,9 +29,6 @@ BodyMapping: 'map' 'body' '<' body=[RigidBody|FQN] '>' ('to' entity=STRING)? ;
 
 ModelKind: 'urdf' | 'mjcf' | 'usd' ;
 ModelSpecification: SystemPath | PackagePath | PyModuleAttr ;
-SystemPath: 'sys' 'path' '=' path=STRING ;
-PackagePath: kind=PackageKind 'pkg' '=' pkg=STRING ',' 'path' '=' path=STRING ;
-PackageKind: 'ros' | 'py' ;
 
 ElementModelRef:
 'model' '<' model=[ElementModel|FQN] '>'

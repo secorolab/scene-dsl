@@ -167,6 +167,12 @@ ktree (ns=scene_lab_mjc) world_tree {
 
     body world_body {
         frame world { }
+        shape file {
+            frame: <world>
+            sys path = "../assets/tetra.stl"
+            unit: cm
+            scale: 5
+        }
     }
 
     body table_body {
@@ -236,6 +242,13 @@ scene inst (ns=scene_lab_mjc) pickplace_scene_mjc {
                     }
                 }
             }
+            // The size and colour of cube.xml's box (half-size 0.02 m).
+            shape cube {
+                frame: <box1_root>
+                unit: cm
+                scale: 4
+                color: #1A59FF
+            }
             inertia {
                 frame: <box1_root>
                 mass: 0.2 kg
@@ -244,6 +257,39 @@ scene inst (ns=scene_lab_mjc) pickplace_scene_mjc {
                     (0.0, 0.001, 0.0),
                     (0.0, 0.0, 0.001)
                 ) kg*m^2
+            }
+        }
+
+        // free bodies with only a shape: a sphere in m and a cylinder in mm
+        body ball_body {
+            frame ball_root {
+                pose ball_on_table {
+                    wrt: <world_tree.table_body.table_root>
+                    xyz: (0.45, -0.1, 0.75) m
+                    orientation: euler { angles: (0.0, 0.0, 0.0) unit: rad }
+                }
+            }
+            shape sphere {
+                frame: <ball_root>
+                unit: m
+                scale: 0.04
+                color: rgba(230, 51, 51, 255)
+            }
+        }
+
+        body bottle_body {
+            frame bottle_root {
+                pose bottle_on_table {
+                    wrt: <world_tree.table_body.table_root>
+                    xyz: (0.3, 0.1, 0.75) m
+                    orientation: euler { angles: (0.0, 0.0, 0.0) unit: rad }
+                }
+            }
+            shape cylinder {
+                frame: <bottle_root>
+                unit: mm
+                scale: (35, 35, 200)
+                color: hsv(210, 0.6, 0.9)
             }
         }
     }

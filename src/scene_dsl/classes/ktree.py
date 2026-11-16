@@ -2,18 +2,24 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from math import isfinite
+from pathlib import PurePath
 from typing import Any
 
 import numpy as np
 from rdflib import Namespace, URIRef
 
+from scene_dsl.classes.color import Color
 from scene_dsl.classes.common import (
     FloatVector,
     IHasNamespace,
     IHasNamespaceDeclare,
     IHasParent,
+    PackagePath,
+    SystemPath,
 )
 from scene_dsl.classes.geom import Frame, FrameAxis, IDefaultFrame
+from scene_dsl.rdf_parser.shapes import PrimitiveShapeType
 
 
 class KinematicTreeTemplate(IHasParent):
@@ -33,7 +39,7 @@ class KinematicTreeTemplate(IHasParent):
 
 
 class KinematicGraph(IHasNamespaceDeclare, IDefaultFrame):
-    """Bodies, the joints between them, and the trees composed into them.
+    """Bodies, joints, and composed trees.
 
     A whole scene's kinematics: bodies may hang from nothing, and everything under it
     takes its namespace from it.
@@ -44,7 +50,7 @@ class KinematicGraph(IHasNamespaceDeclare, IDefaultFrame):
     _bodies: list[RigidBody]
     joints_spec: JointsSpec | None
     # The frame the graph stands on: where its ground meets the body everything else is
-    # placed against. A tree hangs from its root instead, so it declares none.
+    # placed against. A tree hangs from its root instead, so it declares none
     anchor: Frame | None
 
     def __init__(self, parent, ns, name, trees, bodies, joints_spec, anchor) -> None:
@@ -109,7 +115,15 @@ class KinematicTreeModel(KinematicGraph):
 
     def __init__(self, parent, ns, name, root_frame, trees, bodies, joints_spec) -> None:
         # A tree hangs from its root, so it declares no anchor: only a graph stands on one.
-        super().__init__(parent, ns, name, trees, bodies, joints_spec, anchor=None)
+        super().__init__(
+            parent=parent,
+            ns=ns,
+            name=name,
+            trees=trees,
+            bodies=bodies,
+            joints_spec=joints_spec,
+            anchor=None,
+        )
         self._root_frame = root_frame
 
     @property
@@ -146,7 +160,15 @@ class KinematicTreeInstance(KinematicTreeModel):
     def __init__(self, parent, ns, name, template) -> None:
         # The template's structure is copied in by copy_template, which is what fills the root
         # frame: an instance cannot name it before its own copy of that frame exists.
-        super().__init__(parent, ns, name, root_frame=None, trees=[], bodies=[], joints_spec=None)
+        super().__init__(
+            parent=parent,
+            ns=ns,
+            name=name,
+            root_frame=None,
+            trees=[],
+            bodies=[],
+            joints_spec=None,
+        )
         self.template = template
 
     def copy_template(self) -> None:
@@ -167,12 +189,14 @@ class KinematicTreeInstance(KinematicTreeModel):
 class RigidBody(IHasNamespace, IDefaultFrame):
     name: str
     frames: list[Frame]
+    shapes: list[SceneShape]
     inertia: RigidBodyInertia | None
 
-    def __init__(self, parent, name, frames, inertia) -> None:
+    def __init__(self, parent, name, frames, shapes, inertia) -> None:
         super().__init__(parent=parent)
         self.name = name
         self.frames = frames
+        self.shapes = shapes
         self.inertia = inertia
         self._uri = None
         self._inertia_uri = None
@@ -211,6 +235,81 @@ class RigidBody(IHasNamespace, IDefaultFrame):
         if self._inertia_coord_uri is None:
             self._inertia_coord_uri = self.namespace[self.scoped("-inertia-coord")]
         return self._inertia_coord_uri
+
+
+class SceneShape(IHasNamespace):
+    """A primitive, or a shape read from a file, on one of its body's frames.
+
+    A shape has no name: it is known by its frame and its place among that frame's shapes.
+
+    Attributes:
+        primitive: the unit base of a primitive; None for a file shape
+        file: the file the shape is read from; None for a primitive
+        kind: what messages call the shape: its primitive keyword, or "file shape"
+    """
+
+    frame: Frame
+    primitive: PrimitiveShapeType | None
+    file: SystemPath | PackagePath | None
+    unit: str
+    kind: str
+    color: Color | None
+    # One factor per axis, or None when unscaled: a scalar scale is the same factor on all three.
+    scale: list[float] | None
+
+    def __init__(self, parent, primitive, frame, file, unit, scale=None, color=None) -> None:
+        super().__init__(parent=parent)
+        # textX resolves references before it builds user classes, so the frame is known here.
+        self.frame = frame
+        # textX leaves `primitive` unset for `file`; the keyword `cube` names member CUBE.
+        self.primitive = PrimitiveShapeType[primitive.upper()] if primitive else None
+        self.kind = primitive or "file shape"
+        self.file = file
+        self.unit = unit
+        self.color = color
+        self.scale = None
+
+        # One grammar rule covers both kinds, so it no longer keeps files to file shapes.
+        if self.primitive is None and file is None:
+            raise ValueError(f"{self.label} needs a file")
+        if self.primitive is not None and file is not None:
+            raise ValueError(f"{self.label} takes no file; only a file shape has one")
+        if file is not None:
+            if not file.path:
+                raise ValueError(f"{self.label} needs a path")
+            if isinstance(file, PackagePath) and PurePath(file.path).is_absolute():
+                raise ValueError(f"{self.label} needs a path relative to its package")
+
+        if scale is not None:
+            context = f"{self.label} scale"
+            self.scale = list(scale.as_xyz(context)) if isinstance(scale, FloatVector) else [scale] * 3
+            for factor in self.scale:
+                if not isfinite(factor) or factor <= 0:
+                    raise ValueError(f"{context} is {factor}, expected a finite positive number")
+
+    @property
+    def label(self) -> str:
+        """How messages name the shape: by kind and frame, as it has no name."""
+        return f"{self.kind} on '{self.frame.name}'"
+
+    @property
+    def namespace(self) -> Namespace:
+        return self.parent.namespace
+
+    @property
+    def uri(self) -> URIRef:
+        """`<frame>-shape-<n>`, n counting the frame's shapes in source order from 0.
+
+        Frame IRIs are unique, so shapes on different frames never share an IRI, and the
+        count tells apart those on one frame.
+        """
+        on_frame = [shape for shape in self.parent.shapes if shape.frame is self.frame]
+        index = next(n for n, shape in enumerate(on_frame) if shape is self)
+        return self.namespace[self.frame.scoped(f"-shape-{index}")]
+
+    @property
+    def color_uri(self) -> URIRef:
+        return URIRef(f"{self.uri}-color")
 
 
 class RigidBodyInertia:

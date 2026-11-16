@@ -12,21 +12,19 @@ from rdf_utils.models.vocab import (
     URI_QUDT_QK_TORQUE,
     URI_QUDT_TYPE_QUANTITY,
 )
-from rdf_utils.namespace import NS_MM_QUDT_UNIT, URL_SECORO_MM
-from rdflib import RDF, XSD, Graph, Literal, Namespace, URIRef
+from rdf_utils.namespace import NS_MM_QUDT_UNIT
+from rdflib import RDF, XSD, Graph, Literal, URIRef
 from rdflib.namespace import SOSA
 
 from scene_dsl.classes.sensors import CameraSensorSpec, ForceTorqueSensorSpec, ImuSensorSpec
 from scene_dsl.rdf.geom import ANGLE_UNITS
-
-NS_MM_SENS = Namespace(f"{URL_SECORO_MM}/robot/sensors#")
+from scene_dsl.rdf_parser.vocab import NS_MM_SENS, URI_SENS_PRED_UPDATE_RATE
 
 URI_SENS_PRED_CAMERA_KIND = NS_MM_SENS["camera-kind"]
 URI_SENS_PRED_FIELD_OF_VIEW = NS_MM_SENS["field-of-view"]
 URI_SENS_PRED_FRAME = NS_MM_SENS["frame"]
 URI_SENS_PRED_RESOLUTION_HEIGHT = NS_MM_SENS["resolution-height"]
 URI_SENS_PRED_RESOLUTION_WIDTH = NS_MM_SENS["resolution-width"]
-URI_SENS_PRED_UPDATE_RATE = NS_MM_SENS["update-rate"]
 URI_SENS_TYPE_CAMERA = NS_MM_SENS["Camera"]
 URI_SENS_TYPE_FORCE_TORQUE_SENSOR = NS_MM_SENS["ForceTorqueSensor"]
 URI_SENS_TYPE_IMU = NS_MM_SENS["IMU"]

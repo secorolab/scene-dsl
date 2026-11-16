@@ -19,12 +19,12 @@ from scene_dsl.rdf.sensors import (
     URI_SENS_PRED_CAMERA_KIND,
     URI_SENS_PRED_FIELD_OF_VIEW,
     URI_SENS_PRED_FRAME,
-    URI_SENS_PRED_UPDATE_RATE,
     URI_SENS_TYPE_CAMERA,
     URI_SENS_TYPE_FORCE_TORQUE_SENSOR,
     URI_SENS_TYPE_IMU,
 )
 from scene_dsl.rdf_parser.sensors import get_update_rate
+from scene_dsl.rdf_parser.vocab import URI_SENS_PRED_UPDATE_RATE
 
 from .test_common import MODELS_DIR
 

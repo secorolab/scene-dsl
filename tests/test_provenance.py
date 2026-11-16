@@ -6,6 +6,7 @@ from pathlib import Path
 
 from rdf_utils.constraints import check_shacl_constraints
 from rdf_utils.models.prov import resolve_location
+from rdf_utils.models.textx import iter_model_paths
 from rdf_utils.models.vocab import URI_PROV_EXT_TYPE_TRANSFORMATION
 from rdf_utils.namespace import URL_MM_PROV_EXT_SHACL, URL_MM_PROV_SHACL
 from rdf_utils.resolver import install_resolver
@@ -14,13 +15,7 @@ from rdflib.namespace import DCTERMS, PROV, RDF, SDO, TIME
 
 from scene_dsl.gens import kdl_header, scenex_graph_gen, scenex_kdl_gen
 from scene_dsl.langs import scenex_metamodel
-from scene_dsl.rdf.provenance import (
-    KDL_TEMPLATE,
-    build,
-    create_scene_dsl_bundle,
-    render,
-    source_paths,
-)
+from scene_dsl.rdf.provenance import KDL_TEMPLATE, build, create_scene_dsl_bundle, render
 from scene_dsl.rdf.scenex import create_scenex_model_graph
 
 from .test_common import MODELS_DIR
@@ -39,7 +34,7 @@ def test_build_records_the_graph_generated_from_the_model_and_its_imports():
     bundle = dataset.graph(bundle_id)
     (activity,) = bundle.subjects(RDF.type, URI_PROV_EXT_TYPE_TRANSFORMATION)
     (entity,) = bundle.subjects(PROV.wasGeneratedBy, activity)
-    paths = source_paths(model)
+    paths = {path for path, _, _ in iter_model_paths(model)}
     assert entity == graph_id
     assert len(dataset.graph(graph_id)) > 0
     assert len(paths) > 1

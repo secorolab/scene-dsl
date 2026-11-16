@@ -13,7 +13,6 @@ running software.
 
 from collections.abc import Callable
 from datetime import UTC, datetime
-from importlib import resources
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -24,18 +23,15 @@ from rdf_utils.models.prov import (
     add_file_entity,
     add_file_hash,
     create_bundle,
+    get_file_path,
     get_git_info,
-    get_pkg_info,
+    get_py_pkg_info,
     load_pkg_prov,
     load_transformation_prov,
 )
-from rdf_utils.models.time import add_wall_instant
+from rdf_utils.models.textx import add_model_prov
 from rdflib import Dataset, Graph, Literal, URIRef
 from rdflib.namespace import SDO
-from textx import get_location
-from textx.scoping import get_included_models
-
-from scene_dsl.langs import package_import
 
 KDL_TEMPLATE = "templates/kdl.hpp.jinja2"
 
@@ -46,46 +42,10 @@ def create_scene_dsl_bundle(dataset: Dataset) -> tuple[URIRef, URIRef]:
     Returns:
         The IDs of the bundle and of the package, to pass to `build` and `render`
     """
-    purl, version, revision, repository, dirty = get_pkg_info("scene_dsl")
-    bundle_id = create_bundle(dataset, purl)
-    load_pkg_prov(
-        dataset.graph(bundle_id), purl, "scene_dsl", version, revision, repository, dirty=dirty
-    )
-    return bundle_id, purl
-
-
-def source_paths(model) -> dict[Path, str | None]:
-    """The file of a directly loaded model and its imports, with the package shipping each."""
-    models = get_included_models(model)
-    packages = {
-        imp.importURI.partition(":")[0]
-        for item in models
-        for imp in getattr(item, "imports", [])
-        if package_import(imp.importURI) != imp.importURI
-    }
-    package_dirs = {package: Path(str(resources.files(package))).resolve() for package in packages}
-    return {
-        path: next(
-            (package for package, root in package_dirs.items() if path.is_relative_to(root)), None
-        )
-        for path in (Path(get_location(item)["filename"]).resolve() for item in models)
-    }
-
-
-def _add_transformation(
-    bundle: Graph,
-    agent: URIRef,
-    activity: URIRef,
-    sources: list[URIRef],
-    targets: list[URIRef],
-    started_at: datetime,
-    ended_at: datetime,
-) -> None:
-    """Add a transformation by an agent to a bundle, with its wall-clock instants."""
-    beginning, end = URIRef(uuid4().urn), URIRef(uuid4().urn)
-    add_wall_instant(bundle, beginning, started_at)
-    add_wall_instant(bundle, end, ended_at)
-    load_transformation_prov(bundle, activity, sources, targets, agent, beginning, end)
+    info = get_py_pkg_info("scene_dsl")
+    bundle_id = create_bundle(dataset, info.purl)
+    load_pkg_prov(dataset.graph(bundle_id), info)
+    return bundle_id, info.purl
 
 
 def build(
@@ -115,27 +75,18 @@ def build(
     create_graph(model, dataset.graph(graph_id))
     ended_at = datetime.now(UTC)
 
-    model_dir = Path(get_location(model)["filename"]).resolve().parent
-    root = add_directory_location(bundle, model_dir)
-    sources = []
-    for path, package in source_paths(model).items():
-        if package is None:
-            source = add_file_entity(bundle, root, path.relative_to(model_dir, walk_up=True))
-            commit, repository, _, dirty = get_git_info(path)
-            if commit is not None:
-                revision = f"{commit}-dirty" if dirty else commit
-                bundle.add((source, SDO.identifier, Literal(revision)))
-            if repository is not None:
-                bundle.add((source, SDO.codeRepository, URIRef(repository)))
-        else:
-            purl, version, revision, repository, dirty = get_pkg_info(package)
-            load_pkg_prov(bundle, purl, package, version, revision, repository, dirty=dirty)
-            package_dir = Path(str(resources.files(package))).resolve()
-            source = add_file_entity(bundle, purl, path.relative_to(package_dir))
-        add_file_hash(bundle, source)
-        sources.append(source)
-    activity = URIRef(uuid4().urn)
-    _add_transformation(bundle, agent_id, activity, sources, [graph_id], started_at, ended_at)
+    source_ids = add_model_prov(bundle, model)
+    for source_id in source_ids:
+        path = get_file_path(bundle, source_id)
+        assert path is not None, f"source '{source_id}' has no location"
+        commit, repository, _, dirty = get_git_info(path)
+        if commit is not None:
+            bundle.add((source_id, SDO.identifier, Literal(f"{commit}-dirty" if dirty else commit)))
+        if repository is not None:
+            bundle.add((source_id, SDO.codeRepository, URIRef(repository)))
+    load_transformation_prov(
+        bundle, sorted(source_ids), [graph_id], agent_id, started=started_at, ended=ended_at
+    )
     return graph_id
 
 
@@ -176,14 +127,15 @@ def render(
     ended_at = datetime.now(UTC)
 
     add_entity(bundle, graph_id)
-    activity = URIRef(uuid4().urn)
     output_id = add_file_entity(
-        bundle,
-        add_directory_location(bundle, output_file.parent),
-        output_file.name,
-        generated_by=activity,
+        bundle, add_directory_location(bundle, output_file.parent), output_file.name
     )
     add_file_hash(bundle, output_id)
-    _add_transformation(
-        bundle, agent_id, activity, [graph_id, template_id], [output_id], started_at, ended_at
+    load_transformation_prov(
+        bundle,
+        [graph_id, template_id],
+        [output_id],
+        agent_id,
+        started=started_at,
+        ended=ended_at,
     )

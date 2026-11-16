@@ -23,14 +23,12 @@ from rdf_utils.models.prov import (
     add_file_entity,
     add_file_hash,
     create_bundle,
-    get_git_info,
     get_py_pkg_info,
     load_pkg_prov,
     load_transformation_prov,
 )
-from rdf_utils.models.textx import add_import_prov, iter_model_paths
-from rdflib import Dataset, Graph, Literal, URIRef
-from rdflib.namespace import SDO
+from rdf_utils.models.textx import add_model_prov
+from rdflib import Dataset, Graph, URIRef
 
 KDL_TEMPLATE = "templates/kdl.hpp.jinja2"
 
@@ -74,16 +72,7 @@ def build(
     create_graph(model, dataset.graph(graph_id))
     ended_at = datetime.now(UTC)
 
-    roots = {}
-    source_ids = set()
-    for path, import_uri, _ in iter_model_paths(model):
-        source_id = add_import_prov(bundle, path, import_uri, roots=roots)
-        source_ids.add(source_id)
-        commit, repository, _, dirty = get_git_info(path)
-        if commit is not None:
-            bundle.add((source_id, SDO.identifier, Literal(f"{commit}-dirty" if dirty else commit)))
-        if repository is not None:
-            bundle.add((source_id, SDO.codeRepository, URIRef(repository)))
+    source_ids = add_model_prov(bundle, model)
     load_transformation_prov(
         bundle, source_ids, [graph_id], agent_id, started=started_at, ended=ended_at
     )

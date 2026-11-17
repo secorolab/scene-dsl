@@ -94,8 +94,8 @@ The `graph` and `kdl` targets take `--provenance`, which also records the PROV
 bundle of the run as a second named graph beside the model graph: in the graph
 file itself for `graph`, and in `<output>.ld.json` (or the extension of
 `format`) for the KDL header, with both steps in one bundle. A tool calls the
-same steps, `build` and `render`, from `scene_dsl.rdf.provenance`, in a
-`Dataset` holding the bundle that `create_scene_dsl_bundle` creates.
+same steps, rdf-utils `gen_model_graph` and `gen_graph_text`, in a `Dataset`
+holding the bundle that `create_pkg_bundle(dataset, "scene_dsl")` creates.
 
 ## Drawing the Kinematics
 

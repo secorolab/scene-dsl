@@ -7,15 +7,18 @@ from uuid import uuid4
 
 from jinja2 import Environment, FileSystemLoader
 from rdf_utils import DatasetFormat
+from rdf_utils.models.prov import create_pkg_bundle, gen_graph_text
+from rdf_utils.models.textx import gen_model_graph
 from rdf_utils.naming import get_valid_var_name
 from rdflib import Dataset, Graph, URIRef
 from textx import get_location
 
 from scene_dsl.dot import create_dot
 from scene_dsl.kdl_tree import build_kdl_trees
-from scene_dsl.rdf.provenance import build, create_scene_dsl_bundle, render
 from scene_dsl.rdf.scene import create_scene_model_graph
 from scene_dsl.rdf.scenex import create_scenex_model_graph
+
+KDL_TEMPLATE = "templates/kdl.hpp.jinja2"
 
 
 def rdf_full_output_path(
@@ -60,7 +63,8 @@ def graph_gen(
 
     dataset = Dataset()
     if "provenance" in kwargs:
-        build(model, dataset, *create_scene_dsl_bundle(dataset), create_graph)
+        bundle_id, info = create_pkg_bundle(dataset, "scene_dsl")
+        gen_model_graph(model, dataset, bundle_id, info.purl, create_graph)
     else:
         create_graph(model, dataset.graph(URIRef(uuid4().urn)))
     with open(full_output_path, "w") as outfile:
@@ -147,10 +151,8 @@ def kdl_header(graph: Graph, name: str, source: str) -> str:
     """The C++ header building the graph's KDL trees, in namespace NAME, naming SOURCE."""
     trees = build_kdl_trees(graph)
 
-    env = Environment(
-        loader=FileSystemLoader(Path(__file__).parent / "templates"), keep_trailing_newline=True
-    )
-    template = env.get_template("kdl.hpp.jinja2")
+    env = Environment(loader=FileSystemLoader(Path(__file__).parent), keep_trailing_newline=True)
+    template = env.get_template(KDL_TEMPLATE)
     return template.render({"data": {"name": name, "source": source, "trees": trees}})
 
 
@@ -171,15 +173,16 @@ def scenex_kdl_gen(metamodel, model, output_path, overwrite, debug, **kwargs):
     if "provenance" in kwargs:
         dataset_format = DatasetFormat(kwargs.get("format", DatasetFormat.JSON_LD))
         dataset = Dataset()
-        bundle_id, agent_id = create_scene_dsl_bundle(dataset)
-        graph_id = build(model, dataset, bundle_id, agent_id, create_scenex_model_graph)
-        render(
+        bundle_id, info = create_pkg_bundle(dataset, "scene_dsl")
+        graph_id = gen_model_graph(model, dataset, bundle_id, info.purl, create_scenex_model_graph)
+        gen_graph_text(
             dataset,
             graph_id,
             bundle_id,
-            agent_id,
+            info,
             lambda graph: kdl_header(graph, name, source),
             full_output_path,
+            source_files=[Path(__file__).parent / KDL_TEMPLATE],
         )
         Path(f"{full_output_path}.{dataset_format.extension}").write_text(
             dataset.serialize(

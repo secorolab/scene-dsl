@@ -5,17 +5,16 @@ from importlib.resources import files
 from pathlib import Path
 
 from rdf_utils.constraints import check_shacl_constraints
-from rdf_utils.models.prov import resolve_location
-from rdf_utils.models.textx import iter_model_paths
+from rdf_utils.models.prov import create_pkg_bundle, gen_graph_text, resolve_location
+from rdf_utils.models.textx import gen_model_graph, iter_model_paths
 from rdf_utils.models.vocab import URI_PROV_EXT_TYPE_TRANSFORMATION
 from rdf_utils.namespace import URL_MM_PROV_EXT_SHACL, URL_MM_PROV_SHACL
 from rdf_utils.resolver import install_resolver
 from rdflib import Dataset, URIRef
 from rdflib.namespace import DCTERMS, PROV, RDF, SDO, TIME
 
-from scene_dsl.gens import kdl_header, scenex_graph_gen, scenex_kdl_gen
+from scene_dsl.gens import KDL_TEMPLATE, kdl_header, scenex_graph_gen, scenex_kdl_gen
 from scene_dsl.langs import scenex_metamodel
-from scene_dsl.rdf.provenance import KDL_TEMPLATE, build, create_scene_dsl_bundle, render
 from scene_dsl.rdf.scenex import create_scenex_model_graph
 
 from .test_common import MODELS_DIR
@@ -24,12 +23,12 @@ MODEL = MODELS_DIR / "lab.scenex"
 SHAPES = {URL_MM_PROV_SHACL: "turtle", URL_MM_PROV_EXT_SHACL: "turtle"}
 
 
-def test_build_records_the_graph_generated_from_the_model_and_its_imports():
+def test_gen_model_graph_records_the_graph_generated_from_the_model_and_its_imports():
     install_resolver()
     model = scenex_metamodel().model_from_file(MODEL)
     dataset = Dataset()
-    bundle_id, agent_id = create_scene_dsl_bundle(dataset)
-    graph_id = build(model, dataset, bundle_id, agent_id, create_scenex_model_graph)
+    bundle_id, info = create_pkg_bundle(dataset, "scene_dsl")
+    graph_id = gen_model_graph(model, dataset, bundle_id, info.purl, create_scenex_model_graph)
 
     bundle = dataset.graph(bundle_id)
     (activity,) = bundle.subjects(RDF.type, URI_PROV_EXT_TYPE_TRANSFORMATION)
@@ -43,31 +42,35 @@ def test_build_records_the_graph_generated_from_the_model_and_its_imports():
         URIRef(path.as_uri()) for path in paths
     }
     assert all(bundle.value(source, DCTERMS.identifier) is not None for source in used)
-    assert (activity, PROV.wasAssociatedWith, agent_id) in bundle
-    assert str(bundle.value(agent_id, SDO.name)) == "scene_dsl"
+    assert (activity, PROV.wasAssociatedWith, info.purl) in bundle
+    assert str(bundle.value(info.purl, SDO.name)) == "scene_dsl"
     assert bundle.value(activity, TIME.hasBeginning) is not None
     assert bundle.value(activity, TIME.hasEnd) is not None
     check_shacl_constraints(bundle, SHAPES)
 
 
-def test_render_uses_the_graph_and_the_template(tmp_path):
+def test_gen_graph_text_uses_the_graph_and_the_template(tmp_path):
     install_resolver()
     model = scenex_metamodel().model_from_file(MODEL)
     dataset = Dataset()
-    graph_id = build(model, dataset, *create_scene_dsl_bundle(dataset), create_scenex_model_graph)
-    bundle_id, agent_id = create_scene_dsl_bundle(dataset)
+    model_bundle_id, model_info = create_pkg_bundle(dataset, "scene_dsl")
+    graph_id = gen_model_graph(
+        model, dataset, model_bundle_id, model_info.purl, create_scenex_model_graph
+    )
+    bundle_id, info = create_pkg_bundle(dataset, "scene_dsl")
     output_file = tmp_path.resolve() / "lab.kdl.hpp"
-    render(
+    template = Path(str(files("scene_dsl").joinpath(KDL_TEMPLATE)))
+    gen_graph_text(
         dataset,
         graph_id,
         bundle_id,
-        agent_id,
+        info,
         lambda graph: kdl_header(graph, "lab", "lab.scenex"),
         output_file,
+        source_files=[template],
     )
 
     bundle = dataset.graph(bundle_id)
-    template = Path(str(files("scene_dsl").joinpath(KDL_TEMPLATE)))
     (activity,) = bundle.subjects(RDF.type, URI_PROV_EXT_TYPE_TRANSFORMATION)
     (entity,) = bundle.subjects(PROV.wasGeneratedBy, activity)
     (template_id,) = set(bundle.objects(activity, PROV.used)) - {graph_id}

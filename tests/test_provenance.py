@@ -5,8 +5,8 @@ from importlib.resources import files
 from pathlib import Path
 
 from rdf_utils.constraints import check_shacl_constraints
-from rdf_utils.models.prov import create_pkg_bundle, gen_graph_text, resolve_location
-from rdf_utils.models.textx import gen_model_graph, iter_model_paths
+from rdf_utils.models.prov import create_pkg_bundle, record_graph_to_text, resolve_location
+from rdf_utils.models.textx import iter_model_paths, record_model_to_graph
 from rdf_utils.models.vocab import URI_PROV_EXT_TYPE_TRANSFORMATION
 from rdf_utils.namespace import URL_MM_PROV_EXT_SHACL, URL_MM_PROV_SHACL
 from rdf_utils.resolver import install_resolver
@@ -23,12 +23,14 @@ MODEL = MODELS_DIR / "lab.scenex"
 SHAPES = {URL_MM_PROV_SHACL: "turtle", URL_MM_PROV_EXT_SHACL: "turtle"}
 
 
-def test_gen_model_graph_records_the_graph_generated_from_the_model_and_its_imports():
+def test_record_model_to_graph_records_the_graph_generated_from_the_model_and_its_imports():
     install_resolver()
     model = scenex_metamodel().model_from_file(MODEL)
     dataset = Dataset()
     bundle_id, info = create_pkg_bundle(dataset, "scene_dsl")
-    graph_id = gen_model_graph(model, dataset, bundle_id, info.purl, create_scenex_model_graph)
+    graph_id = record_model_to_graph(
+        model, dataset, bundle_id, info.purl, create_scenex_model_graph
+    )
 
     bundle = dataset.graph(bundle_id)
     (activity,) = bundle.subjects(RDF.type, URI_PROV_EXT_TYPE_TRANSFORMATION)
@@ -49,18 +51,18 @@ def test_gen_model_graph_records_the_graph_generated_from_the_model_and_its_impo
     check_shacl_constraints(bundle, SHAPES)
 
 
-def test_gen_graph_text_uses_the_graph_and_the_template(tmp_path):
+def test_record_graph_to_text_uses_the_graph_and_the_template(tmp_path):
     install_resolver()
     model = scenex_metamodel().model_from_file(MODEL)
     dataset = Dataset()
     model_bundle_id, model_info = create_pkg_bundle(dataset, "scene_dsl")
-    graph_id = gen_model_graph(
+    graph_id = record_model_to_graph(
         model, dataset, model_bundle_id, model_info.purl, create_scenex_model_graph
     )
     bundle_id, info = create_pkg_bundle(dataset, "scene_dsl")
     output_file = tmp_path.resolve() / "lab.kdl.hpp"
     template = Path(str(files("scene_dsl").joinpath(KDL_TEMPLATE)))
-    gen_graph_text(
+    record_graph_to_text(
         dataset,
         graph_id,
         bundle_id,

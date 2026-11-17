@@ -19,7 +19,7 @@ from scene_dsl.classes.common import (
     SystemPath,
 )
 from scene_dsl.classes.geom import Frame, FrameAxis, IDefaultFrame
-from scene_dsl.rdf_parser.shapes import PrimitiveShapeType
+from scene_dsl.rdf_parser.shapes import PrimitiveShapeType, ShapeRole
 
 
 class KinematicTreeTemplate(IHasParent):
@@ -246,6 +246,7 @@ class SceneShape(IHasNamespace):
         primitive: the unit base of a primitive; None for a file shape
         file: the file the shape is read from; None for a primitive
         kind: what messages call the shape: its primitive keyword, or "file shape"
+        roles: the roles in the order the scene states them; empty when it states none
     """
 
     frame: Frame
@@ -256,8 +257,11 @@ class SceneShape(IHasNamespace):
     color: Color | None
     # One factor per axis, or None when unscaled: a scalar scale is the same factor on all three.
     scale: list[float] | None
+    roles: list[ShapeRole]
 
-    def __init__(self, parent, primitive, frame, file, unit, scale=None, color=None) -> None:
+    def __init__(
+        self, parent, primitive, frame, file, unit, scale=None, color=None, roles=()
+    ) -> None:
         super().__init__(parent=parent)
         # textX resolves references before it builds user classes, so the frame is known here.
         self.frame = frame
@@ -268,6 +272,10 @@ class SceneShape(IHasNamespace):
         self.unit = unit
         self.color = color
         self.scale = None
+        # The keyword `visual` names member VISUAL.
+        self.roles = [ShapeRole[role.upper()] for role in roles]
+        if len(set(self.roles)) != len(self.roles):
+            raise ValueError(f"{self.label} states a role twice: {' '.join(roles)}")
 
         # One grammar rule covers both kinds, so it no longer keeps files to file shapes.
         if self.primitive is None and file is None:

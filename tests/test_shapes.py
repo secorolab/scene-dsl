@@ -23,7 +23,7 @@ from scene_dsl.langs import scenex_metamodel
 from scene_dsl.rdf.ktree import add_body
 from scene_dsl.rdf.scenex import create_scenex_model_graph
 from scene_dsl.rdf_parser.kinematics import RigidBodyModel, kinematic_graphs
-from scene_dsl.rdf_parser.shapes import PrimitiveShapeType, ShapeModel
+from scene_dsl.rdf_parser.shapes import PrimitiveShapeType, ShapeModel, ShapeRole
 
 from .test_common import MODELS_DIR
 
@@ -90,6 +90,29 @@ def test_example_shapes_read_back_as_authored():
         (ColorScheme.RGB, "#1A59FF"),
     ]
     assert marker.color is None
+    # The marker is only drawn, the box is drawn and grasped, and the ball and bottle state no
+    # role, which leaves their use to the consumer.
+    assert [s.roles for s in (ball, bottle, box, marker)] == [
+        frozenset(),
+        frozenset(),
+        {ShapeRole.VISUAL, ShapeRole.COLLISION},
+        {ShapeRole.VISUAL},
+    ]
+
+
+@pytest.mark.parametrize(
+    ("role_spec", "roles"),
+    [
+        ("", set()),
+        ("role: visual", {ShapeRole.VISUAL}),
+        ("role: collision", {ShapeRole.COLLISION}),
+        ("role: collision visual", {ShapeRole.VISUAL, ShapeRole.COLLISION}),
+    ],
+)
+def test_shape_roles_read_back_as_stated(role_spec, roles):
+    body, _, graph = _shape_graph(f"shape sphere {{ frame: <f> unit: m {role_spec} }}")
+    [shape] = RigidBodyModel(body, graph).shapes
+    assert shape.roles == roles
 
 
 def test_unscaled_shape_has_unit_scale():

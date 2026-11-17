@@ -47,7 +47,9 @@ from rdf_utils.models.vocab import (
     URI_SHAPES_PRED_SCALE_X,
     URI_SHAPES_PRED_SCALE_Y,
     URI_SHAPES_PRED_SCALE_Z,
+    URI_SHAPES_TYPE_COLLISION_SHAPE,
     URI_SHAPES_TYPE_SCALED_SHAPE,
+    URI_SHAPES_TYPE_VISUAL_SHAPE,
 )
 from rdf_utils.namespace import (
     URL_MM_GEOM_SHACL_EXTS,
@@ -428,6 +430,55 @@ def test_shape_scale_exports_one_factor_per_axis(authored, per_axis):
 def test_bad_shape_scale_is_rejected(authored, message):
     with pytest.raises(ValueError, match=re.escape(message)):
         _scaled_shape(authored)
+
+
+def _role_shape(role_spec: str):
+    model = scenex_metamodel().model_from_str(
+        f"""ns n = "https://example.test/"
+ktree (ns=n) t {{ root: <b.f>
+    body b {{
+        frame f {{ }}
+        shape cube {{ frame: <f> unit: m {role_spec} }}
+    }}
+    joints {{ }}
+}}
+"""
+    )
+    [shape] = model.ktrees[0].bodies[0].shapes
+    return shape
+
+
+@pytest.mark.parametrize(
+    ("role_spec", "role_types"),
+    [
+        # No role stated, none exported: the consumer decides.
+        ("", set()),
+        ("role: visual", {URI_SHAPES_TYPE_VISUAL_SHAPE}),
+        ("role: collision", {URI_SHAPES_TYPE_COLLISION_SHAPE}),
+        (
+            "role: visual collision",
+            {URI_SHAPES_TYPE_VISUAL_SHAPE, URI_SHAPES_TYPE_COLLISION_SHAPE},
+        ),
+    ],
+)
+def test_shape_exports_the_roles_it_states(role_spec, role_types):
+    shape = _role_shape(role_spec)
+    graph = Graph()
+    add_shape(graph, shape)
+
+    all_roles = {URI_SHAPES_TYPE_VISUAL_SHAPE, URI_SHAPES_TYPE_COLLISION_SHAPE}
+    assert set(graph.objects(shape.uri, RDF.type)) & all_roles == role_types
+
+
+def test_shape_stating_a_role_twice_is_rejected():
+    message = "cube on 'f' states a role twice: visual collision visual"
+    with pytest.raises(ValueError, match=re.escape(message)):
+        _role_shape("role: visual collision visual")
+
+
+def test_unknown_shape_role_is_rejected():
+    with pytest.raises(TextXSyntaxError):
+        _role_shape("role: decorative")
 
 
 def _file_shape(tmp_path, file_spec: str, keyword: str = "file"):

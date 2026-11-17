@@ -34,5 +34,8 @@ def add_shape(graph: Graph, shape: SceneShape) -> None:
         add_entity(graph, shape.uri)
         graph.add((shape.uri, PROV.wasDerivedFrom, add_file_source(graph, shape.file)))
     add_shape_scale(graph, shape)
+    # A shape that states no role gets none: the consumer decides how to use it.
+    for role in shape.roles:
+        graph.add((shape.uri, RDF.type, role.value))
     if shape.color is not None:
         add_color(graph, shape.uri, shape.color_uri, shape.color.scheme, shape.color.literal)

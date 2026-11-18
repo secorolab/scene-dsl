@@ -9,7 +9,7 @@ from typing import Any
 import numpy as np
 from rdflib import Namespace, URIRef
 
-from scene_dsl.classes.color import Color
+from scene_dsl.classes.color import Color, DefaultColor
 from scene_dsl.classes.common import (
     FloatVector,
     IHasNamespace,
@@ -246,7 +246,10 @@ class SceneShape(IHasNamespace):
         primitive: the unit base of a primitive; None for a file shape
         file: the file the shape is read from; None for a primitive
         kind: what messages call the shape: its primitive keyword, or "file shape"
-        roles: the roles in the order the scene states them; empty when it states none
+        color: the colour the shape is drawn in, as the scene states it, or the default grey for
+            a drawn shape that states none; None for a shape only for collision, which is not
+            drawn
+        roles: the roles the scene states; visual and collision when it states none
     """
 
     frame: Frame
@@ -257,7 +260,7 @@ class SceneShape(IHasNamespace):
     color: Color | None
     # One factor per axis, or None when unscaled: a scalar scale is the same factor on all three.
     scale: list[float] | None
-    roles: list[ShapeRole]
+    roles: set[ShapeRole]
 
     def __init__(
         self, parent, primitive, frame, file, unit, scale=None, color=None, roles=()
@@ -270,12 +273,23 @@ class SceneShape(IHasNamespace):
         self.kind = primitive or "file shape"
         self.file = file
         self.unit = unit
-        self.color = color
         self.scale = None
-        # The keyword `visual` names member VISUAL.
-        self.roles = [ShapeRole[role.upper()] for role in roles]
-        if len(set(self.roles)) != len(self.roles):
+        # The keyword `visual` names member VISUAL. A shape that states no role is drawn and in
+        # contact.
+        stated = [ShapeRole[role.upper()] for role in roles]
+        if len(set(stated)) != len(stated):
             raise ValueError(f"{self.label} states a role twice: {' '.join(roles)}")
+        self.roles = set(stated) or {ShapeRole.VISUAL, ShapeRole.COLLISION}
+        # The shapes metamodel gives a drawn shape exactly one colour, and one only for collision
+        # none.
+        if ShapeRole.VISUAL in self.roles:
+            self.color = DefaultColor(parent=self) if color is None else color
+        elif color is not None:
+            raise ValueError(
+                f"{self.label} is only for collision, so it is not drawn and takes no color"
+            )
+        else:
+            self.color = None
 
         # One grammar rule covers both kinds, so it no longer keeps files to file shapes.
         if self.primitive is None and file is None:

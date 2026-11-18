@@ -6,7 +6,8 @@ of radius 1, or a file's own coordinates -- scaled per local axis, with its orig
 axes at the frame it is attached to. Where that frame is, is the kinematics' to say. The scale
 and unit are kept as the graph states them; a consumer that needs lengths converts them, e.g.
 with rdf-utils' `to_metres`. A shape's roles say whether it is drawn, takes part in contact, or
-both; a shape that states none leaves that to the consumer.
+both, and every shape states at least one. A drawn shape has one colour; a shape only for
+collision is not drawn and has none.
 """
 
 import math
@@ -27,6 +28,7 @@ from rdf_utils.models.vocab import (
     URI_SHAPES_TYPE_COLLISION_SHAPE,
     URI_SHAPES_TYPE_FILE_BASED_SHAPE,
     URI_SHAPES_TYPE_SCALED_SHAPE,
+    URI_SHAPES_TYPE_SHAPE,
     URI_SHAPES_TYPE_UNIT_CUBE,
     URI_SHAPES_TYPE_UNIT_CYLINDER,
     URI_SHAPES_TYPE_UNIT_SPHERE,
@@ -68,9 +70,8 @@ class ShapeModel(ModelBase):
             states none; in `unit`, a cube's side lengths, a sphere's radii, a cylinder's two
             radii and its height, or the length of one of a file's coordinate units
         unit: the QUDT length unit of the base, one of rdf-utils' `LENGTH_UNITS`
-        color: the colour as the scene states it; None when it states none
-        roles: whether the shape is drawn, takes part in contact, or both, as the graph states
-            it; empty when it states no role, and a consumer decides
+        color: the colour the shape is drawn in; None for a shape only for collision
+        roles: whether the shape is drawn, takes part in contact, or both; never empty
     """
 
     frame: URIRef
@@ -79,10 +80,12 @@ class ShapeModel(ModelBase):
     scale: tuple[float, float, float]
     unit: URIRef
     color: ColorModel | None
-    roles: frozenset[ShapeRole]
+    roles: set[ShapeRole]
 
     def __init__(self, shape_id: URIRef, graph: Graph) -> None:
         super().__init__(node_id=shape_id, graph=graph)
+        if URI_SHAPES_TYPE_SHAPE not in self.types:
+            raise ConstraintViolation("shapes", f"shape '{self.id}' is not typed Shape")
         kinds = self.types & SHAPE_TYPES
         if len(kinds) != 1:
             raise ConstraintViolation(
@@ -108,8 +111,18 @@ class ShapeModel(ModelBase):
             )
         self.unit = unit
         self.scale = self._scale(graph)
+        self.roles = {role for role in ShapeRole if role.value in self.types}
+        if not self.roles:
+            raise ConstraintViolation(
+                "shapes", f"shape '{self.id}' needs a role: VisualShape, CollisionShape or both"
+            )
         self.color = get_color(graph, self.id)
-        self.roles = frozenset(role for role in ShapeRole if role.value in self.types)
+        if ShapeRole.VISUAL in self.roles and self.color is None:
+            raise ConstraintViolation("shapes", f"VisualShape '{self.id}' has no color")
+        if ShapeRole.VISUAL not in self.roles and self.color is not None:
+            raise ConstraintViolation(
+                "shapes", f"shape '{self.id}' is only a CollisionShape, so it takes no color"
+            )
 
     def _scale(self, graph: Graph) -> tuple[float, float, float]:
         factors = []

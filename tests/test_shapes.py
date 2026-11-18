@@ -4,6 +4,7 @@ import pytest
 from rdf_utils.constraints import ConstraintViolation
 from rdf_utils.models.color import ColorScheme
 from rdf_utils.models.vocab import (
+    URI_COLOR_PRED_HAS_COLOR,
     URI_QUDT_PRED_UNIT,
     URI_QUDT_UNIT_CM,
     URI_QUDT_UNIT_M,
@@ -13,11 +14,14 @@ from rdf_utils.models.vocab import (
     URI_SHAPES_PRED_SCALE_Y,
     URI_SHAPES_PRED_SCALE_Z,
     URI_SHAPES_TYPE_SCALED_SHAPE,
+    URI_SHAPES_TYPE_SHAPE,
     URI_SHAPES_TYPE_UNIT_SPHERE,
+    URI_SHAPES_TYPE_VISUAL_SHAPE,
 )
 from rdf_utils.namespace import NS_MM_QUDT_UNIT
 from rdflib import RDF, XSD, Graph, Literal
 from rdflib.namespace import split_uri
+from textx.exceptions import TextXSyntaxError
 
 from scene_dsl.langs import scenex_metamodel
 from scene_dsl.rdf.ktree import add_body
@@ -26,6 +30,10 @@ from scene_dsl.rdf_parser.kinematics import RigidBodyModel, kinematic_graphs
 from scene_dsl.rdf_parser.shapes import PrimitiveShapeType, ShapeModel, ShapeRole
 
 from .test_common import MODELS_DIR
+
+VISUAL, BOTH = {ShapeRole.VISUAL}, {ShapeRole.VISUAL, ShapeRole.COLLISION}
+# What a drawn shape that states no colour is drawn in.
+GREY = (ColorScheme.RGBA, "0.5 0.5 0.5 1")
 
 
 def _shape_graph(shape_spec: str, model_file=None):
@@ -83,36 +91,69 @@ def test_example_shapes_read_back_as_authored():
     assert marker.path.name == "tetra.stl" and marker.path.is_file()
     assert ball.path is None
     # One colour per form: rgba, hsv and hex, each read in its own scheme. The marker states
-    # none, so a consumer keeps its default.
-    assert [(s.color.scheme, s.color.value) for s in (ball, bottle, box)] == [
+    # none, so it is drawn in the default grey.
+    assert [(s.color.scheme, s.color.value) for s in (ball, bottle, box, marker)] == [
         (ColorScheme.RGBA, "#E63333FF"),
         (ColorScheme.HSV, "210 0.6 0.9"),
         (ColorScheme.RGB, "#1A59FF"),
+        (ColorScheme.RGBA, "0.5 0.5 0.5 1"),
     ]
-    assert marker.color is None
     # The marker is only drawn, the box is drawn and grasped, and the ball and bottle state no
-    # role, which leaves their use to the consumer.
-    assert [s.roles for s in (ball, bottle, box, marker)] == [
-        frozenset(),
-        frozenset(),
-        {ShapeRole.VISUAL, ShapeRole.COLLISION},
-        {ShapeRole.VISUAL},
-    ]
+    # role, so they are drawn and in contact too.
+    assert [s.roles for s in (ball, bottle, box, marker)] == [BOTH, BOTH, BOTH, VISUAL]
 
 
 @pytest.mark.parametrize(
-    ("role_spec", "roles"),
+    ("spec", "roles", "color"),
     [
-        ("", set()),
-        ("role: visual", {ShapeRole.VISUAL}),
-        ("role: collision", {ShapeRole.COLLISION}),
-        ("role: collision visual", {ShapeRole.VISUAL, ShapeRole.COLLISION}),
+        # No role is both; a drawn shape with no colour is grey; one only for collision has none.
+        ("", BOTH, GREY),
+        ("role: visual", VISUAL, GREY),
+        ("role: collision visual", BOTH, GREY),
+        ("role: collision", {ShapeRole.COLLISION}, None),
+        # 0-255 channels go out as hex: exact, where floats in [0, 1] would round.
+        ("color: rgb(230, 51, 0)", BOTH, (ColorScheme.RGB, "#E63300")),
+        ("color: rgba(230, 51, 51, 255)", BOTH, (ColorScheme.RGBA, "#E63333FF")),
+        ("color: #33b34d", BOTH, (ColorScheme.RGB, "#33B34D")),
+        ("color: #33B34D80 role: visual", VISUAL, (ColorScheme.RGBA, "#33B34D80")),
+        ("color: hsv(210, 0.6, 0.9)", BOTH, (ColorScheme.HSV, "210 0.6 0.9")),
+        ("color: hsv(359.5, 1, 0)", BOTH, (ColorScheme.HSV, "359.5 1 0")),
+        # No '-0' or exponent, which the metamodel's pattern refuses.
+        ("color: hsv(0.0, -0.0, 1e-5)", BOTH, (ColorScheme.HSV, "0.0 0.0 0.00001")),
     ],
 )
-def test_shape_roles_read_back_as_stated(role_spec, roles):
-    body, _, graph = _shape_graph(f"shape sphere {{ frame: <f> unit: m {role_spec} }}")
+def test_shape_roles_and_color_read_back(spec, roles, color):
+    body, _, graph = _shape_graph(f"shape cube {{ frame: <f> unit: m {spec} }}")
     [shape] = RigidBodyModel(body, graph).shapes
-    assert shape.roles == roles
+    read = None if shape.color is None else (shape.color.scheme, shape.color.value)
+    assert (shape.roles, read) == (roles, color)
+
+
+@pytest.mark.parametrize(
+    ("spec", "error", "message"),
+    [
+        ("role: visual visual", ValueError, "cube on 'f' states a role twice: visual visual"),
+        (
+            "color: #E63333 role: collision",
+            ValueError,
+            "cube on 'f' is only for collision, so it is not drawn and takes no color",
+        ),
+        ("color: rgb(256, 0, 0)", ValueError, "red is 256, expected an integer in [0, 255]"),
+        ("color: rgba(0, 0, 0, -1)", ValueError, "alpha is -1, expected an integer in [0, 255]"),
+        ("color: hsv(360, 0.5, 0.5)", ValueError, "hsv hue is 360, expected degrees in [0, 360)"),
+        ("color: hsv(10, 1.5, 0.5)", ValueError, "saturation is 1.5, expected a number in [0, 1]"),
+        ("color: hsv(10, 0.5, -0.1)", ValueError, "hsv value is -0.1, expected a number in [0, 1]"),
+        # The grammar refuses these: an unknown role, neither six nor eight hex digits,
+        # fractional RGB channels, and a bare vector that names no scheme.
+        ("role: decorative", TextXSyntaxError, ""),
+        ("color: #12345", TextXSyntaxError, ""),
+        ("color: rgb(1.5, 0, 0)", TextXSyntaxError, ""),
+        ("color: (0.9, 0.2, 0.2, 1.0)", TextXSyntaxError, ""),
+    ],
+)
+def test_bad_shape_role_or_color_is_rejected(spec, error, message):
+    with pytest.raises(error, match=re.escape(message)):
+        _shape_graph(f"shape cube {{ frame: <f> unit: m {spec} }}")
 
 
 def test_unscaled_shape_has_unit_scale():
@@ -152,6 +193,7 @@ def test_missing_shape_file_is_reported(tmp_path):
 @pytest.mark.parametrize(
     ("break_graph", "message"),
     [
+        (lambda g, s: g.remove((s, RDF.type, URI_SHAPES_TYPE_SHAPE)), "is not typed Shape"),
         (lambda g, s: g.add((s, RDF.type, URI_SHAPES_TYPE_UNIT_SPHERE)), "needs one type of"),
         (lambda g, s: g.set((s, URI_QUDT_PRED_UNIT, NS_MM_QUDT_UNIT["IN"])), "no supported length unit"),
         (lambda g, s: g.set((s, URI_SHAPES_PRED_SCALE_X, Literal(2))), "needs one xsd:double"),
@@ -166,6 +208,15 @@ def test_missing_shape_file_is_reported(tmp_path):
         (
             lambda g, s: g.remove((s, RDF.type, URI_SHAPES_TYPE_SCALED_SHAPE)),
             "states scale factors but is not a ScaledShape",
+        ),
+        (
+            lambda g, s: [g.remove((s, RDF.type, role.value)) for role in ShapeRole],
+            "needs a role: VisualShape, CollisionShape or both",
+        ),
+        (lambda g, s: g.remove((s, URI_COLOR_PRED_HAS_COLOR, None)), "has no color"),
+        (
+            lambda g, s: g.remove((s, RDF.type, URI_SHAPES_TYPE_VISUAL_SHAPE)),
+            "is only a CollisionShape, so it takes no color",
         ),
     ],
 )

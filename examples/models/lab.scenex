@@ -167,7 +167,7 @@ ktree (ns=scene_lab_mjc) world_tree {
 
     body world_body {
         frame world { }
-        // A marker: drawn, but only for visual purpose.
+        // A marker: only drawn, and in the default grey, as it states no colour.
         shape file {
             frame: <world>
             sys path = "../assets/tetra.stl"
@@ -264,7 +264,7 @@ scene inst (ns=scene_lab_mjc) pickplace_scene_mjc {
         }
 
         // free bodies with only a shape: a sphere in m and a cylinder in mm, with no role
-        // stated, so the consumer decides how to use them
+        // stated, so each is drawn and in contact
         body ball_body {
             frame ball_root {
                 pose ball_on_table {

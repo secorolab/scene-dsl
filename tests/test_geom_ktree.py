@@ -568,6 +568,33 @@ ktree (ns=n) t { root: <a.f>
         )
 
 
+@pytest.mark.parametrize("frame", ["f", "a.f"])
+def test_an_imported_shape_is_checked_once_its_frame_resolves(tmp_path, frame):
+    # An imported model's processors run before its references resolve, so the importing model
+    # checks its shapes: one on its body's frame loads, one on another body's is still refused.
+    (tmp_path / "parts.scenex").write_text(f"""ns n = "https://example.test/"
+ktree (ns=n) t {{ root: <a.f>
+    body a {{ frame f {{ }} }}
+    body b {{ frame f {{ }} shape cube {{ frame: <{frame}> unit: m }} }}
+    joints {{ fixed a_b {{ parent: <a.f> child: <b.f> }} }}
+}}
+""")
+    (tmp_path / "scene.scenex").write_text("""import "parts.scenex"
+ns m = "https://example.test/m/"
+ktree (ns=m) u { root: <c.g>
+    tree <t>
+    body c { frame g { } }
+    joints { fixed c_t { parent: <c.g> child: <t.a.f> } }
+}
+""")
+    scene = str(tmp_path / "scene.scenex")
+    if frame == "f":
+        scenex_metamodel().model_from_file(scene)
+        return
+    with pytest.raises(TextXSemanticError, match="cube on 'f' must use a frame owned by 'b'"):
+        scenex_metamodel().model_from_file(scene)
+
+
 def test_shapes_are_numbered_per_frame_in_source_order():
     model = scenex_metamodel().model_from_str(
         """ns n = "https://example.test/"

@@ -34,6 +34,7 @@ from .test_common import MODELS_DIR
 VISUAL, BOTH = {ShapeRole.VISUAL}, {ShapeRole.VISUAL, ShapeRole.COLLISION}
 # What a drawn shape that states no colour is drawn in.
 GREY = (ColorScheme.RGBA, "0.5 0.5 0.5 1")
+UNSCALED = (1.0, 1.0, 1.0)
 
 
 def _shape_graph(shape_spec: str, model_file=None):
@@ -104,34 +105,41 @@ def test_example_shapes_read_back_as_authored():
 
 
 @pytest.mark.parametrize(
-    ("spec", "roles", "color"),
+    ("spec", "roles", "color", "scale"),
     [
         # No role is both; a drawn shape with no colour is grey; one only for collision has none.
-        ("", BOTH, GREY),
-        ("role: visual", VISUAL, GREY),
-        ("role: collision visual", BOTH, GREY),
-        ("role: collision", {ShapeRole.COLLISION}, None),
+        ("", BOTH, GREY, UNSCALED),
+        ("role: visual", VISUAL, GREY, UNSCALED),
+        ("role: collision visual", BOTH, GREY, UNSCALED),
+        ("role: collision", {ShapeRole.COLLISION}, None, UNSCALED),
+        # A scalar scale is the same factor on all three axes.
+        ("scale: 2", BOTH, GREY, (2.0, 2.0, 2.0)),
+        ("scale: (0.5, 1.0, 1.5)", BOTH, GREY, (0.5, 1.0, 1.5)),
         # 0-255 channels go out as hex: exact, where floats in [0, 1] would round.
-        ("color: rgb(230, 51, 0)", BOTH, (ColorScheme.RGB, "#E63300")),
-        ("color: rgba(230, 51, 51, 255)", BOTH, (ColorScheme.RGBA, "#E63333FF")),
-        ("color: #33b34d", BOTH, (ColorScheme.RGB, "#33B34D")),
-        ("color: #33B34D80 role: visual", VISUAL, (ColorScheme.RGBA, "#33B34D80")),
-        ("color: hsv(210, 0.6, 0.9)", BOTH, (ColorScheme.HSV, "210 0.6 0.9")),
-        ("color: hsv(359.5, 1, 0)", BOTH, (ColorScheme.HSV, "359.5 1 0")),
+        ("color: rgb(230, 51, 0)", BOTH, (ColorScheme.RGB, "#E63300"), UNSCALED),
+        ("color: rgba(230, 51, 51, 255)", BOTH, (ColorScheme.RGBA, "#E63333FF"), UNSCALED),
+        ("color: #33b34d", BOTH, (ColorScheme.RGB, "#33B34D"), UNSCALED),
+        ("color: #33B34D80 role: visual", VISUAL, (ColorScheme.RGBA, "#33B34D80"), UNSCALED),
+        ("color: hsv(210, 0.6, 0.9)", BOTH, (ColorScheme.HSV, "210 0.6 0.9"), UNSCALED),
+        ("color: hsv(359.5, 1, 0)", BOTH, (ColorScheme.HSV, "359.5 1 0"), UNSCALED),
         # No '-0' or exponent, which the metamodel's pattern refuses.
-        ("color: hsv(0.0, -0.0, 1e-5)", BOTH, (ColorScheme.HSV, "0.0 0.0 0.00001")),
+        ("color: hsv(0.0, -0.0, 1e-5)", BOTH, (ColorScheme.HSV, "0.0 0.0 0.00001"), UNSCALED),
     ],
 )
-def test_shape_roles_and_color_read_back(spec, roles, color):
+def test_shape_spec_reads_back(spec, roles, color, scale):
     body, _, graph = _shape_graph(f"shape cube {{ frame: <f> unit: m {spec} }}")
     [shape] = RigidBodyModel(body, graph).shapes
     read = None if shape.color is None else (shape.color.scheme, shape.color.value)
-    assert (shape.roles, read) == (roles, color)
+    assert (shape.roles, read, shape.scale) == (roles, color, scale)
 
 
 @pytest.mark.parametrize(
     ("spec", "error", "message"),
     [
+        ("scale: (2.0)", ValueError, "cube on 'f' scale requires 3 values, got 1"),
+        ("scale: (1.0, 2.0)", ValueError, "cube on 'f' scale requires 3 values, got 2"),
+        ("scale: 0", ValueError, "cube on 'f' scale is 0.0, expected a finite positive number"),
+        ("scale: (1.0, -2.0, 3.0)", ValueError, "scale is -2.0, expected a finite positive number"),
         ("role: visual visual", ValueError, "cube on 'f' states a role twice: visual visual"),
         (
             "color: #E63333 role: collision",
@@ -151,15 +159,9 @@ def test_shape_roles_and_color_read_back(spec, roles, color):
         ("color: (0.9, 0.2, 0.2, 1.0)", TextXSyntaxError, ""),
     ],
 )
-def test_bad_shape_role_or_color_is_rejected(spec, error, message):
+def test_bad_shape_spec_is_rejected(spec, error, message):
     with pytest.raises(error, match=re.escape(message)):
         _shape_graph(f"shape cube {{ frame: <f> unit: m {spec} }}")
-
-
-def test_unscaled_shape_has_unit_scale():
-    body, _, graph = _shape_graph("shape sphere { frame: <f> unit: m }")
-    [shape] = RigidBodyModel(body, graph).shapes
-    assert shape.scale == (1.0, 1.0, 1.0)
 
 
 def test_shape_on_no_frame_of_the_body_is_not_its_shape():

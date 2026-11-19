@@ -90,6 +90,13 @@ The RDF generators write the model graph as one named graph, named by a fresh
 `nquads` as `.nq`; `trig` as `.trig`) and `filename`.
 For JSON-LD, pass `--nocompact` to skip compacting IRIs.
 
+The `graph` and `kdl` targets take `--provenance`, which also records the PROV
+bundle of the run as a second named graph beside the model graph: in the graph
+file itself for `graph`, and in `<output>.ld.json` (or the extension of
+`format`) for the KDL header, with both steps in one bundle. A tool calls the
+same steps, rdf-utils `record_model_to_graph` and `record_graph_to_text`, in a `Dataset`
+holding the bundle that `create_pkg_bundle(dataset, "scene_dsl")` creates.
+
 ## Drawing the Kinematics
 
 Draw the scene's bodies and the joints between them, with each device a cluster

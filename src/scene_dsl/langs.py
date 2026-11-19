@@ -1,8 +1,9 @@
 # SPDX-License-Identifier: MPL-2.0
 from functools import cache
-from importlib import resources, util
+from importlib import resources
 
 import textx.scoping.providers as scoping_providers
+from rdf_utils.models.textx import package_import
 from rdflib import URIRef
 from textx import (
     get_children,
@@ -88,18 +89,6 @@ from scene_dsl.classes.sensors import (
     ForceTorqueSensorSpec,
     ImuSensorSpec,
 )
-
-
-def package_import(uri: str) -> str:
-    """Resolve `<package>:<path>` to a file an installed package ships; others stay relative."""
-    package, colon, path = uri.partition(":")
-    # A top-level name only: a dotted one would import its parents just to be looked up.
-    if not colon or not package.isidentifier():
-        return uri
-    spec = util.find_spec(package)
-    if spec is None or spec.submodule_search_locations is None:
-        return uri
-    return str(resources.files(package) / path)
 
 
 class InstancedRefScopeProvider(scoping_providers.FQNImportURI):

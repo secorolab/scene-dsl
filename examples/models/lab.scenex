@@ -167,7 +167,7 @@ ktree (ns=scene_lab_mjc) world_tree {
 
     body world_body {
         frame world { }
-        // A marker: only drawn, and in the default grey, as it states no colour.
+        // A marker: only drawn. It states no colour, so whatever draws it picks one.
         shape file {
             frame: <world>
             sys path = "../assets/tetra.stl"

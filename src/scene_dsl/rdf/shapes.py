@@ -39,6 +39,5 @@ def add_shape(graph: Graph, shape: SceneShape) -> None:
     add_shape_scale(graph, shape)
     for role in shape.roles:
         graph.add((shape.uri, RDF.type, role.value))
-    # Only a shape that is only for collision has no colour.
     if shape.color is not None:
         add_color(graph, shape.uri, shape.color_uri, shape.color.scheme, shape.color.literal)

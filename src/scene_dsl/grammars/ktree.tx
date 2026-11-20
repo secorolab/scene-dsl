@@ -54,16 +54,21 @@ ShapeRole: 'visual' | 'collision' ;
 
 // A file shape names its file; a primitive has none. SceneShape checks this, not the grammar.
 // A shape is unnamed: its IRI comes from its frame (see SceneShape.uri).
-// Without a role a shape is drawn and in contact, as `role: visual collision`. A drawn shape
-// without a colour is the default grey; a shape only for collision takes no colour.
+// Without a role a shape is drawn and in contact, as `role: visual collision`. A shape only for
+// collision is not drawn by default; its colour, if it states one, is how it shows when a viewer
+// displays collision geometry for debugging.
+// The fields may come in any order, each at most once: `#` makes the group unordered, so each
+// field is parenthesised to keep its tokens together.
 SceneShape:
 'shape' (primitive=PrimitiveShapeType | 'file') '{'
-    'frame' ':' '<' frame=[Frame|FQN] '>'
-    file=FileSpec?
-    'unit' ':' unit=LengthUnit
-    ('scale' ':' scale=ScaleSpec)?
-    ('color' ':' color=Color)?
-    ('role' ':' roles+=ShapeRole)?
+    (
+        ('frame' ':' '<' frame=[Frame|FQN] '>')
+        (file=FileSpec)?
+        ('unit' ':' unit=LengthUnit)
+        ('scale' ':' scale=ScaleSpec)?
+        ('color' ':' color=Color)?
+        ('role' ':' roles+=ShapeRole)?
+    )#
 '}'
 ;
 

@@ -63,17 +63,6 @@ class HexColor(Color):
         return self.code
 
 
-class DefaultColor(Color):
-    """The neutral grey a drawn shape takes when the scene gives it no colour: MuJoCo's default
-    geom colour."""
-
-    scheme = ColorScheme.RGBA
-
-    @property
-    def literal(self) -> str:
-        return "0.5 0.5 0.5 1"
-
-
 class HSVColor(Color):
     scheme = ColorScheme.HSV
 

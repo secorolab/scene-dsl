@@ -6,8 +6,7 @@ of radius 1, or a file's own coordinates -- scaled per local axis, with its orig
 axes at the frame it is attached to. Where that frame is, is the kinematics' to say. The scale
 and unit are kept as the graph states them; a consumer that needs lengths converts them, e.g.
 with rdf-utils' `to_metres`. A shape's roles say whether it is drawn, takes part in contact, or
-both, and every shape states at least one. A drawn shape has one colour; a shape only for
-collision is not drawn and has none.
+both, and every shape states at least one.
 """
 
 import math
@@ -70,7 +69,7 @@ class ShapeModel(ModelBase):
             states none; in `unit`, a cube's side lengths, a sphere's radii, a cylinder's two
             radii and its height, or the length of one of a file's coordinate units
         unit: the QUDT length unit of the base, one of rdf-utils' `LENGTH_UNITS`
-        color: the colour the shape is drawn in; None for a shape only for collision
+        color: the colour as the scene states it; None when it states none
         roles: whether the shape is drawn, takes part in contact, or both; never empty
     """
 
@@ -117,12 +116,6 @@ class ShapeModel(ModelBase):
                 "shapes", f"shape '{self.id}' needs a role: VisualShape, CollisionShape or both"
             )
         self.color = get_color(graph, self.id)
-        if ShapeRole.VISUAL in self.roles and self.color is None:
-            raise ConstraintViolation("shapes", f"VisualShape '{self.id}' has no color")
-        if ShapeRole.VISUAL not in self.roles and self.color is not None:
-            raise ConstraintViolation(
-                "shapes", f"shape '{self.id}' is only a CollisionShape, so it takes no color"
-            )
 
     def _scale(self, graph: Graph) -> tuple[float, float, float]:
         factors = []

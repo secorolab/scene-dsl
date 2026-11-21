@@ -50,16 +50,22 @@ RigidBody:
 
 ScaleSpec: FLOAT | FloatVector ;
 PrimitiveShapeType: 'cube' | 'cylinder' | 'sphere' ;
+ShapeRole: 'visual' | 'collision' ;
 
-// A file shape names its file; a primitive has none. SceneShape checks this, not the grammar.
-// A shape is unnamed: its IRI comes from its frame (see SceneShape.uri).
+// SceneShape, not the grammar, checks that only a file shape has a file.
+// A shape's IRI comes from its frame, as it has no name (see SceneShape.uri).
+// A shape that states no role gets both roles. A collision-only shape's colour, if stated, is
+// for viewers that show collision geometry for debugging.
 SceneShape:
 'shape' (primitive=PrimitiveShapeType | 'file') '{'
-    'frame' ':' '<' frame=[Frame|FQN] '>'
-    file=FileSpec?
-    'unit' ':' unit=LengthUnit
-    ('scale' ':' scale=ScaleSpec)?
-    ('color' ':' color=Color)?
+    (
+        ('frame' ':' '<' frame=[Frame|FQN] '>')
+        (file=FileSpec)?
+        ('unit' ':' unit=LengthUnit)
+        ('scale' ':' scale=ScaleSpec)?
+        ('color' ':' color=Color)?
+        ('role' ':' roles+=ShapeRole)?
+    )#
 '}'
 ;
 

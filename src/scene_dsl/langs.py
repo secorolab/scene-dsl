@@ -14,7 +14,7 @@ from textx import (
     textx_isinstance,
 )
 from textx.exceptions import TextXSemanticError
-from textx.scoping import Postponed
+from textx.scoping import Postponed, get_included_models
 
 from scene_dsl.classes.color import HexColor, HSVColor, RGBAColor, RGBColor
 from scene_dsl.classes.common import (
@@ -427,13 +427,16 @@ def check_unique_uris(model, metamodel):
 
 
 def check_shape_frames(model, metamodel):
-    for shape in get_children(lambda item: isinstance(item, SceneShape), model):
-        # A shape hangs on its body, so its frame must be one of that body's.
-        if shape.frame.parent is not shape.parent:
-            raise TextXSemanticError(
-                f"{shape.label} must use a frame owned by '{shape.parent.name}'",
-                **get_location(shape),
-            )
+    # An imported model's processors run before its own references resolve, so its shapes are
+    # checked by the model that imports it, once they have.
+    for included in get_included_models(model):
+        for shape in get_children(lambda item: isinstance(item, SceneShape), included):
+            # A shape hangs on its body, so its frame must be one of that body's.
+            if shape.frame is not None and shape.frame.parent is not shape.parent:
+                raise TextXSemanticError(
+                    f"{shape.label} must use a frame owned by '{shape.parent.name}'",
+                    **get_location(shape),
+                )
 
 
 # One per language: building another resets textx's stash on the shared user classes mid-import.

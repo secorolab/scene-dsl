@@ -167,11 +167,13 @@ ktree (ns=scene_lab_mjc) world_tree {
 
     body world_body {
         frame world { }
+        // A marker: visual only. It states no colour, so the viewer picks one.
         shape file {
             frame: <world>
             sys path = "../assets/tetra.stl"
             unit: cm
             scale: 5
+            role: visual
         }
     }
 
@@ -242,12 +244,13 @@ scene inst (ns=scene_lab_mjc) pickplace_scene_mjc {
                     }
                 }
             }
-            // The size and colour of cube.xml's box (half-size 0.02 m).
+            // The size and colour of cube.xml's box (half-size 0.02 m), with both roles.
             shape cube {
                 frame: <box1_root>
                 unit: cm
                 scale: 4
                 color: #1A59FF
+                role: visual collision
             }
             inertia {
                 frame: <box1_root>
@@ -260,7 +263,8 @@ scene inst (ns=scene_lab_mjc) pickplace_scene_mjc {
             }
         }
 
-        // free bodies with only a shape: a sphere in m and a cylinder in mm
+        // free bodies with only a shape: a sphere in m and a cylinder in mm, with no role
+        // stated, so each gets both roles
         body ball_body {
             frame ball_root {
                 pose ball_on_table {

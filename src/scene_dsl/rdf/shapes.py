@@ -6,6 +6,7 @@ from rdf_utils.models.vocab import (
     URI_SHAPES_PRED_ATTACHED_TO_FRAME,
     URI_SHAPES_TYPE_FILE_BASED_SHAPE,
     URI_SHAPES_TYPE_SCALED_SHAPE,
+    URI_SHAPES_TYPE_SHAPE,
 )
 from rdflib import RDF, XSD, Graph, Literal
 from rdflib.namespace import PROV
@@ -25,6 +26,7 @@ def add_shape_scale(graph: Graph, shape: SceneShape) -> None:
 
 
 def add_shape(graph: Graph, shape: SceneShape) -> None:
+    graph.add((shape.uri, RDF.type, URI_SHAPES_TYPE_SHAPE))
     graph.add((shape.uri, URI_SHAPES_PRED_ATTACHED_TO_FRAME, shape.frame.uri))
     graph.add((shape.uri, URI_QUDT_PRED_UNIT, LENGTH_UNITS[shape.unit]))
     if shape.primitive is not None:
@@ -34,5 +36,7 @@ def add_shape(graph: Graph, shape: SceneShape) -> None:
         add_entity(graph, shape.uri)
         graph.add((shape.uri, PROV.wasDerivedFrom, add_file_source(graph, shape.file)))
     add_shape_scale(graph, shape)
+    for role in shape.roles:
+        graph.add((shape.uri, RDF.type, role.value))
     if shape.color is not None:
         add_color(graph, shape.uri, shape.color_uri, shape.color.scheme, shape.color.literal)

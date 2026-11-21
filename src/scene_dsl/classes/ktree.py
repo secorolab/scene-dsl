@@ -260,9 +260,7 @@ class SceneShape(IHasNamespace):
     scale: list[float] | None
     roles: set[ShapeRole]
 
-    def __init__(
-        self, parent, primitive, frame, file, unit, scale=None, color=None, roles=()
-    ) -> None:
+    def __init__(self, parent, primitive, frame, file, unit, scale, color, roles) -> None:
         super().__init__(parent=parent)
         # textX resolves references before it builds user classes, so the frame is known here.
         self.frame = frame
@@ -273,12 +271,15 @@ class SceneShape(IHasNamespace):
         self.unit = unit
         self.color = color
         self.scale = None
-        # The keyword `visual` names member VISUAL. A shape that states no role is drawn and in
-        # contact.
-        stated = [ShapeRole[role.upper()] for role in roles]
-        if len(set(stated)) != len(stated):
-            raise ValueError(f"{self.label} states a role twice: {' '.join(roles)}")
-        self.roles = set(stated) or {ShapeRole.VISUAL, ShapeRole.COLLISION}
+        self.roles = set()
+        for role in roles:
+            member = ShapeRole[role.upper()]
+            if member in self.roles:
+                raise ValueError(f"{self.label} states role '{role}' twice")
+            self.roles.add(member)
+        # A shape that states no role gets both roles.
+        if not self.roles:
+            self.roles = {ShapeRole.VISUAL, ShapeRole.COLLISION}
 
         # One grammar rule covers both kinds, so it no longer keeps files to file shapes.
         if self.primitive is None and file is None:

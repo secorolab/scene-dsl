@@ -5,8 +5,8 @@ A shape is a unit base in its declared length unit -- a cube of side 1, a cylind
 of radius 1, or a file's own coordinates -- scaled per local axis, with its origin and
 axes at the frame it is attached to. Where that frame is, is the kinematics' to say. The scale
 and unit are kept as the graph states them; a consumer that needs lengths converts them, e.g.
-with rdf-utils' `to_metres`. A shape's roles say whether it is drawn, takes part in contact, or
-both, and every shape states at least one.
+with rdf-utils' `to_metres`. A shape's roles are visual, collision or both; every shape states at
+least one.
 """
 
 import math
@@ -56,10 +56,11 @@ class ShapeRole(Enum):
 
 SCALE_PREDS = (URI_SHAPES_PRED_SCALE_X, URI_SHAPES_PRED_SCALE_Y, URI_SHAPES_PRED_SCALE_Z)
 SHAPE_TYPES = {URI_SHAPES_TYPE_FILE_BASED_SHAPE, *(t.value for t in PrimitiveShapeType)}
+ROLE_TYPES = {r.value for r in ShapeRole}
 
 
 class ShapeModel(ModelBase):
-    """One shape a scene draws.
+    """One shape in a scene.
 
     Attributes:
         frame: the frame the shape is attached to
@@ -70,7 +71,7 @@ class ShapeModel(ModelBase):
             radii and its height, or the length of one of a file's coordinate units
         unit: the QUDT length unit of the base, one of rdf-utils' `LENGTH_UNITS`
         color: the colour as the scene states it; None when it states none
-        roles: whether the shape is drawn, takes part in contact, or both; never empty
+        roles: visual, collision or both; never empty
     """
 
     frame: URIRef
@@ -110,7 +111,7 @@ class ShapeModel(ModelBase):
             )
         self.unit = unit
         self.scale = self._scale(graph)
-        self.roles = {role for role in ShapeRole if role.value in self.types}
+        self.roles = {ShapeRole(t) for t in self.types & ROLE_TYPES}
         if not self.roles:
             raise ConstraintViolation(
                 "shapes", f"shape '{self.id}' needs a role: VisualShape, CollisionShape or both"

@@ -26,7 +26,6 @@ def add_shape_scale(graph: Graph, shape: SceneShape) -> None:
 
 
 def add_shape(graph: Graph, shape: SceneShape) -> None:
-    # Stated beside the geometric type, as the metamodel's constraints require Shape itself.
     graph.add((shape.uri, RDF.type, URI_SHAPES_TYPE_SHAPE))
     graph.add((shape.uri, URI_SHAPES_PRED_ATTACHED_TO_FRAME, shape.frame.uri))
     graph.add((shape.uri, URI_QUDT_PRED_UNIT, LENGTH_UNITS[shape.unit]))

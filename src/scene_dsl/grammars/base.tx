@@ -3,8 +3,7 @@ Import: 'import' importURI=STRING;
 Comment: /\/\/.*$/;
 NamespaceDeclare: 'ns' name=IRI_TRUNK '=' uri=STRING ;
 IRI_TRUNK: /[^\d\W][\w-]*\b/;
-// A file named by path: on this system (absolute, or relative to the model naming it), or in a
-// ROS or Python package.
+// A relative system path is relative to the model naming it.
 SystemPath: 'sys' 'path' '=' path=STRING ;
 PackagePath: kind=PackageKind 'pkg' '=' pkg=STRING ',' 'path' '=' path=STRING ;
 PackageKind: 'ros' | 'py' ;

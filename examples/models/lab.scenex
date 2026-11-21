@@ -167,7 +167,7 @@ ktree (ns=scene_lab_mjc) world_tree {
 
     body world_body {
         frame world { }
-        // A marker: only drawn. It states no colour, so whatever draws it picks one.
+        // A marker: visual only. It states no colour, so the viewer picks one.
         shape file {
             frame: <world>
             sys path = "../assets/tetra.stl"
@@ -244,7 +244,7 @@ scene inst (ns=scene_lab_mjc) pickplace_scene_mjc {
                     }
                 }
             }
-            // The size and colour of cube.xml's box (half-size 0.02 m), drawn and grasped.
+            // The size and colour of cube.xml's box (half-size 0.02 m), with both roles.
             shape cube {
                 frame: <box1_root>
                 unit: cm
@@ -264,7 +264,7 @@ scene inst (ns=scene_lab_mjc) pickplace_scene_mjc {
         }
 
         // free bodies with only a shape: a sphere in m and a cylinder in mm, with no role
-        // stated, so each is drawn and in contact
+        // stated, so each gets both roles
         body ball_body {
             frame ball_root {
                 pose ball_on_table {

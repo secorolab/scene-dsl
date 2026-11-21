@@ -95,8 +95,8 @@ def test_example_shapes_read_back_as_authored():
         (ColorScheme.RGB, "#1A59FF"),
     ]
     assert marker.color is None
-    # The marker is only drawn, the box is drawn and grasped, and the ball and bottle state no
-    # role, so they are drawn and in contact too.
+    # The marker is visual only, the box states both roles, and the ball and bottle state none,
+    # so they get both.
     assert [s.roles for s in (ball, bottle, box, marker)] == [BOTH, BOTH, BOTH, VISUAL]
 
 
@@ -137,7 +137,7 @@ def test_shape_spec_reads_back(spec, roles, color, scale):
         ("scale: (1.0, 2.0)", ValueError, "cube on 'f' scale requires 3 values, got 2"),
         ("scale: 0", ValueError, "cube on 'f' scale is 0.0, expected a finite positive number"),
         ("scale: (1.0, -2.0, 3.0)", ValueError, "scale is -2.0, expected a finite positive number"),
-        ("role: visual visual", ValueError, "cube on 'f' states a role twice: visual visual"),
+        ("role: visual visual", ValueError, "cube on 'f' states role 'visual' twice"),
         ("color: rgb(256, 0, 0)", ValueError, "red is 256, expected an integer in [0, 255]"),
         ("color: rgba(0, 0, 0, -1)", ValueError, "alpha is -1, expected an integer in [0, 255]"),
         ("color: hsv(360, 0.5, 0.5)", ValueError, "hsv hue is 360, expected degrees in [0, 360)"),

@@ -56,11 +56,13 @@ ShapeRole: 'visual' | 'collision' ;
 // A shape's IRI comes from its frame, as it has no name (see SceneShape.uri).
 // A shape that states no role gets both roles. A collision-only shape's colour, if stated, is
 // for viewers that show collision geometry for debugging.
+// `#` makes the group unordered: the fields may come in any order, each at most once. A field of
+// several tokens is parenthesised so that its tokens stay together.
 SceneShape:
 'shape' (primitive=PrimitiveShapeType | 'file') '{'
     (
         ('frame' ':' '<' frame=[Frame|FQN] '>')
-        (file=FileSpec)?
+        file=FileSpec?
         ('unit' ':' unit=LengthUnit)
         ('scale' ':' scale=ScaleSpec)?
         ('color' ':' color=Color)?

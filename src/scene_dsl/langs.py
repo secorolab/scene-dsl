@@ -438,8 +438,8 @@ def check_unique_uris(model, metamodel):
 
 
 def check_shape_frames(model, metamodel):
-    # An imported model's processors run before its own references resolve, so its shapes are
-    # checked by the model that imports it, once they have.
+    # An imported model's processors run before its references resolve, so its shapes are
+    # checked by the model that imports it, after those references have resolved.
     for included in get_included_models(model):
         for shape in get_children(lambda item: isinstance(item, SceneShape), included):
             # A shape hangs on its body, so its frame must be one of that body's.

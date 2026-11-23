@@ -50,9 +50,8 @@ RigidBody:
 
 ScaleSpec: FLOAT | FloatVector ;
 PrimitiveShapeType: 'cube' | 'cylinder' | 'sphere' ;
+ShapeRole: 'visual' | 'collision' ;
 
-// A file shape names its file; a primitive has none. SceneShape checks this, not the grammar.
-// A shape is unnamed: its IRI comes from its frame (see SceneShape.uri).
 SceneShape:
 'shape' (primitive=PrimitiveShapeType | 'file') '{'
     'frame' ':' '<' frame=[Frame|FQN] '>'
@@ -60,6 +59,7 @@ SceneShape:
     'unit' ':' unit=LengthUnit
     ('scale' ':' scale=ScaleSpec)?
     ('color' ':' color=Color)?
+    ('role' ':' roles+=ShapeRole)?
 '}'
 ;
 

@@ -1,11 +1,12 @@
 # SPDX-License-Identifier: MPL-2.0
-"""The shapes a scene's graph draws: what each is, the frame it hangs on, its size and colour.
+"""The shapes in a scene's graph: what each is, the frame it hangs on, its size, colour and roles.
 
 A shape is a unit base in its declared length unit -- a cube of side 1, a cylinder or sphere
 of radius 1, or a file's own coordinates -- scaled per local axis, with its origin and
 axes at the frame it is attached to. Where that frame is, is the kinematics' to say. The scale
 and unit are kept as the graph states them; a consumer that needs lengths converts them, e.g.
-with rdf-utils' `to_metres`.
+with rdf-utils' `to_metres`. A shape's roles are visual, collision or both; every shape states at
+least one.
 """
 
 import math
@@ -23,11 +24,14 @@ from rdf_utils.models.vocab import (
     URI_SHAPES_PRED_SCALE_X,
     URI_SHAPES_PRED_SCALE_Y,
     URI_SHAPES_PRED_SCALE_Z,
+    URI_SHAPES_TYPE_COLLISION_SHAPE,
     URI_SHAPES_TYPE_FILE_BASED_SHAPE,
     URI_SHAPES_TYPE_SCALED_SHAPE,
+    URI_SHAPES_TYPE_SHAPE,
     URI_SHAPES_TYPE_UNIT_CUBE,
     URI_SHAPES_TYPE_UNIT_CYLINDER,
     URI_SHAPES_TYPE_UNIT_SPHERE,
+    URI_SHAPES_TYPE_VISUAL_SHAPE,
 )
 from rdflib import XSD, Graph, URIRef
 from rdflib.namespace import PROV
@@ -43,12 +47,20 @@ class PrimitiveShapeType(Enum):
     SPHERE = URI_SHAPES_TYPE_UNIT_SPHERE
 
 
+class ShapeRole(Enum):
+    """What a shape is for; the value is its class in the shapes metamodel."""
+
+    VISUAL = URI_SHAPES_TYPE_VISUAL_SHAPE
+    COLLISION = URI_SHAPES_TYPE_COLLISION_SHAPE
+
+
 SCALE_PREDS = (URI_SHAPES_PRED_SCALE_X, URI_SHAPES_PRED_SCALE_Y, URI_SHAPES_PRED_SCALE_Z)
 SHAPE_TYPES = {URI_SHAPES_TYPE_FILE_BASED_SHAPE, *(t.value for t in PrimitiveShapeType)}
+ROLE_TYPES = {r.value for r in ShapeRole}
 
 
 class ShapeModel(ModelBase):
-    """One shape a scene draws.
+    """One shape in a scene.
 
     Attributes:
         frame: the frame the shape is attached to
@@ -59,6 +71,7 @@ class ShapeModel(ModelBase):
             radii and its height, or the length of one of a file's coordinate units
         unit: the QUDT length unit of the base, one of rdf-utils' `LENGTH_UNITS`
         color: the colour as the scene states it; None when it states none
+        roles: visual, collision or both; never empty
     """
 
     frame: URIRef
@@ -67,9 +80,12 @@ class ShapeModel(ModelBase):
     scale: tuple[float, float, float]
     unit: URIRef
     color: ColorModel | None
+    roles: set[ShapeRole]
 
     def __init__(self, shape_id: URIRef, graph: Graph) -> None:
         super().__init__(node_id=shape_id, graph=graph)
+        if URI_SHAPES_TYPE_SHAPE not in self.types:
+            raise ConstraintViolation("shapes", f"shape '{self.id}' is not typed Shape")
         kinds = self.types & SHAPE_TYPES
         if len(kinds) != 1:
             raise ConstraintViolation(
@@ -95,6 +111,11 @@ class ShapeModel(ModelBase):
             )
         self.unit = unit
         self.scale = self._scale(graph)
+        self.roles = {ShapeRole(t) for t in self.types & ROLE_TYPES}
+        if not self.roles:
+            raise ConstraintViolation(
+                "shapes", f"shape '{self.id}' needs a role: VisualShape, CollisionShape or both"
+            )
         self.color = get_color(graph, self.id)
 
     def _scale(self, graph: Graph) -> tuple[float, float, float]:

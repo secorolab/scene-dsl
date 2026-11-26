@@ -32,7 +32,7 @@ ktree (ns=scene_lab_mjc) panda_tree {
     body panda_base_body {
         frame base_link {
             pose panda_on_table {
-                wrt: <world_tree.table_body.table_root>
+                wrt: <world_tree.table_body.panda_mount>
                 xyz: (0.0, 0.0, 0.0) m
                 orientation: direction-cosine {
                     x: (1.0, 0.0, 0.0)
@@ -178,18 +178,51 @@ ktree (ns=scene_lab_mjc) world_tree {
     }
 
     body table_body {
-        frame table_root {
+        frame table_top {
+            // table.xml's origin is the top surface's centre and its legs reach 0.7 m below
+            // it, so the top stands 0.7 m up for the legs to meet the floor.
             pose table_in_world {
                 wrt: <world_body.world>
-                xyz: (0.0, 0.0, 0.0) m
+                xyz: (0.0, 0.0, 0.7) m
                 orientation: euler {
                     angles: (0.0, 0.0, 0.0)
                     unit: rad
                 }
             }
         }
+        // One robot per corner of the 1.6 m x 1.2 m top, 0.15 m in from both edges, each
+        // turned to face the table's centre.
+        frame arm1_mount {
+            pose arm1_mount_on_table {
+                wrt: <table_top>
+                xyz: (0.65, -0.45, 0.0) m
+                orientation: euler { axes: xyz extrinsic angles: (0.0, 0.0, 145.3) unit: deg }
+            }
+        }
+        frame panda_mount {
+            pose panda_mount_on_table {
+                wrt: <table_top>
+                xyz: (0.65, 0.45, 0.0) m
+                orientation: euler { axes: xyz extrinsic angles: (0.0, 0.0, -145.3) unit: deg }
+            }
+        }
+        frame arm2_mount {
+            pose arm2_mount_on_table {
+                wrt: <table_top>
+                xyz: (-0.65, 0.45, 0.0) m
+                orientation: euler { axes: xyz extrinsic angles: (0.0, 0.0, -34.7) unit: deg }
+            }
+        }
+        frame ur10_mount {
+            pose ur10_mount_on_table {
+                wrt: <table_top>
+                xyz: (-0.65, -0.45, 0.0) m
+                // ur10e.xml turns its base half a turn, so facing the centre takes 180 deg more.
+                orientation: euler { axes: xyz extrinsic angles: (0.0, 0.0, -145.3) unit: deg }
+            }
+        }
         inertia {
-            frame: <table_root>
+            frame: <table_top>
             mass: 10.0 kg
             inertia-matrix: (
                 (1.0, 0.0, 0.0),
@@ -204,22 +237,22 @@ ktree (ns=scene_lab_mjc) world_tree {
         // holds it: without this the table hangs from nothing.
         fixed table_on_world {
             parent: <world_body.world>
-            child: <table_body.table_root>
+            child: <table_body.table_top>
         }
         fixed ur10_on_table {
-            parent: <table_body.table_root>
+            parent: <table_body.ur10_mount>
             child: <ur10.base.base_origin>
         }
         fixed panda_on_table {
-            parent: <table_body.table_root>
+            parent: <table_body.panda_mount>
             child: <panda_tree.panda_base_body.base_link>
         }
         fixed arm1_on_table {
-            parent: <table_body.table_root>
+            parent: <table_body.arm1_mount>
             child: <arm1.base_link.base_link_origin>
         }
         fixed arm2_on_table {
-            parent: <table_body.table_root>
+            parent: <table_body.arm2_mount>
             child: <arm2.base_link.base_link_origin>
         }
     }
@@ -236,8 +269,9 @@ scene inst (ns=scene_lab_mjc) pickplace_scene_mjc {
         body box1_body {
             frame box1_root {
                 pose box1_on_table {
-                    wrt: <world_tree.table_body.table_root>
-                    xyz: (0.45, 0.1, 0.75) m
+                    wrt: <world_tree.table_body.table_top>
+                    // On the table top: half the cube's 4 cm edge.
+                    xyz: (0.45, 0.1, 0.02) m
                     orientation: euler {
                         angles: (0.0, 0.0, 0.0)
                         unit: rad
@@ -268,8 +302,9 @@ scene inst (ns=scene_lab_mjc) pickplace_scene_mjc {
         body ball_body {
             frame ball_root {
                 pose ball_on_table {
-                    wrt: <world_tree.table_body.table_root>
-                    xyz: (0.45, -0.1, 0.75) m
+                    wrt: <world_tree.table_body.table_top>
+                    // On the table top: the sphere's radius.
+                    xyz: (0.45, -0.1, 0.04) m
                     orientation: euler { angles: (0.0, 0.0, 0.0) unit: rad }
                 }
             }
@@ -284,8 +319,9 @@ scene inst (ns=scene_lab_mjc) pickplace_scene_mjc {
         body bottle_body {
             frame bottle_root {
                 pose bottle_on_table {
-                    wrt: <world_tree.table_body.table_root>
-                    xyz: (0.3, 0.1, 0.75) m
+                    wrt: <world_tree.table_body.table_top>
+                    // On the table top: half the cylinder's 200 mm height.
+                    xyz: (0.3, 0.1, 0.1) m
                     orientation: euler { angles: (0.0, 0.0, 0.0) unit: rad }
                 }
             }
@@ -305,15 +341,17 @@ scene inst (ns=scene_lab_mjc) pickplace_scene_mjc {
     }
 
     obj <ws_objects.dining_table> {
-        model mjc-table as mjcf { sys path = '~/.cache/mj_kdl_wrapper/assets/table.xml' }
-        model mjc-ros as mjcf { ros pkg = "test_pkg", path = "assets/table.xml"
+        model mjc-table as mjcf { sys path = '~/.cache/mj_kdl_wrapper/assets/table.xml'
             map body <world_tree.table_body> to "table"
         }
+        // Shows the `ros pkg` form (tests/test_scene.py checks it). It maps nothing, so the
+        // viewer never has to find "test_pkg", which no ament index here holds.
+        model mjc-ros as mjcf { ros pkg = "test_pkg", path = "assets/table.xml" }
     }
 
     agn <isaac_agents.panda> {
         model panda-mjc as mjcf {
-            sys path = '../robot-models/franka_emika_panda/mjx_panda.xml'
+            sys path = '~/.cache/mj_kdl_wrapper/menagerie/franka_emika_panda/mjx_panda.xml'
             map tree <panda_tree> to "panda"
         }
         camera wrist_cam {
@@ -349,7 +387,7 @@ scene inst (ns=scene_lab_mjc) pickplace_scene_mjc {
         }
         model gripper-mjc as mjcf {
             sys path = '~/.cache/mj_kdl_wrapper/assets/robotiq_2f85/2f85.xml'
-            map tree <gripper> to "2f85"
+            map tree <gripper> to "base_mount"
         }
     }
 

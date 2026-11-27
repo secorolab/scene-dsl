@@ -51,12 +51,17 @@ def _stands_for(graph: Graph) -> dict[URIRef, str]:
     labels = {}
     for modelled in typed(graph.subjects(URI_ENV_PRED_OF_OBJ, None), URI_ENV_TYPE_MOD_OBJ, graph):
         obj = ensure_one_obj_uri(graph=graph, subject=modelled, predicate=URI_ENV_PRED_OF_OBJ)
-        for model in uris(graph.objects(modelled, URI_ENV_PRED_HAS_OBJ_MODEL)):
-            mappings = tuple(uris(graph.objects(modelled, URI_EXEC_PRED_HAS_MAPPING)))
-            for mapping in mappings or uris(graph.objects(model, URI_EXEC_PRED_HAS_MAPPING)):
-                for body in uris(graph.objects(mapping, URI_EXEC_PRED_MAPS)):
-                    if obj is not None:
-                        labels[body] = split_uri(obj)[1]
+        # The object's own mappings select among its models' -- or, for an object the scene
+        # builds from a body, with no model at all, are the only ones.
+        selected = tuple(uris(graph.objects(modelled, URI_EXEC_PRED_HAS_MAPPING)))
+        mappings = set(selected)
+        if not selected:
+            for model in uris(graph.objects(modelled, URI_ENV_PRED_HAS_OBJ_MODEL)):
+                mappings |= set(uris(graph.objects(model, URI_EXEC_PRED_HAS_MAPPING)))
+        for mapping in mappings:
+            for body in uris(graph.objects(mapping, URI_EXEC_PRED_MAPS)):
+                if obj is not None:
+                    labels[body] = split_uri(obj)[1]
     return labels
 
 

@@ -35,7 +35,13 @@ ElementModelRef:
 'map' 'body' '<' body=[RigidBody|FQN] '>' ('to' entity=STRING)?
 ;
 
-ModelledObjectModel: ElementModel | ElementModelRef ;
+// An object the scene builds from one of its own bodies, with no model file: its geometry is
+// the body's collision shape and its mass the body's inertia.
+BodyRef:
+'body' '<' body=[RigidBody|FQN] '>'
+;
+
+ModelledObjectModel: ElementModel | ElementModelRef | BodyRef ;
 
 ModelledObject:
 'obj' '<' obj=[Object|FQN] '>' '{'

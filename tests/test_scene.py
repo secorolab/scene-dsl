@@ -18,6 +18,7 @@ from rdflib import DCTERMS, PROV, RDF, SDO, Dataset, Literal, Namespace, URIRef
 from textx.exceptions import TextXSemanticError
 
 from scene_dsl.classes.common import IHasNamespace, PackagePath
+from scene_dsl.classes.scenex import ElementModel
 from scene_dsl.langs import scene_metamodel, scenex_metamodel
 from scene_dsl.rdf.scene import create_scene_model_graph
 from scene_dsl.rdf.scenex import URI_MJCF_MUJOCO, create_scenex_model_graph
@@ -227,11 +228,15 @@ def test_scene_parser_loads_modelled_objects_and_agents():
     assert not hasattr(parsed, "mapping_loader")
     assert not hasattr(parsed, "workspace_models")
 
+    # An object's models may also be references to a scene model or the object's own body,
+    # which name no file.
     ros_model = next(
         elem_model
         for modelled in scene_instance.modelled_objs
         for elem_model in modelled.models
-        if isinstance(elem_model.model_spec, PackagePath) and elem_model.model_spec.kind == "ros"
+        if isinstance(elem_model, ElementModel)
+        and isinstance(elem_model.model_spec, PackagePath)
+        and elem_model.model_spec.kind == "ros"
     )
     location = graph.value(graph.value(ros_model.uri, DCTERMS.source), PROV.atLocation)
     package = graph.value(location, PROV.atLocation)

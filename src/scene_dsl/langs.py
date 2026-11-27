@@ -60,6 +60,7 @@ from scene_dsl.classes.ktree import (
     RigidBodyInertia,
     SceneShape,
     SerialJoints,
+    SurfaceFriction,
 )
 from scene_dsl.classes.scene import (
     Agent,
@@ -75,6 +76,7 @@ from scene_dsl.classes.scene import (
 )
 from scene_dsl.classes.scenex import (
     BodyMapping,
+    BodyRef,
     ElementModel,
     ElementModelRef,
     ModelledAgent,
@@ -358,6 +360,42 @@ def check_model_mappings(model, metamodel):
                 )
             described[id(ref.body)] = ref.model
 
+        for ref in get_children_of_type(BodyRef, scene_inst):
+            if ref.body is None:
+                continue
+            if id(ref.body) in described:
+                raise TextXSemanticError(
+                    f"object '{ref.parent.obj.name}' is built from body '{ref.body.name}', "
+                    "which a model already maps: which one drives it is then undecided",
+                    **get_location(ref),
+                )
+            described[id(ref.body)] = ref
+
+
+def check_body_refs(model, metamodel):
+    """An object built from a body is that body alone, and the body is one of its scene's own.
+
+    A body in a tree belongs to the device the tree describes, which its model file spawns; only
+    a body the scene's kinematic graph declares itself has nothing else to spawn it.
+    """
+    for ref in get_children_of_type(BodyRef, model):
+        if ref.body is None:
+            continue  # Imported models can reach this processor before references resolve.
+        modelled = ref.parent
+        if len(modelled.models) != 1:
+            raise TextXSemanticError(
+                f"object '{modelled.obj.name}' is built from body '{ref.body.name}', so it takes "
+                "no model besides",
+                **get_location(ref),
+            )
+        kgraph = modelled.parent.kgraph
+        if kgraph is None or ref.body.parent is not kgraph:
+            raise TextXSemanticError(
+                f"object '{modelled.obj.name}' is built from body '{ref.body.name}', which is "
+                f"not a body of scene instance '{modelled.parent.name}''s kinematic graph",
+                **get_location(ref),
+            )
+
 
 def check_element_model_refs(model, metamodel):
     """Shared object models must select a body mapped by this scene's stage model."""
@@ -479,6 +517,7 @@ def scenex_metamodel():
             BodyMapping,
             ElementModel,
             ElementModelRef,
+            BodyRef,
             SystemPath,
             PackagePath,
             TreeMapping,
@@ -501,6 +540,7 @@ def scenex_metamodel():
             KinematicGraph,
             RigidBody,
             SceneShape,
+            SurfaceFriction,
             RGBColor,
             RGBAColor,
             HSVColor,
@@ -536,6 +576,7 @@ def scenex_metamodel():
     mm_scenex.register_model_processor(check_tree_topology)
     mm_scenex.register_model_processor(check_model_mappings)
     mm_scenex.register_model_processor(check_element_model_refs)
+    mm_scenex.register_model_processor(check_body_refs)
     mm_scenex.register_model_processor(check_agent_set_membership)
     mm_scenex.register_model_processor(check_shape_frames)
     mm_scenex.register_model_processor(check_unique_uris)

@@ -37,6 +37,13 @@ from rdflib import XSD, Graph, URIRef
 from rdflib.namespace import PROV
 
 from scene_dsl.rdf_parser.common import ensure_one_obj_literal, ensure_one_obj_uri
+from scene_dsl.rdf_parser.vocab import (
+    URI_CONTACT_PRED_HAS_SURFACE_FRICTION,
+    URI_CONTACT_PRED_ROLLING,
+    URI_CONTACT_PRED_SLIDING,
+    URI_CONTACT_PRED_TORSIONAL,
+    URI_CONTACT_TYPE_COULOMB_FRICTION,
+)
 
 
 class PrimitiveShapeType(Enum):
@@ -52,6 +59,59 @@ class ShapeRole(Enum):
 
     VISUAL = URI_SHAPES_TYPE_VISUAL_SHAPE
     COLLISION = URI_SHAPES_TYPE_COLLISION_SHAPE
+
+
+class SurfaceFrictionModel(ModelBase):
+    """The Coulomb friction coefficients of a collision shape's surface, as the graph states them.
+
+    Friction belongs to a pair of surfaces in contact; these are one surface's, which a physics
+    engine combines with the other's. Torsional and rolling coefficients are lengths in `unit`.
+    CoulombFriction is the only friction model read; a stated coefficient makes its component
+    active, as in MuJoCo's geom friction.
+
+    Attributes:
+        sliding: the dimensionless sliding coefficient
+        torsional: the torsional coefficient in `unit`; None when not stated
+        rolling: the rolling coefficient in `unit`; None when not stated
+        unit: the QUDT length unit of torsional and rolling; None when neither is stated
+    """
+
+    sliding: float
+    torsional: float | None
+    rolling: float | None
+    unit: URIRef | None
+
+    def __init__(self, node: URIRef, graph: Graph) -> None:
+        super().__init__(node_id=node, graph=graph)
+        if URI_CONTACT_TYPE_COULOMB_FRICTION not in self.types:
+            raise ConstraintViolation(
+                "shapes", f"friction '{self.id}' is not a CoulombFriction, the only model read"
+            )
+        sliding = self._coefficient(graph, URI_CONTACT_PRED_SLIDING)
+        if sliding is None:
+            raise ConstraintViolation("shapes", f"friction '{self.id}' states no sliding")
+        self.sliding = sliding
+        self.torsional = self._coefficient(graph, URI_CONTACT_PRED_TORSIONAL)
+        self.rolling = self._coefficient(graph, URI_CONTACT_PRED_ROLLING)
+        self.unit = ensure_one_obj_uri(graph, self.id, URI_QUDT_PRED_UNIT)
+        lengths = self.torsional is not None or self.rolling is not None
+        if lengths and self.unit not in LENGTH_UNITS:
+            raise ConstraintViolation(
+                "shapes",
+                f"friction '{self.id}' states torsional or rolling coefficients, which are "
+                f"lengths, but no supported length unit (found {self.unit})",
+            )
+
+    def _coefficient(self, graph: Graph, pred: URIRef) -> float | None:
+        literal = ensure_one_obj_literal(graph, self.id, pred)
+        if literal is None:
+            return None
+        value = float(literal)
+        if not math.isfinite(value) or value < 0:
+            raise ConstraintViolation(
+                "shapes", f"friction '{self.id}' has '{pred}' {value}, expected finite and >= 0"
+            )
+        return value
 
 
 SCALE_PREDS = (URI_SHAPES_PRED_SCALE_X, URI_SHAPES_PRED_SCALE_Y, URI_SHAPES_PRED_SCALE_Z)
@@ -72,6 +132,8 @@ class ShapeModel(ModelBase):
         unit: the QUDT length unit of the base, one of rdf-utils' `LENGTH_UNITS`
         color: the colour as the scene states it; None when it states none
         roles: visual, collision or both; never empty
+        friction: the friction of the shape's surface; None when it states none, and always
+            None for a shape that is not a collision shape
     """
 
     frame: URIRef
@@ -81,6 +143,7 @@ class ShapeModel(ModelBase):
     unit: URIRef
     color: ColorModel | None
     roles: set[ShapeRole]
+    friction: SurfaceFrictionModel | None
 
     def __init__(self, shape_id: URIRef, graph: Graph) -> None:
         super().__init__(node_id=shape_id, graph=graph)
@@ -117,6 +180,12 @@ class ShapeModel(ModelBase):
                 "shapes", f"shape '{self.id}' needs a role: VisualShape, CollisionShape or both"
             )
         self.color = get_color(graph, self.id)
+        friction = ensure_one_obj_uri(graph, self.id, URI_CONTACT_PRED_HAS_SURFACE_FRICTION)
+        if friction is not None and ShapeRole.COLLISION not in self.roles:
+            raise ConstraintViolation(
+                "shapes", f"shape '{self.id}' states friction but is no CollisionShape"
+            )
+        self.friction = None if friction is None else SurfaceFrictionModel(friction, graph)
 
     def _scale(self, graph: Graph) -> tuple[float, float, float]:
         factors = []

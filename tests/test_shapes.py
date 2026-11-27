@@ -95,9 +95,17 @@ def test_example_shapes_read_back_as_authored():
         (ColorScheme.RGB, "#1A59FF"),
     ]
     assert marker.color is None
-    # The marker is visual only, the box states both roles, and the ball and bottle state none,
-    # so they get both.
-    assert [s.roles for s in (ball, bottle, box, marker)] == [BOTH, BOTH, BOTH, VISUAL]
+    # The marker and the box are visual only (cube.xml's geom collides for the box), and the
+    # ball and bottle state no role, so they get both.
+    assert [s.roles for s in (ball, bottle, box, marker)] == [BOTH, BOTH, VISUAL, VISUAL]
+    # Only a collision shape has friction: the ball's and the bottle's, as authored.
+    assert box.friction is None and marker.friction is None
+    assert (ball.friction.sliding, ball.friction.torsional, ball.friction.unit) == (
+        0.8, 0.01, URI_QUDT_UNIT_M,
+    )
+    assert (bottle.friction.torsional, bottle.friction.rolling, bottle.friction.unit) == (
+        10.0, 0.1, URI_QUDT_UNIT_MM,
+    )
 
 
 @pytest.mark.parametrize(

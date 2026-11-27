@@ -12,6 +12,15 @@ NS_MM_SENS = Namespace(f"{URL_SECORO_MM}/robot/sensors#")
 
 URI_SENS_PRED_UPDATE_RATE = NS_MM_SENS["update-rate"]
 
+# The friction of a collision shape's surface (newtonian-rigid-body-dynamics/contact.json).
+NS_MM_CONTACT = Namespace(f"{URL_SECORO_MM}/newtonian-rigid-body-dynamics/contact#")
+URI_CONTACT_TYPE_SURFACE_FRICTION = NS_MM_CONTACT["SurfaceFriction"]
+URI_CONTACT_TYPE_COULOMB_FRICTION = NS_MM_CONTACT["CoulombFriction"]
+URI_CONTACT_PRED_HAS_SURFACE_FRICTION = NS_MM_CONTACT["has-surface-friction"]
+URI_CONTACT_PRED_SLIDING = NS_MM_CONTACT["sliding"]
+URI_CONTACT_PRED_TORSIONAL = NS_MM_CONTACT["torsional"]
+URI_CONTACT_PRED_ROLLING = NS_MM_CONTACT["rolling"]
+
 URI_XML_DOCUMENT = NS_XML["document"]
 URI_URDF_ROBOT = NS_URDF["robot"]
 URI_MJCF_MUJOCO = NS_MJCF["mujoco"]

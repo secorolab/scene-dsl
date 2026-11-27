@@ -122,9 +122,28 @@ class ElementModelRef:
         return self._mapping_uri
 
 
+class BodyRef:
+    """An object the scene builds from one of its own bodies, with no model file.
+
+    The body's collision shape is the object's geometry and its inertia the object's mass; no
+    asset stands between the object and the body, so the object maps the body itself.
+    """
+
+    body: RigidBody
+
+    def __init__(self, parent, body) -> None:
+        self.parent = parent
+        self.body = body
+
+    @property
+    def mapping_uri(self) -> URIRef:
+        """`<modelled object>/body`: an object maps at most one body this way."""
+        return URIRef(f"{self.parent.modelled_uri}/body")
+
+
 class ModelledObject(IHasNamespace):
     obj: Object
-    models: list[ElementModel | ElementModelRef]
+    models: list[ElementModel | ElementModelRef | BodyRef]
     _modelled_uri: URIRef | None
 
     def __init__(self, parent, obj, models) -> None:

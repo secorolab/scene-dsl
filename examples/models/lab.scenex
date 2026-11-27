@@ -265,7 +265,8 @@ scene inst (ns=scene_lab_mjc) pickplace_scene_mjc {
         anchor: <world_tree.world_body.world>
         tree <world_tree>
 
-        // a free body
+        // A free body that a model file stands for: cube.xml spawns it, with its own geom,
+        // mass and friction.
         body box1_body {
             frame box1_root {
                 pose box1_on_table {
@@ -278,27 +279,32 @@ scene inst (ns=scene_lab_mjc) pickplace_scene_mjc {
                     }
                 }
             }
-            // The size and colour of cube.xml's box (half-size 0.02 m), with both roles.
+            // The size and colour of cube.xml's box (half-size 0.02 m). Only drawn: cube.xml's
+            // geom already collides, and a second colliding box in the same place would double
+            // every contact.
             shape cube {
                 frame: <box1_root>
                 unit: cm
                 scale: 4
                 color: #1A59FF
-                role: visual collision
+                role: visual
             }
+            // cube.xml's mass, as a uniform 4 cm cube: m (0.04^2 + 0.04^2) / 12 about each axis.
             inertia {
                 frame: <box1_root>
-                mass: 0.2 kg
+                mass: 0.01 kg
                 inertia-matrix: (
-                    (0.001, 0.0, 0.0),
-                    (0.0, 0.001, 0.0),
-                    (0.0, 0.0, 0.001)
+                    (2.66667e-6, 0.0, 0.0),
+                    (0.0, 2.66667e-6, 0.0),
+                    (0.0, 0.0, 2.66667e-6)
                 ) kg*m^2
             }
         }
 
-        // free bodies with only a shape: a sphere in m and a cylinder in mm, with no role
-        // stated, so each gets both roles
+        // Free bodies the scene builds itself, with no model file: a sphere in m and a cylinder
+        // in mm. Neither states a role, so each is drawn and touched; its one shape is the
+        // object's geom, with the friction stated on it, and its inertia is that of a uniform
+        // solid of that shape, the only inertia the simulation builds for it.
         body ball_body {
             frame ball_root {
                 pose ball_on_table {
@@ -313,6 +319,17 @@ scene inst (ns=scene_lab_mjc) pickplace_scene_mjc {
                 unit: m
                 scale: 0.04
                 color: rgba(230, 51, 51, 255)
+                friction { sliding: 0.8 torsional: 0.01 m rolling: 0.0001 m }
+            }
+            // 0.1 kg: 2/5 m r^2 about each axis.
+            inertia {
+                frame: <ball_root>
+                mass: 0.1 kg
+                inertia-matrix: (
+                    (6.4e-5, 0.0, 0.0),
+                    (0.0, 6.4e-5, 0.0),
+                    (0.0, 0.0, 6.4e-5)
+                ) kg*m^2
             }
         }
 
@@ -330,6 +347,17 @@ scene inst (ns=scene_lab_mjc) pickplace_scene_mjc {
                 unit: mm
                 scale: (35, 35, 200)
                 color: hsv(210, 0.6, 0.9)
+                friction { sliding: 0.8 torsional: 10 mm rolling: 0.1 mm }
+            }
+            // 0.5 kg: m (3 r^2 + h^2) / 12 across the axis, m r^2 / 2 about it.
+            inertia {
+                frame: <bottle_root>
+                mass: 0.5 kg
+                inertia-matrix: (
+                    (0.00181979, 0.0, 0.0),
+                    (0.0, 0.00181979, 0.0),
+                    (0.0, 0.0, 0.00030625)
+                ) kg*m^2
             }
         }
     }
@@ -339,6 +367,10 @@ scene inst (ns=scene_lab_mjc) pickplace_scene_mjc {
             map body <lab_graph.box1_body> to "cube"
         }
     }
+
+    // Built from their bodies: no model file stands behind either.
+    obj <pickplace_objects.ball> { body <lab_graph.ball_body> }
+    obj <pickplace_objects.bottle> { body <lab_graph.bottle_body> }
 
     obj <ws_objects.dining_table> {
         model mjc-table as mjcf { sys path = '~/.cache/mj_kdl_wrapper/assets/table.xml'

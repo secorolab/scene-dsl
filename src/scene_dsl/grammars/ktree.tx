@@ -60,6 +60,17 @@ SceneShape:
     ('scale' ':' scale=ScaleSpec)?
     ('color' ':' color=Color)?
     ('role' ':' roles+=ShapeRole)?
+    friction=SurfaceFriction?
+'}'
+;
+
+// The friction coefficients of the shape's surface. Sliding is dimensionless; torsional and
+// rolling coefficients are lengths, so each states its unit.
+SurfaceFriction:
+'friction' '{'
+    'sliding' ':' sliding=FLOAT
+    ('torsional' ':' torsional=FLOAT torsional_unit=LengthUnit)?
+    ('rolling' ':' rolling=FLOAT rolling_unit=LengthUnit)?
 '}'
 ;
 

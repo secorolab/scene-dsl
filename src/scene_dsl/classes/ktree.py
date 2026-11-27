@@ -248,6 +248,8 @@ class SceneShape(IHasNamespace):
         kind: what messages call the shape: its primitive keyword, or "file shape"
         color: the colour as the scene states it; None when it states none
         roles: the roles the scene states; visual and collision when it states none
+        friction: the friction of the shape's surface; None when it states none. Only a
+            collision shape has one.
     """
 
     frame: Frame
@@ -259,8 +261,11 @@ class SceneShape(IHasNamespace):
     # One factor per axis, or None when unscaled: a scalar scale is the same factor on all three.
     scale: list[float] | None
     roles: set[ShapeRole]
+    friction: SurfaceFriction | None
 
-    def __init__(self, parent, primitive, frame, file, unit, scale, color, roles) -> None:
+    def __init__(
+        self, parent, primitive, frame, file, unit, scale, color, roles, friction=None
+    ) -> None:
         super().__init__(parent=parent)
         # textX resolves references before it builds user classes, so the frame is known here.
         self.frame = frame
@@ -280,6 +285,12 @@ class SceneShape(IHasNamespace):
         # A shape that states no role gets both roles.
         if not self.roles:
             self.roles = {ShapeRole.VISUAL, ShapeRole.COLLISION}
+        # Friction is a property of a surface in contact, so a shape only drawn has none.
+        if friction is not None:
+            if ShapeRole.COLLISION not in self.roles:
+                raise ValueError(f"{self.label} states friction but is no collision shape")
+            friction.check(self.label)
+        self.friction = friction
 
         # One grammar rule covers both kinds, so it no longer keeps files to file shapes.
         if self.primitive is None and file is None:
@@ -322,6 +333,53 @@ class SceneShape(IHasNamespace):
     @property
     def color_uri(self) -> URIRef:
         return URIRef(f"{self.uri}-color")
+
+    @property
+    def friction_uri(self) -> URIRef:
+        return URIRef(f"{self.uri}-friction")
+
+
+class SurfaceFriction:
+    """The friction coefficients of a collision shape's surface.
+
+    Friction belongs to a pair of surfaces; these are one surface's coefficients, which a physics
+    engine combines with the other surface's. Sliding is dimensionless. Torsional and rolling
+    coefficients are lengths, stated in one length unit, as the graph records one unit for both.
+
+    Attributes:
+        unit: the length unit of the torsional and rolling coefficients; None when neither is
+            stated
+    """
+
+    sliding: float
+    torsional: float | None
+    rolling: float | None
+    unit: str | None
+
+    def __init__(self, parent, sliding, torsional, torsional_unit, rolling, rolling_unit) -> None:
+        self.parent = parent
+        # textX gives an unmatched optional FLOAT as 0, so whether it was stated is its unit's.
+        self.sliding = sliding
+        self.torsional = torsional if torsional_unit else None
+        self.rolling = rolling if rolling_unit else None
+        self._units = {unit for unit in (torsional_unit, rolling_unit) if unit}
+        self.unit = next(iter(self._units)) if len(self._units) == 1 else None
+
+    def check(self, label: str) -> None:
+        """Reject coefficients no surface has, naming the shape as LABEL.
+
+        textX builds this block before the shape that holds it, so the shape calls this once it
+        can name itself.
+        """
+        for name in ("sliding", "torsional", "rolling"):
+            value = getattr(self, name)
+            if value is not None and (not isfinite(value) or value < 0):
+                raise ValueError(f"{label} friction {name} is {value}, expected finite and >= 0")
+        if len(self._units) > 1:
+            raise ValueError(
+                f"{label} friction states torsional and rolling in {sorted(self._units)}; state "
+                "both in one length unit"
+            )
 
 
 class RigidBodyInertia:
